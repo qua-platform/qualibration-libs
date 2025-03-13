@@ -1,0 +1,15 @@
+[project]
+name = "qualibrate-libs"
+version = "0.1.0"
+description = "Qualibrate libraries"
+readme = "README.md"
+authors = [{ name = "Theo Laudat", email = "theo@quantum-machines.co" }]
+requires-python = ">=3.9, <3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+packages = ["qualibrate_libs"]
