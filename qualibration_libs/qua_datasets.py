@@ -11,7 +11,10 @@ def to_long_dataframe(ds: xr.Dataset):
     return (
         ds.to_dataframe()
         .reset_index()
-        .melt(id_vars=[k for k in ds.coords.keys()], value_vars=[k for k in ds.data_vars.keys()])
+        .melt(
+            id_vars=[k for k in ds.coords.keys()],
+            value_vars=[k for k in ds.data_vars.keys()],
+        )
     )
 
 
@@ -24,7 +27,10 @@ def extract_dict(ds: xr.Dataset, data_var) -> dict:
 
 
 def convert_IQ_to_V(
-    da: xr.Dataset, qubits: list[AnyTransmon], IQ_list: list[str] = ("I", "Q"), single_demod: bool = False
+    da: xr.Dataset,
+    qubits: list[AnyTransmon],
+    IQ_list: list[str] = ("I", "Q"),
+    single_demod: bool = False,
 ) -> xr.Dataset:
     # TODO: this is Transmon specific so it should probably not belong here
     """
@@ -44,17 +50,21 @@ def convert_IQ_to_V(
     """
     # Create a xarray with a coordinate 'qubit' and the value is q.resonator.operations["readout"].length
     readout_lengths = xr.DataArray(
-        [q.resonator.operations["readout"].length for q in qubits], coords=[("qubit", [q.name for q in qubits])]
+        [q.resonator.operations["readout"].length for q in qubits],
+        coords=[("qubit", [q.name for q in qubits])],
     )
     demod_factor = 2 if single_demod else 1
     return da.assign({key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list})
 
 
-
 def add_amplitude_and_phase(
-    ds: xr.Dataset, dim: str, unwrap_flag: bool=True, subtract_slope_flag: bool = False) -> xr.Dataset:
+    ds: xr.Dataset,
+    dim: str,
+    unwrap_flag: bool = True,
+    subtract_slope_flag: bool = False,
+) -> xr.Dataset:
     """
-    Adds the amplitude 'R' and phase 'phase' data to the specified xarray dataset containing the quadratures 'I' and 'Q'.
+    Adds the amplitude 'IQ_abs' and phase 'phase' data to the specified xarray dataset containing the quadratures 'I' and 'Q'.
 
     Parameters
     ----------
@@ -70,16 +80,16 @@ def add_amplitude_and_phase(
     Returns
     -------
     xr.Dataset
-        The modified xarray dataset with added 'R' and 'phase' variables.
+        The modified xarray dataset with added 'IQ_abs' and 'phase' variables.
 
     Notes
     -----
-    - The amplitude 'R' is calculated as the absolute value of the complex signal formed by 'I' and 'Q'.
+    - The amplitude 'IQ_abs' is calculated as the absolute value of the complex signal formed by 'I' and 'Q'.
     - The phase 'phase' is calculated as the unwrapped angle of the complex signal formed by 'I' and 'Q'.
     - If `subtract_slope_flag` is True, the slope is subtracted from the 'detuning' coordinate using the `subtract_slope` function.
     """
     s = ds["I"] + 1j * ds["Q"]
-    ds["R"] = apply_modulus(s)
+    ds["IQ_abs"] = apply_modulus(s)
     ds["phase"] = apply_angle(s, dim, unwrap_flag)
     if subtract_slope_flag:
         ds["phase"] = subtract_slope(ds.phase, dim)
@@ -138,9 +148,12 @@ def apply_angle(da: xr.DataArray, dim: str, unwrap=True) -> xr.DataArray:
     - If `unwrap` is True, the phase is unwrapped to avoid discontinuities.
     """
     if unwrap:
+
         def f(x):
             return np.unwrap(np.angle(x))
+
     else:
+
         def f(x):
             return np.angle(x)
 
@@ -234,5 +247,11 @@ def integer_histogram(da: xr.DataArray, dim: str, min_length: Optional[int] = No
     def count_bins(vec):
         return np.bincount(vec, minlength=min_length)
 
-    da2 = xr.apply_ufunc(count_bins, da, input_core_dims=[[dim]], output_core_dims=[[da.name]], vectorize=True)
+    da2 = xr.apply_ufunc(
+        count_bins,
+        da,
+        input_core_dims=[[dim]],
+        output_core_dims=[[da.name]],
+        vectorize=True,
+    )
     return da2.assign_coords({da.name: np.arange(len(da2[da.name]))})

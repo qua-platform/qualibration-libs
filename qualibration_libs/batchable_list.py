@@ -78,5 +78,6 @@ class BatchableList(MutableSequence[T]):
 
     def get_names(self):
         names = []
-        for q in self:
+        for q in self._items:
             names.append(q.name)
+        return names

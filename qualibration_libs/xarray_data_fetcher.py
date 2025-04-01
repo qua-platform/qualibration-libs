@@ -37,10 +37,14 @@ class XarrayDataFetcher:
     Class to fetch data using a QmJob and update an xarray.Dataset with the acquired data.
     """
 
-    ignore_handles = ["readout", "readout_timestamps"]
+    ignore_handles = ["readout", "readout_timestamps", "__qpu_execution_time_seconds", "__total_python_runtime_seconds"]
     missing_data_value = 0  # np.nan
 
-    def __init__(self, job: QmJob, axes: Optional[Dict[str, Union[xr.DataArray, np.ndarray]]] = None):
+    def __init__(
+        self,
+        job: QmJob,
+        axes: Optional[Dict[str, Union[xr.DataArray, np.ndarray]]] = None,
+    ):
         """
         Initialize the data fetcher.
 
@@ -116,7 +120,7 @@ class XarrayDataFetcher:
                 continue
 
             logger.debug(f"Fetching data for handle: {data_label}")
-            latest_data = self.job.result_handles[data_label].fetch_all()
+            latest_data = self.job.result_handles.get(data_label).fetch_all()
             self._raw_data[data_label] = latest_data
             logger.debug(f"Data fetched for {data_label}: shape {np.shape(latest_data)}")
 
@@ -146,7 +150,14 @@ class XarrayDataFetcher:
             if not isinstance(data_component, (np.ndarray, type(None))):
                 self.data[data_label] = data_component
 
-        raw_data_arrays = {k: v for k, v in self._raw_data.items() if isinstance(v, (np.ndarray, type(None)))}
+        raw_data_arrays = {}
+        for label, array in self._raw_data.items():
+            if isinstance(array, (np.ndarray, type(None))):
+                raw_data_arrays[label] = array
+            elif isinstance(array, list):
+                raw_data_arrays[label] = np.array(array)
+            else:
+                continue
 
         if not raw_data_arrays:
             logger.debug("No raw data entries to update; returning current dataset.")
@@ -270,7 +281,9 @@ class XarrayDataFetcher:
                 filled_data = self._fill_missing_data(data, non_qubit_shape)
                 logger.debug(f"Key '{key}' does not match pattern; updating without qubit axis.")
                 self.dataset[key] = xr.DataArray(
-                    filled_data, dims=dims_order[1:], coords={dim: self.axes[dim] for dim in dims_order[1:]}
+                    filled_data,
+                    dims=dims_order[1:],
+                    coords={dim: self.axes[dim] for dim in dims_order[1:]},
                 )
         # Process each grouped variable by stacking the arrays along the qubit axis.
         for base, items in grouped.items():

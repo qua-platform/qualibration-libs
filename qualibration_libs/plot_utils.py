@@ -234,7 +234,10 @@ class QubitPairGrid:
         grid_col_idxs = [idx[1] for idx in coupler_indices]
         min_grid_row = min(grid_row_idxs)
         min_grid_col = min(grid_col_idxs)
-        shape = (max(grid_row_idxs) - min_grid_row + 1, max(grid_col_idxs) - min_grid_col + 1)
+        shape = (
+            max(grid_row_idxs) - min_grid_row + 1,
+            max(grid_col_idxs) - min_grid_col + 1,
+        )
 
         figure, all_axes = plt.subplots(*shape, figsize=(shape[1] * size, shape[0] * size), squeeze=False)
 
@@ -339,7 +342,10 @@ class QubitGrid:
         grid_col_idxs = [idx[0] for idx in grid_indices]
         min_grid_row = min(grid_row_idxs)
         min_grid_col = min(grid_col_idxs)
-        shape = (max(grid_row_idxs) - min_grid_row + 1, max(grid_col_idxs) - min_grid_col + 1)
+        shape = (
+            max(grid_row_idxs) - min_grid_row + 1,
+            max(grid_col_idxs) - min_grid_col + 1,
+        )
 
         figure, all_axes = plt.subplots(*shape, figsize=(shape[1] * size, shape[0] * size), squeeze=False)
 
