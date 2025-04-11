@@ -120,7 +120,12 @@ class XarrayDataFetcher:
                 continue
 
             logger.debug(f"Fetching data for handle: {data_label}")
-            latest_data = self.job.result_handles.get(data_label).fetch_all()
+
+            data_handle = self.job.result_handles.get(data_label)
+            if data_handle is None or data_handle.count_so_far() == 0:
+                continue
+
+            latest_data: np.ndarray[Any, np.dtype[np.generic]] | None = data_handle.fetch_all()
             self._raw_data[data_label] = latest_data
             logger.debug(f"Data fetched for {data_label}: shape {np.shape(latest_data)}")
 
