@@ -52,6 +52,8 @@ Provides `fetch_results_as_xarray` to simplify fetching multiple result handles 
 
 Introduces the `TrackableObject` class and the `tracked_updates` context manager. Allows temporary modification of object attributes (including nested objects and dictionaries) while keeping track of original values. Supports automatic or manual reverting of changes, useful for temporarily altering configurations (like QUAM states) during calibration steps.
 
+Note that this class may be deprecated in the near future in favor of something natively implemented in QUAlibrate/QUAM.
+
 ### `xarray_data_fetcher`
 
 Provides the `XarrayDataFetcher` class, a powerful tool for iteratively fetching data from a running or completed QM job. Automatically structures the fetched data into an `xarray.Dataset`, using provided coordinate axes. Handles different data shapes, including cases with a leading "qubit" dimension. Supports live data acquisition during job execution via iteration.
