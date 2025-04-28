@@ -27,7 +27,7 @@ Provides `BatchableList`, a list-like data structure that allows elements to be 
 
 ### `plot_utils`
 
-Contains utility functions for generating plots related to quantum experiments. Includes functions for plotting simulated waveform samples (`plot_simulator_output`), tools for visualizing data on qubit grids (`QubitGrid`, `QubitPairGrid`), and helpers for plotting spectra (`plot_spectrum`) and active reset attempt distributions (`plot_ar_attempts`).
+Contains utility functions for generating plots related to quantum experiments. Includes functions for plotting simulated waveform samples (`plot_simulator_output`), tools for visualizing data on qubit grids (`QubitGrid`, `QubitPairGrid`), and helpers for plotting spectra (`plot_spectrum`) and active reset attempt distributions (`plot_active_reset_attempts`).
 
 ### `power_tools`
 
