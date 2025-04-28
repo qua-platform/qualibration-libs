@@ -4,6 +4,9 @@ from copy import deepcopy
 from contextlib import contextmanager
 
 
+__all__ = ["tracked_updates", "TrackableObject"]
+
+
 @contextmanager
 def tracked_updates(obj, auto_revert: bool = True, dont_assign_to_none: bool = False):
     """
