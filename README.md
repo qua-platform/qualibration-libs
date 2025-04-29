@@ -26,7 +26,7 @@ This package includes the following modules:
   - `feature_detection`: Functions like `peaks_dips` to find peaks/dips in data and `extract_dominant_frequencies` using FFT.
   - `models`: Defines physical models (e.g., `lorentzian_peak`, `oscillation`, `decay_exp`, `S21_abs`, `S21_single`) used for fitting.
 - **`config`**: Contains setup scripts:
-  - `setup`: Includes `create_qualibrate_config` for interactive configuration of the Qualibration environment.
+  - `setup`: Includes `setup_qualibrate_config` for interactive configuration of the Qualibration environment.
 - **`core`**: Includes fundamental utilities:
   - `batchable_list`: Provides `BatchableList`, a list-like data structure that allows elements to be grouped into batches for potentially parallel processing or execution.
   - `trackable_object`: Introduces the `TrackableObject` class and the `tracked_updates` context manager. Allows temporary modification of object attributes (including nested objects and dictionaries) while keeping track of original values. Supports automatic or manual reverting of changes, useful for temporarily altering configurations (like QUAM states) during calibration steps. _(Note: May be deprecated in the future)._
