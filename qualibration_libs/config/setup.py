@@ -12,7 +12,7 @@ def get_input_with_default(prompt, default):
     return user_input if user_input else default
 
 
-def main():
+def create_qualibrate_config():
     config_supports_quam_state = False
     try:
         # Check if qualibrate_config can be imported to determine feature availability
@@ -82,4 +82,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    create_qualibrate_config()
