@@ -1,37 +1,291 @@
+from matplotlib import pyplot as plt
+import qiskit_experiments.curve_analysis as ca
+from scipy.optimize import curve_fit
 import numpy as np
+from scipy.signal import find_peaks
 import xarray as xr
 from lmfit import Model, Parameter, Parameters
-from scipy.signal import find_peaks
-from quam_experiments.analysis.fit import peaks_dips
+from scipy.fft import fft
+
+from qualibration_libs.analysis.feature_detection import peaks_dips
+from qualibration_libs.analysis.models import (
+    S21_abs,
+    S21_single,
+    decay_exp,
+    echo_decay_exp,
+    oscillation,
+    oscillation_decay_exp,
+)
 
 
-def _S21_abs(w, A, k, phi, kappa_p, omega_p, omega_r, J):
+def fix_initial_value(x, da):
+    if len(da.dims) == 1:
+        return float(x)
+    else:
+        return x
 
-    # real transmission function for two resonator in a shunt geometry, assuming
-    # a wide-band resonator (purcell filter) coupled with a coupling strength kappa_p
-    # to a feedline, which in turn is coupled with strength J to another resonator
-    # based on arxiv:2307.07765
 
-    Delta_p = omega_p - w
-    Delta_r = omega_r - w
+def fit_decay_exp(da, dim):
+    def get_decay(dat):
+        def oed(d):
+            return ca.guess.exp_decay(da[dim], d)
 
-    return (A + k * w) * np.abs(
-        np.cos(phi)
-        - np.exp(1j * phi)
-        * kappa_p
-        * (-2 * 1j * Delta_r)
-        / (4 * J**2 + (kappa_p - 2 * 1j * Delta_p) * (-2 * 1j * Delta_r))
+        return np.apply_along_axis(oed, -1, dat)
+
+    def get_amp(dat):
+        max_ = np.max(dat, axis=-1)
+        min_ = np.min(dat, axis=-1)
+        return (max_ - min_) / 2
+
+    def get_min(dat):
+        return np.min(dat, axis=-1)
+
+    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename("decay guess")
+    amp_guess = xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess")
+    min_guess = xr.apply_ufunc(get_min, da, input_core_dims=[[dim]]).rename("min guess")
+
+    def apply_fit(x, y, a, offset, decay):
+        try:
+            # fit = curve_fit(decay_exp, x, y, p0=[a, offset, decay], bounds=(0, [1, 1., -1]))[0]
+            fit, residuals = curve_fit(decay_exp, x, y, p0=[a, offset, decay])
+            return np.array(fit.tolist() + np.array(residuals).flatten().tolist())
+            # return np.array([fit.values[k] for k in ["a", "offset", "decay"]])
+        except RuntimeError:
+            print("Fit failed:")
+            print(f"{a=}, {offset=}, {decay=}")
+            plt.plot(x, decay_exp(x, a, offset, decay))
+            plt.plot(x, y)
+            plt.show()
+            # raise e
+
+    fit_res = xr.apply_ufunc(
+        apply_fit,
+        da[dim],
+        da,
+        amp_guess,
+        min_guess,
+        decay_guess,
+        input_core_dims=[[dim], [dim], [], [], []],
+        output_core_dims=[["fit_vals"]],
+        vectorize=True,
+    )
+    return fit_res.assign_coords(
+        fit_vals=(
+            "fit_vals",
+            [
+                "a",
+                "offset",
+                "decay",
+                "a_a",
+                "a_offset",
+                "a_decay",
+                "offset_a",
+                "offset_offset",
+                "offset_decay",
+                "decay_a",
+                "decay_offset",
+                "decay_decay",
+            ],
+        )
     )
 
 
-def _S21_single(w, A, k, omega_0, omega_r, Q, Qe_real, Qe_imag):
+def fit_oscillation_decay_exp(da, dim):
+    def get_decay(dat):
+        def oed(d):
+            return ca.guess.oscillation_exp_decay(da[dim], d)
 
-    # complex transmision function for a single resonator based on Khalil et al. (arxiv:1108.3117):
-    #  but slightly modified for convenince, by taking into account a non-normalized transmission
-    # and a linear slope of the transmission far from resonance
+        return np.apply_along_axis(oed, -1, dat)
 
-    Qe = Qe_real + 1j * Qe_imag
-    return (A + k * w) * (1 - ((Q / Qe) / (1 + 2 * 1j * Q * (w - omega_r) / (omega_0 + omega_r))))
+    def get_freq(dat):
+        def f(d):
+            return ca.guess.frequency(da[dim], d)
+
+        return np.apply_along_axis(f, -1, dat)
+
+    def get_amp(dat):
+        max_ = np.max(dat, axis=-1)
+        min_ = np.min(dat, axis=-1)
+        return (max_ - min_) / 2
+
+    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename("decay guess")
+    freq_guess = xr.apply_ufunc(get_freq, da, input_core_dims=[[dim]]).rename("freq guess")
+    amp_guess = xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess")
+
+    def apply_fit(x, y, a, f, phi, offset, decay):
+        try:
+            fit, residuals = curve_fit(oscillation_decay_exp, x, y, p0=[a, f, phi, offset, decay])
+            return np.array(fit.tolist() + np.array(residuals).flatten().tolist())
+        except RuntimeError:
+            print(f"{a=}, {f=}, {phi=}, {offset=}, {decay=}")
+            plt.plot(x, oscillation_decay_exp(x, a, f, phi, offset, decay))
+            plt.plot(x, y)
+            plt.show()
+            # raise e
+
+    fit_res = xr.apply_ufunc(
+        apply_fit,
+        da[dim],
+        da,
+        amp_guess,
+        freq_guess,
+        0,
+        0.5,
+        decay_guess,
+        input_core_dims=[[dim], [dim], [], [], [], [], []],
+        output_core_dims=[["fit_vals"]],
+        vectorize=True,
+    )
+    return fit_res.assign_coords(
+        fit_vals=(
+            "fit_vals",
+            [
+                "a",
+                "f",
+                "phi",
+                "offset",
+                "decay",
+                "a_a",
+                "a_f",
+                "a_phi",
+                "a_offset",
+                "a_decay",
+                "f_a",
+                "f_f",
+                "f_phi",
+                "f_offset",
+                "f_decay",
+                "phi_a",
+                "phi_f",
+                "phi_phi",
+                "phi_offset",
+                "phi_decay",
+                "offset_a",
+                "offset_f",
+                "offset_phi",
+                "offset_offset",
+                "offset_decay",
+                "decay_a",
+                "decay_f",
+                "decay_phi",
+                "decay_offset",
+                "decay_decay",
+            ],
+        )
+    )
+
+    # return a * np.exp(-t * decay) + offset
+
+
+def fit_echo_decay_exp(da, dim):
+    def get_decay(dat):
+        def oed(d):
+            return ca.guess.oscillation_exp_decay(da[dim], d)
+
+        return np.apply_along_axis(oed, -1, dat)
+
+    def get_amp(dat):
+        max_ = np.max(dat, axis=-1)
+        min_ = np.min(dat, axis=-1)
+        return (max_ - min_) / 2
+
+    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename("decay guess")
+    amp_guess = xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess")
+
+    def apply_fit(x, y, a, offset, decay, decay_echo):
+        try:
+            fit = curve_fit(echo_decay_exp, x, y, p0=[a, offset, decay, decay_echo])[0]
+            return fit
+        except RuntimeError:
+            print(f"{a=}, {offset=}, {decay=}, {decay_echo=}")
+            plt.plot(x, echo_decay_exp(x, a, offset, decay, decay_echo))
+            plt.plot(x, y)
+            plt.show()
+            # raise e
+
+    fit_res = xr.apply_ufunc(
+        apply_fit,
+        da[dim],
+        da,
+        amp_guess,
+        -0.0005,
+        decay_guess,
+        decay_guess,
+        input_core_dims=[[dim], [dim], [], [], [], []],
+        output_core_dims=[["fit_vals"]],
+        vectorize=True,
+    )
+    return fit_res.assign_coords(fit_vals=("fit_vals", ["a", "offset", "decay", "decay_echo"]))
+
+
+def fit_oscillation(da, dim):
+    def get_freq(dat):
+        def f(d):
+            return ca.guess.frequency(da[dim], d)
+
+        return np.apply_along_axis(f, -1, dat)
+
+    def get_amp(dat):
+        max_ = np.max(dat, axis=-1)
+        min_ = np.min(dat, axis=-1)
+        return (max_ - min_) / 2
+
+    da_c = da - da.mean(dim=dim)
+    freq_guess = fix_initial_value(
+        xr.apply_ufunc(get_freq, da_c, input_core_dims=[[dim]]).rename("freq guess"),
+        da_c,
+    )
+    amp_guess = fix_initial_value(xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess"), da)
+    # phase_guess = np.pi * (da.loc[{dim : da.coords[dim].values[0]}] < da.mean(dim=dim) )
+    phase_guess = np.pi * (da.loc[{dim: np.abs(da.coords[dim]).min()}] < da.mean(dim=dim))
+    offset_guess = da.mean(dim=dim)
+
+    def apply_fit(x, y, a, f, phi, offset):
+        try:
+            model = Model(oscillation, independent_vars=["t"])
+            fit = model.fit(
+                y,
+                t=x,
+                a=Parameter("a", value=a, min=0),
+                f=Parameter("f", value=f, min=np.abs(0.5 * f), max=np.abs(f * 3 + 1e-3)),
+                phi=Parameter("phi", value=phi),
+                offset=offset,
+            )
+            if fit.rsquared < 0.9:
+                fit = model.fit(
+                    y,
+                    t=x,
+                    a=Parameter("a", value=a, min=0),
+                    f=Parameter(
+                        "f",
+                        value=1.0 / (np.max(x) - np.min(x)),
+                        min=0,
+                        max=np.abs(f * 3 + 1e-3),
+                    ),
+                    phi=Parameter("phi", value=phi),
+                    offset=offset,
+                )
+            return np.array([fit.values[k] for k in ["a", "f", "phi", "offset"]])
+        except RuntimeError as e:
+            print(f"{a=}, {f=}, {phi=}, {offset=}")
+            plt.plot(x, oscillation(x, a, f, phi, offset))
+            plt.plot(x, y)
+            plt.show()
+            raise e
+
+    fit_res = xr.apply_ufunc(
+        apply_fit,
+        da[dim],
+        da,
+        amp_guess,
+        freq_guess,
+        phase_guess,
+        offset_guess,
+        input_core_dims=[[dim], [dim], [], [], [], []],
+        output_core_dims=[["fit_vals"]],
+        vectorize=True,
+    )
+    return fit_res.assign_coords(fit_vals=("fit_vals", ["a", "f", "phi", "offset"]))
 
 
 def _truncate_data(transmission, window):
@@ -81,7 +335,7 @@ class _two_resonator_model(Model):
     # that contains I and Q measured as a function of freq.
 
     def __init__(self, J=0, kappa_p=0, *args, **kwargs):
-        super().__init__(_S21_abs, *args, **kwargs)
+        super().__init__(S21_abs, *args, **kwargs)
 
         # params used in the initial guess generator:
         # the window one which the fitting is done, around the initial guess for the resonator peak
@@ -91,7 +345,7 @@ class _two_resonator_model(Model):
 
         transmission_trunc = _truncate_data(transmission, self.window)
 
-        if init_guess == None:
+        if init_guess is None:
             init_guess = _guess_2_resonators(transmission_trunc)
 
         data = transmission_trunc.IQ_abs.values
@@ -207,7 +461,7 @@ class _single_resonator(Model):
     # that contains I and Q measured as a function of freq.
 
     def __init__(self, *args, **kwargs):
-        super().__init__(_S21_single, *args, **kwargs)
+        super().__init__(S21_single, *args, **kwargs)
 
         # params used in the initial guess generator:
         # used to smooth data to improve peak detection
@@ -220,7 +474,7 @@ class _single_resonator(Model):
         # transmission_trunc = _truncate_data(transmission,self.window)
         transmission_trunc = transmission
 
-        if init_guess == None:
+        if init_guess is None:
             init_guess = _guess_single(
                 transmission_trunc,
                 frequency_LO_IF=frequency_LO_IF,
