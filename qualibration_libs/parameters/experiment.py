@@ -3,7 +3,7 @@ from qualibrate import QualibrationNode
 from qualibrate.parameters import RunnableParameters
 from qualibration_libs.core import BatchableList
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
-from quam_config import Quam
+from quam_builder.architecture.superconducting.qpu import AnyQuam
 
 
 class QubitsExperimentNodeParameters(RunnableParameters):
@@ -20,8 +20,7 @@ class QubitsExperimentNodeParameters(RunnableParameters):
     "active_gef". Default is "thermal"."""
 
 
-def get_qubits(node: QualibrationNode) -> BatchableList[Quam.qubit_type]:
-    # todo: need a docstring!
+def get_qubits(node: QualibrationNode) -> BatchableList[AnyTransmon]:
     # todo: make a method once https://github.com/qua-platform/qualibrate-core/pull/89 is merged
     qubits = _get_qubits(node.machine, node.parameters)
 
@@ -34,6 +33,16 @@ def get_qubits(node: QualibrationNode) -> BatchableList[Quam.qubit_type]:
 
     return qubits_batchable_list
 
+def _get_qubits(
+    machine: AnyQuam, node_parameters: QubitsExperimentNodeParameters
+) -> List[AnyTransmon]:
+    # todo: make a method once https://github.com/qua-platform/qualibrate-core/pull/89 is merged
+    if node_parameters.qubits is None or node_parameters.qubits == "":
+        qubits = machine.active_qubits
+    else:
+        qubits = [machine.qubits[q] for q in node_parameters.qubits]
+
+    return qubits
 
 def _make_batchable_list_from_multiplexed(
     items: List, multiplexed: bool
@@ -46,13 +55,4 @@ def _make_batchable_list_from_multiplexed(
     return BatchableList(items, batched_groups)
 
 
-def _get_qubits(
-    machine: Quam, node_parameters: QubitsExperimentNodeParameters
-) -> List[AnyTransmon]:
-    # todo: make a method once https://github.com/qua-platform/qualibrate-core/pull/89 is merged
-    if node_parameters.qubits is None or node_parameters.qubits == "":
-        qubits = machine.active_qubits
-    else:
-        qubits = [machine.qubits[q] for q in node_parameters.qubits]
 
-    return qubits
