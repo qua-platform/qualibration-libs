@@ -118,7 +118,8 @@ class TrackableObject:
         return dir(self._obj)
 
     # Special methods forwarding
-    def _forward_special_method(self, name):
+    @staticmethod
+    def _forward_special_method(name):
         def method(self, *args):
             return getattr(self._obj, name)(*args)
 
