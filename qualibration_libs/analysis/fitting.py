@@ -18,6 +18,8 @@ from qualibration_libs.analysis.models import (
 )
 
 
+__all__ = ["fit_oscillation", "fit_oscillation_decay_exp"]
+
 def fix_initial_value(x, da):
     if len(da.dims) == 1:
         return float(x)

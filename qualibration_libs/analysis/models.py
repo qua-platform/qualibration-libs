@@ -1,5 +1,6 @@
 import numpy as np
 
+__all__ = ["oscillation", "lorentzian_peak", "oscillation_decay_exp", "lorentzian_dip"]
 
 def lorentzian_peak(x, amplitude, center, width, offset):
     """Computes the Lorentzian peak function.

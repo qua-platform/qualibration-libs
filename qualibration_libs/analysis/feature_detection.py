@@ -5,6 +5,7 @@ import xarray as xr
 from scipy.signal import find_peaks, peak_widths
 from scipy.sparse.linalg import spsolve
 
+__all__ = ["peaks_dips"]
 
 def peaks_dips(
     da, dim, prominence_factor=5, number=1, remove_baseline=True
@@ -145,26 +146,26 @@ def peaks_dips(
     )
 
 
-def extract_dominant_frequencies(da, dim="idle_time"):
-    def extract_dominant_frequency(signal, sample_rate):
-        fft_result = fft(signal)
-        frequencies = np.fft.fftfreq(len(signal), 1 / sample_rate)
-        positive_freq_idx = np.where(frequencies > 0)
-        dominant_idx = np.argmax(np.abs(fft_result[positive_freq_idx]))
-        return frequencies[positive_freq_idx][dominant_idx]
-
-    def extract_dominant_frequency_wrapper(signal):
-        sample_rate = 1 / (
-            da.coords[dim][1].values - da.coords[dim][0].values
-        )  # Assuming uniform sampling
-        return extract_dominant_frequency(signal, sample_rate)
-
-    dominant_frequencies = xr.apply_ufunc(
-        extract_dominant_frequency_wrapper,
-        da,
-        input_core_dims=[[dim]],
-        output_core_dims=[[]],
-        vectorize=True,
-    )
-
-    return dominant_frequencies
+# def extract_dominant_frequencies(da, dim="idle_time"):
+#     def extract_dominant_frequency(signal, sample_rate):
+#         fft_result = fft(signal)
+#         frequencies = np.fft.fftfreq(len(signal), 1 / sample_rate)
+#         positive_freq_idx = np.where(frequencies > 0)
+#         dominant_idx = np.argmax(np.abs(fft_result[positive_freq_idx]))
+#         return frequencies[positive_freq_idx][dominant_idx]
+#
+#     def extract_dominant_frequency_wrapper(signal):
+#         sample_rate = 1 / (
+#             da.coords[dim][1].values - da.coords[dim][0].values
+#         )  # Assuming uniform sampling
+#         return extract_dominant_frequency(signal, sample_rate)
+#
+#     dominant_frequencies = xr.apply_ufunc(
+#         extract_dominant_frequency_wrapper,
+#         da,
+#         input_core_dims=[[dim]],
+#         output_core_dims=[[]],
+#         vectorize=True,
+#     )
+#
+#     return dominant_frequencies
