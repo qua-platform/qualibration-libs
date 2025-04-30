@@ -7,6 +7,7 @@ from scipy.sparse.linalg import spsolve
 
 __all__ = ["peaks_dips"]
 
+
 def peaks_dips(
     da, dim, prominence_factor=5, number=1, remove_baseline=True
 ) -> xr.Dataset:
