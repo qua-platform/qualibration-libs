@@ -12,40 +12,54 @@ def get_input_with_default(prompt, default):
     return user_input if user_input else default
 
 
-def main():
+def setup_qualibrate_config():
     config_supports_quam_state = False
     try:
         # Check if qualibrate_config can be imported to determine feature availability
         __import__("qualibrate_config")
         config_supports_quam_state = True
     except ImportError:
-        print(f"{Fore.RED}Warning:{Style.RESET_ALL} 'qualibrate_config' not found. Skipping QUAM state configuration.")
+        print(
+            f"{Fore.RED}Warning:{Style.RESET_ALL} 'qualibrate_config' not found. Skipping QUAM state configuration."
+        )
 
     current_dir = Path(__file__).parent.absolute()
 
     # Define default values
     parameters = {
         "project": "QPU_project",
-        "storage_location": str(current_dir.parent.absolute() / "data/${#/qualibrate/project}"),
-        "calibration_library_folder": str(current_dir.parent.absolute() / "calibrations"),
+        "storage_location": str(
+            current_dir.parent.absolute() / "data/${#/qualibrate/project}"
+        ),
+        "calibration_library_folder": str(
+            current_dir.parent.absolute() / "calibrations"
+        ),
         "quam_state_path": str(current_dir / "quam_state"),
     }
 
     # Display default values
     print(f"\n{Fore.MAGENTA}Default values:{Style.RESET_ALL}")
     for key, value in parameters.items():
-        print(f"{Fore.BLUE}{key}{Style.RESET_ALL}: {Fore.GREEN}{value}{Style.RESET_ALL}")
+        print(
+            f"{Fore.BLUE}{key}{Style.RESET_ALL}: {Fore.GREEN}{value}{Style.RESET_ALL}"
+        )
 
-    print(f"\n{Fore.LIGHTBLACK_EX}Selecting 'n' will allow you to customize each entry.{Style.RESET_ALL}")
+    print(
+        f"\n{Fore.LIGHTBLACK_EX}Selecting 'n' will allow you to customize each entry.{Style.RESET_ALL}"
+    )
     use_all_defaults = (
-        input(f"{Fore.CYAN}Use all default values?{Style.RESET_ALL} {Fore.YELLOW}(y/n){Style.RESET_ALL} ")
+        input(
+            f"{Fore.CYAN}Use all default values?{Style.RESET_ALL} {Fore.YELLOW}(y/n){Style.RESET_ALL} "
+        )
         .strip()
         .lower()
         == "y"
     )
 
     if not use_all_defaults:
-        parameters["project"] = get_input_with_default("Enter project name", parameters["project"])
+        parameters["project"] = get_input_with_default(
+            "Enter project name", parameters["project"]
+        )
         parameters["storage_location"] = get_input_with_default(
             "Enter storage location", parameters["storage_location"]
         )
@@ -78,8 +92,10 @@ def main():
     if result.returncode == 0:
         print(f"{Fore.GREEN}Configuration completed successfully!{Style.RESET_ALL}")
     else:
-        print(f"{Fore.RED}Configuration failed with exit code {result.returncode}.{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}Configuration failed with exit code {result.returncode}.{Style.RESET_ALL}"
+        )
 
 
 if __name__ == "__main__":
-    main()
+    setup_qualibrate_config()

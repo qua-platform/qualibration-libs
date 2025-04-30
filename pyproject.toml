@@ -8,7 +8,7 @@ requires-python = ">=3.9, <=3.12"
 dependencies = []
 
 [project.scripts]
-create-qualibrate-config = "qualibration_libs.config.create_qualibrate_config:main"
+setup-qualibrate-config = "qualibration_libs.config.setup_qualibrate:setup_qualibrate_config"
 
 [build-system]
 requires = ["hatchling"]

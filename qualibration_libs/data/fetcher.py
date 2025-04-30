@@ -1,13 +1,35 @@
-from qm.jobs.qm_job import QmJob
-import xarray as xr
-from contextlib import contextmanager
 import time
 import logging
-from typing import Any, Dict, List, Optional, Union
-import numpy as np
 import re
 
+import numpy as np
+import xarray as xr
+
+from typing import Any, Dict, List, Optional, Union
+from qm.jobs.qm_job import QmJob
+
+__all__ = ["XarrayDataFetcher"]
+
 logger = logging.getLogger(__name__)
+
+# TODO: remove comments after tests
+# def _flatten_sweep_parameters(params) -> Tuple[dict, dict]:
+#     meas_axis = {}
+#     meas_attr = {}
+#     for param in params.keys():
+#         if "data" in params[param]:
+#             meas_axis[param] = params[param]["data"]
+#         else:
+#             raise RuntimeError(
+#                 f"The registered sweep parameter '{param}' doesn't have data."
+#                 + "sweep_parameters = {param: {'data': data, 'attrs': {**attrs}}}"
+#             )
+#         if "attrs" in params[param]:
+#             meas_attr[param] = params[param]["attrs"]
+#         else:
+#             meas_attr[param] = {}
+#     return meas_axis, meas_attr
+#
 
 
 def timer_decorator(func):
@@ -34,10 +56,15 @@ def timer_decorator(func):
 
 class XarrayDataFetcher:
     """
-    Class to fetch data using a QmJob and update an xarray.Dataset with the acquired data.
+    Class to fetch data using a QmJob and update a xarray.Dataset with the acquired data.
     """
 
-    ignore_handles = ["readout", "readout_timestamps", "__qpu_execution_time_seconds", "__total_python_runtime_seconds"]
+    ignore_handles = [
+        "readout",
+        "readout_timestamps",
+        "__qpu_execution_time_seconds",
+        "__total_python_runtime_seconds",
+    ]
     missing_data_value = 0  # np.nan
 
     def __init__(
@@ -122,11 +149,13 @@ class XarrayDataFetcher:
             logger.debug(f"Fetching data for handle: {data_label}")
             latest_data = self.job.result_handles.get(data_label).fetch_all()
             self._raw_data[data_label] = latest_data
-            logger.debug(f"Data fetched for {data_label}: shape {np.shape(latest_data)}")
+            logger.debug(
+                f"Data fetched for {data_label}: shape {np.shape(latest_data)}"
+            )
 
     def initialize_dataset(self):
         """
-        Initialize an xarray.Dataset using the provided axes.
+        Initialize a xarray.Dataset using the provided axes.
 
         Returns:
             xr.Dataset: An empty dataset with coordinates if axes is provided.
@@ -179,7 +208,11 @@ class XarrayDataFetcher:
             ref_shape = data_arrays[0].shape
             for d in data_arrays:
                 if d.shape != ref_shape:
-                    logger.error("Mismatch in shapes of raw data arrays: {}".format([d.shape for d in data_arrays]))
+                    logger.error(
+                        "Mismatch in shapes of raw data arrays: {}".format(
+                            [d.shape for d in data_arrays]
+                        )
+                    )
                     raise ValueError("All arrays must have the same shape")
         else:
             # All entries are None; use axes shape as the reference.
@@ -189,10 +222,14 @@ class XarrayDataFetcher:
 
         # Delegate to the correct update method.
         if axes_shape == ref_shape:
-            logger.debug("Axes shape matches raw data shape. Updating regular data arrays.")
+            logger.debug(
+                "Axes shape matches raw data shape. Updating regular data arrays."
+            )
             self._update_regular_data_arrays(raw_data_arrays, dims_order, axes_shape)
         elif len(axes_shape) == len(ref_shape) + 1 and axes_shape[1:] == ref_shape:
-            logger.debug("Axes shape has an extra dimension (qubit axis). Updating qubit data arrays.")
+            logger.debug(
+                "Axes shape has an extra dimension (qubit axis). Updating qubit data arrays."
+            )
             self._update_qubit_data_arrays(raw_data_arrays, dims_order)
         else:
             logger.error(
@@ -203,7 +240,9 @@ class XarrayDataFetcher:
         logger.debug("Dataset update complete.")
         return self.dataset
 
-    def _fill_missing_data(self, data: Optional[np.ndarray], shape: tuple) -> np.ndarray:
+    def _fill_missing_data(
+        self, data: Optional[np.ndarray], shape: tuple
+    ) -> np.ndarray:
         """
         Helper function to fill missing data.
 
@@ -230,13 +269,17 @@ class XarrayDataFetcher:
         logger.debug("Updating dataset without axes.")
         for label, data in raw_data.items():
             if data is None:
-                logger.debug(f"Data for variable '{label}' is None; filling with scalar NaN.")
+                logger.debug(
+                    f"Data for variable '{label}' is None; filling with scalar NaN."
+                )
                 data = np.nan
             else:
                 logger.debug(f"Updating variable '{label}' with shape {data.shape}.")
             self.dataset[label] = xr.DataArray(data)
 
-    def _update_regular_data_arrays(self, raw_data: Dict[str, Any], dims_order: List[str], fill_shape: tuple):
+    def _update_regular_data_arrays(
+        self, raw_data: Dict[str, Any], dims_order: List[str], fill_shape: tuple
+    ):
         """
         Update the dataset by directly assigning each raw data entry as a new variable.
         If a raw data entry is None, it is replaced with an array of NaNs with the given fill_shape.
@@ -249,10 +292,16 @@ class XarrayDataFetcher:
         logger.debug("Updating regular data arrays with coordinates.")
         for label, data in raw_data.items():
             filled_data = self._fill_missing_data(data, fill_shape)
-            logger.debug(f"Updating variable '{label}' with dims {dims_order} and shape {filled_data.shape}.")
-            self.dataset[label] = xr.DataArray(filled_data, dims=dims_order, coords=self.axes)
+            logger.debug(
+                f"Updating variable '{label}' with dims {dims_order} and shape {filled_data.shape}."
+            )
+            self.dataset[label] = xr.DataArray(
+                filled_data, dims=dims_order, coords=self.axes
+            )
 
-    def _update_qubit_data_arrays(self, raw_data: Dict[str, Any], dims_order: List[str]):
+    def _update_qubit_data_arrays(
+        self, raw_data: Dict[str, Any], dims_order: List[str]
+    ):
         """
         Group raw data keys matching the pattern {label}{idx} and stack them along a new dimension.
         If a raw data entry is None, it is replaced with an array of NaNs.
@@ -279,7 +328,9 @@ class XarrayDataFetcher:
                 grouped.setdefault(base, []).append((idx, filled_data))
             else:
                 filled_data = self._fill_missing_data(data, non_qubit_shape)
-                logger.debug(f"Key '{key}' does not match pattern; updating without qubit axis.")
+                logger.debug(
+                    f"Key '{key}' does not match pattern; updating without qubit axis."
+                )
                 self.dataset[key] = xr.DataArray(
                     filled_data,
                     dims=dims_order[1:],
@@ -291,7 +342,9 @@ class XarrayDataFetcher:
             arrays = [item[1] for item in items]
             logger.debug(f"Stacking {len(arrays)} arrays for variable '{base}'.")
             stacked = np.stack(arrays, axis=0)
-            self.dataset[base] = xr.DataArray(stacked, dims=[dims_order[0]] + dims_order[1:], coords=self.axes)
+            self.dataset[base] = xr.DataArray(
+                stacked, dims=[dims_order[0]] + dims_order[1:], coords=self.axes
+            )
 
     @timer_decorator
     def is_processing(self):
@@ -346,3 +399,42 @@ class XarrayDataFetcher:
         self.retrieve_latest_data()
         self.update_dataset()
         yield self.dataset
+
+
+# def extract_string(input_string):
+#     # Find the index of the first occurrence of a digit in the input string
+#     index = next((i for i, c in enumerate(input_string) if c.isdigit()), None)
+#
+#     if index is not None:
+#         # Extract the substring from the start of the input string to the index
+#         extracted_string = input_string[:index]
+#         return extracted_string
+#     else:
+#         return None
+#
+
+# def fetch_results_as_xarray(handles, qubits, measurement_axis):
+#     """
+#     Fetches measurement results as a xarray dataset.
+#     Parameters:
+#     - handles : A dictionary containing stream handles, obtained through handles = job.result_handles after the execution of the program.
+#     - qubits (list): A list of qubits.
+#     - measurement_axis (dict): A dictionary containing measurement axis information, e.g. {"idle_time": idle_times, "flux": flux_biases}.
+#     Returns:
+#     - ds (xarray.Dataset): An xarray dataset containing the fetched measurement results.
+#     """
+#
+#     stream_handles = handles.keys()
+#     meas_vars = list(set([extract_string(handle) for handle in stream_handles if extract_string(handle) is not None]))
+#     values = [
+#         [handles.get(f"{meas_var}{i + 1}").fetch_all() for i, qubit in enumerate(qubits)] for meas_var in meas_vars
+#     ]
+#     measurement_axis["qubit"] = [qubit.name for qubit in qubits]
+#     measurement_axis = {key: measurement_axis[key] for key in reversed(measurement_axis.keys())}
+#
+#     ds = xr.Dataset(
+#         {f"{meas_var}": ([key for key in measurement_axis.keys()], values[i]) for i, meas_var in enumerate(meas_vars)},
+#         coords=measurement_axis,
+#     )
+#
+#     return ds
