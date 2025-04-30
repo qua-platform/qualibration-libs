@@ -40,7 +40,9 @@ def fit_decay_exp(da, dim):
     def get_min(dat):
         return np.min(dat, axis=-1)
 
-    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename("decay guess")
+    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename(
+        "decay guess"
+    )
     amp_guess = xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess")
     min_guess = xr.apply_ufunc(get_min, da, input_core_dims=[[dim]]).rename("min guess")
 
@@ -108,13 +110,19 @@ def fit_oscillation_decay_exp(da, dim):
         min_ = np.min(dat, axis=-1)
         return (max_ - min_) / 2
 
-    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename("decay guess")
-    freq_guess = xr.apply_ufunc(get_freq, da, input_core_dims=[[dim]]).rename("freq guess")
+    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename(
+        "decay guess"
+    )
+    freq_guess = xr.apply_ufunc(get_freq, da, input_core_dims=[[dim]]).rename(
+        "freq guess"
+    )
     amp_guess = xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess")
 
     def apply_fit(x, y, a, f, phi, offset, decay):
         try:
-            fit, residuals = curve_fit(oscillation_decay_exp, x, y, p0=[a, f, phi, offset, decay])
+            fit, residuals = curve_fit(
+                oscillation_decay_exp, x, y, p0=[a, f, phi, offset, decay]
+            )
             return np.array(fit.tolist() + np.array(residuals).flatten().tolist())
         except RuntimeError:
             print(f"{a=}, {f=}, {phi=}, {offset=}, {decay=}")
@@ -189,7 +197,9 @@ def fit_echo_decay_exp(da, dim):
         min_ = np.min(dat, axis=-1)
         return (max_ - min_) / 2
 
-    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename("decay guess")
+    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename(
+        "decay guess"
+    )
     amp_guess = xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess")
 
     def apply_fit(x, y, a, offset, decay, decay_echo):
@@ -215,7 +225,9 @@ def fit_echo_decay_exp(da, dim):
         output_core_dims=[["fit_vals"]],
         vectorize=True,
     )
-    return fit_res.assign_coords(fit_vals=("fit_vals", ["a", "offset", "decay", "decay_echo"]))
+    return fit_res.assign_coords(
+        fit_vals=("fit_vals", ["a", "offset", "decay", "decay_echo"])
+    )
 
 
 def fit_oscillation(da, dim):
@@ -235,9 +247,13 @@ def fit_oscillation(da, dim):
         xr.apply_ufunc(get_freq, da_c, input_core_dims=[[dim]]).rename("freq guess"),
         da_c,
     )
-    amp_guess = fix_initial_value(xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess"), da)
+    amp_guess = fix_initial_value(
+        xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess"), da
+    )
     # phase_guess = np.pi * (da.loc[{dim : da.coords[dim].values[0]}] < da.mean(dim=dim) )
-    phase_guess = np.pi * (da.loc[{dim: np.abs(da.coords[dim]).min()}] < da.mean(dim=dim))
+    phase_guess = np.pi * (
+        da.loc[{dim: np.abs(da.coords[dim]).min()}] < da.mean(dim=dim)
+    )
     offset_guess = da.mean(dim=dim)
 
     def apply_fit(x, y, a, f, phi, offset):
@@ -247,7 +263,9 @@ def fit_oscillation(da, dim):
                 y,
                 t=x,
                 a=Parameter("a", value=a, min=0),
-                f=Parameter("f", value=f, min=np.abs(0.5 * f), max=np.abs(f * 3 + 1e-3)),
+                f=Parameter(
+                    "f", value=f, min=np.abs(0.5 * f), max=np.abs(f * 3 + 1e-3)
+                ),
                 phi=Parameter("phi", value=phi),
                 offset=offset,
             )
@@ -291,7 +309,9 @@ def fit_oscillation(da, dim):
 def _truncate_data(transmission, window):
     ds_diff = np.abs(transmission.diff(dim="freq"))
     peak_freq = ds_diff.IQ_abs.idxmax(dim="freq")
-    truncated_transmission = transmission.sel(freq=slice(peak_freq - window, peak_freq + window))
+    truncated_transmission = transmission.sel(
+        freq=slice(peak_freq - window, peak_freq + window)
+    )
     return truncated_transmission
 
 
@@ -421,7 +441,9 @@ def fit_resonator_purcell(
 
 def _guess_single(transmission, frequency_LO_IF, rolling_window, window):
     def find_upper_envelope(transmission, rolling_window):
-        rolling_transmission = transmission.IQ_abs.rolling(freq=rolling_window, center=True).mean()
+        rolling_transmission = transmission.IQ_abs.rolling(
+            freq=rolling_window, center=True
+        ).mean()
         peak_indices, _ = find_peaks(rolling_transmission)
         # include the edges of the range in the envelope fit in case there aren't many inside peaks to use
         peak_indices = np.append([rolling_window, -1], peak_indices)
@@ -437,10 +459,17 @@ def _guess_single(transmission, frequency_LO_IF, rolling_window, window):
     # plt.show()
 
     omega_r = transmission.IQ_abs.idxmin(dim="freq")
-    Q = frequency_LO_IF / np.abs((transmission.IQ_abs.diff(dim="freq").idxmin(dim="freq") - omega_r)).values
+    Q = (
+        frequency_LO_IF
+        / np.abs(
+            (transmission.IQ_abs.diff(dim="freq").idxmin(dim="freq") - omega_r)
+        ).values
+    )
     Q = Q if Q < 1e4 else 1e4
     Q = 1e4
-    Qe = Q / (1 - transmission.IQ_abs.min(dim="freq") / transmission.IQ_abs.max(dim="freq"))
+    Qe = Q / (
+        1 - transmission.IQ_abs.min(dim="freq") / transmission.IQ_abs.max(dim="freq")
+    )
 
     Qe = Qe if Qe > Q else Q
 
@@ -482,7 +511,9 @@ class _single_resonator(Model):
                 window=self.window,
             )
 
-        data = (transmission_trunc.IQ_abs * np.exp(1j * transmission_trunc.phase)).values
+        data = (
+            transmission_trunc.IQ_abs * np.exp(1j * transmission_trunc.phase)
+        ).values
         f = transmission_trunc.freq.values
 
         result = self.fit(data, w=f, params=init_guess)
@@ -490,7 +521,9 @@ class _single_resonator(Model):
         return result
 
 
-def fit_resonator(s21_data: xr.Dataset, frequency_LO_IF: float, print_report: bool = False):
+def fit_resonator(
+    s21_data: xr.Dataset, frequency_LO_IF: float, print_report: bool = False
+):
     """Fits the measured complex transmission as a function of frequency
     and fits it to a model consisting of a single resonator, as described in
     arxiv:1108.3117.

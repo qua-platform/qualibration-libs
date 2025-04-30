@@ -29,6 +29,7 @@ __all__ = ["convert_IQ_to_V", "add_amplitude_and_phase", "subtract_slope"]
 #     return ds[[data_var]].to_dataframe().to_dict()[data_var]
 #
 
+
 def convert_IQ_to_V(
     da: xr.Dataset,
     qubits: list[AnyTransmon],
@@ -57,7 +58,9 @@ def convert_IQ_to_V(
         coords=[("qubit", [q.name for q in qubits])],
     )
     demod_factor = 2 if single_demod else 1
-    return da.assign({key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list})
+    return da.assign(
+        {key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list}
+    )
 
 
 def add_amplitude_and_phase(
@@ -196,7 +199,9 @@ def subtract_slope(da: xr.DataArray, dim: str) -> xr.DataArray:
         evaluated = np.apply_along_axis(eval_func, -1, pf)
         return arr - evaluated
 
-    return xr.apply_ufunc(sub_slope, da, input_core_dims=[[dim]], output_core_dims=[[dim]])
+    return xr.apply_ufunc(
+        sub_slope, da, input_core_dims=[[dim]], output_core_dims=[[dim]]
+    )
 
 
 # def unrotate_phase(da: xr.DataArray, dim: str) -> xr.DataArray:

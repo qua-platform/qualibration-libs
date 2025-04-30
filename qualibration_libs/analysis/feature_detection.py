@@ -6,7 +6,9 @@ from scipy.signal import find_peaks, peak_widths
 from scipy.sparse.linalg import spsolve
 
 
-def peaks_dips(da, dim, prominence_factor=5, number=1, remove_baseline=True) -> xr.Dataset:
+def peaks_dips(
+    da, dim, prominence_factor=5, number=1, remove_baseline=True
+) -> xr.Dataset:
     """
     Searches in a data array along the specified dimension for the most prominent peak or dip, and returns a xarray
     dataset with its location, width, and amplitude, along with a smooth baseline from which the peak emerges.
@@ -55,7 +57,9 @@ def peaks_dips(da, dim, prominence_factor=5, number=1, remove_baseline=True) -> 
         peaks = find_peaks(arr.copy(), prominence=prominence)
         if len(peaks[0]) > 0:
             # finding the largest peak and it's width
-            prom_peak_index = 1.0 * peaks[0][np.argsort(peaks[1]["prominences"])][-number]
+            prom_peak_index = (
+                1.0 * peaks[0][np.argsort(peaks[1]["prominences"])][-number]
+            )
         else:
             prom_peak_index = np.nan
         return prom_peak_index
@@ -76,7 +80,10 @@ def peaks_dips(da, dim, prominence_factor=5, number=1, remove_baseline=True) -> 
             res.append(np.nan)
         return np.array(res)
 
-    peaks_inversion = 2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim)) - 1
+    peaks_inversion = (
+        2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim))
+        - 1
+    )
     da = da * peaks_inversion
 
     base_line = xr.apply_ufunc(
@@ -147,7 +154,9 @@ def extract_dominant_frequencies(da, dim="idle_time"):
         return frequencies[positive_freq_idx][dominant_idx]
 
     def extract_dominant_frequency_wrapper(signal):
-        sample_rate = 1 / (da.coords[dim][1].values - da.coords[dim][0].values)  # Assuming uniform sampling
+        sample_rate = 1 / (
+            da.coords[dim][1].values - da.coords[dim][0].values
+        )  # Assuming uniform sampling
         return extract_dominant_frequency(signal, sample_rate)
 
     dominant_frequencies = xr.apply_ufunc(

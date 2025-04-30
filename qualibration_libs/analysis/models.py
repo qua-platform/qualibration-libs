@@ -171,4 +171,6 @@ def S21_single(w, A, k, omega_0, omega_r, Q, Qe_real, Qe_imag):
     # and a linear slope of the transmission far from resonance
 
     Qe = Qe_real + 1j * Qe_imag
-    return (A + k * w) * (1 - ((Q / Qe) / (1 + 2 * 1j * Q * (w - omega_r) / (omega_0 + omega_r))))
+    return (A + k * w) * (
+        1 - ((Q / Qe) / (1 + 2 * 1j * Q * (w - omega_r) / (omega_0 + omega_r)))
+    )

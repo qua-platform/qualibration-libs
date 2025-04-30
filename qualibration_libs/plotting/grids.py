@@ -7,14 +7,14 @@ import xarray as xr
 from typing import List, Tuple, Union
 
 
-
 def grid_pair_names(qubit_pairs) -> Tuple[List[str], List[str]]:
     """ "
     Runs over defined qubit pairs and returns a list of the grid_name attribute of each qubit, returns a list of the grid location and a list of the qubit pair names
     """
-    return [f"{qp.qubit_control.grid_location}-{qp.qubit_target.grid_location}" for qp in qubit_pairs], [
-        qp.name for qp in qubit_pairs
-    ]
+    return [
+        f"{qp.qubit_control.grid_location}-{qp.qubit_target.grid_location}"
+        for qp in qubit_pairs
+    ], [qp.name for qp in qubit_pairs]
 
 
 class QubitGrid:
@@ -67,11 +67,16 @@ class QubitGrid:
     def _clean_up(input_string):
         return re.sub("[^0-9]", "", input_string)
 
-    def __init__(self, ds: xr.Dataset, grid_names: Union[list[str], str] = None, size: int = 3):
+    def __init__(
+        self, ds: xr.Dataset, grid_names: Union[list[str], str] = None, size: int = 3
+    ):
         if grid_names:
             if type(grid_names) == str:
                 grid_names = [grid_names]
-            grid_indices = [tuple(map(int, self._list_clean(grid_name.split(",")))) for grid_name in grid_names]
+            grid_indices = [
+                tuple(map(int, self._list_clean(grid_name.split(","))))
+                for grid_name in grid_names
+            ]
         else:
             grid_indices = [
                 tuple(map(int, self._list_clean(ds.qubit.values[q_index].split(","))))
@@ -95,7 +100,9 @@ class QubitGrid:
             max(grid_col_idxs) - min_grid_col + 1,
         )
 
-        figure, all_axes = plt.subplots(*shape, figsize=(shape[1] * size, shape[0] * size), squeeze=False)
+        figure, all_axes = plt.subplots(
+            *shape, figsize=(shape[1] * size, shape[0] * size), squeeze=False
+        )
 
         grid_axes = []
         qubit_names = []

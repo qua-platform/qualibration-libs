@@ -16,7 +16,6 @@ class IdleTimeNodeParameters(RunnableParameters):
     """Type of sweep, either "log" (logarithmic) or "linear". Default is "log"."""
 
 
-
 def get_idle_times_in_clock_cycles(
     node_parameters: IdleTimeNodeParameters,
 ) -> np.ndarray:
@@ -26,21 +25,32 @@ def get_idle_times_in_clock_cycles(
     The idle time sweep is in units of clock cycles (4ns).
     The minimum is 4 clock cycles.
     """
-    required_attributes = ["log_or_linear_sweep", "min_wait_time_in_ns", "max_wait_time_in_ns", "wait_time_num_points"]
+    required_attributes = [
+        "log_or_linear_sweep",
+        "min_wait_time_in_ns",
+        "max_wait_time_in_ns",
+        "wait_time_num_points",
+    ]
     if not all(hasattr(node_parameters, attr) for attr in required_attributes):
-        raise ValueError("The provided node parameter must contain the attributes 'log_or_linear_sweep', 'min_wait_time_in_ns', 'max_wait_time_in_ns' and 'wait_time_num_points'.")
+        raise ValueError(
+            "The provided node parameter must contain the attributes 'log_or_linear_sweep', 'min_wait_time_in_ns', 'max_wait_time_in_ns' and 'wait_time_num_points'."
+        )
 
     if node_parameters.log_or_linear_sweep == "linear":
         idle_times = _get_idle_times_linear_sweep_in_clock_cycles(node_parameters)
     elif node_parameters.log_or_linear_sweep == "log":
         idle_times = _get_idle_times_log_sweep_in_clock_cycles(node_parameters)
     else:
-        raise ValueError(f"Expected sweep type to be 'log' or 'linear', got {node_parameters.log_or_linear_sweep}")
+        raise ValueError(
+            f"Expected sweep type to be 'log' or 'linear', got {node_parameters.log_or_linear_sweep}"
+        )
 
     return idle_times
 
 
-def _get_idle_times_linear_sweep_in_clock_cycles(node_parameters: IdleTimeNodeParameters):
+def _get_idle_times_linear_sweep_in_clock_cycles(
+    node_parameters: IdleTimeNodeParameters,
+):
     return (
         np.linspace(
             node_parameters.min_wait_time_in_ns,
