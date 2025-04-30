@@ -1,5 +1,4 @@
 from typing import Optional
-from pydantic import Field
 from qualibrate.parameters import RunnableParameters
 
 
@@ -8,7 +7,7 @@ class CommonNodeParameters(RunnableParameters):
 
     simulate: bool = False
     """Simulate the waveforms on the OPX instead of executing the program. Default is False."""
-    simulation_duration_ns: int = Field(default=50_000, gt=16, lt=1_000_000)
+    simulation_duration_ns: int = 50_000
     """Duration over which the simulation will collect samples (in nanoseconds). Default is 50_000 ns."""
     use_waveform_report: bool = True
     """Whether to use the interactive waveform report in simulation. Default is True."""

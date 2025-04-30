@@ -20,15 +20,6 @@ class QubitsExperimentNodeParameters(RunnableParameters):
     "active_gef". Default is "thermal"."""
 
 
-def make_batchable_list_from_multiplexed(items: List, multiplexed: bool) -> BatchableList:
-    if multiplexed:
-        batched_groups = [[i for i in range(len(items))]]
-    else:
-        batched_groups = [[i] for i in range(len(items))]
-
-    return BatchableList(items, batched_groups)
-
-
 def get_qubits(node: QualibrationNode) -> BatchableList[Quam.qubit_type]:
     # todo: need a docstring!
     # todo: make a method once https://github.com/qua-platform/qualibrate-core/pull/89 is merged
@@ -39,9 +30,18 @@ def get_qubits(node: QualibrationNode) -> BatchableList[Quam.qubit_type]:
     else:
         multiplexed = False
 
-    qubits_batchable_list = make_batchable_list_from_multiplexed(qubits, multiplexed)
+    qubits_batchable_list = _make_batchable_list_from_multiplexed(qubits, multiplexed)
 
     return qubits_batchable_list
+
+
+def _make_batchable_list_from_multiplexed(items: List, multiplexed: bool) -> BatchableList:
+    if multiplexed:
+        batched_groups = [[i for i in range(len(items))]]
+    else:
+        batched_groups = [[i] for i in range(len(items))]
+
+    return BatchableList(items, batched_groups)
 
 
 def _get_qubits(machine: Quam, node_parameters: QubitsExperimentNodeParameters) -> List[AnyTransmon]:

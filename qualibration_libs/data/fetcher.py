@@ -1,100 +1,35 @@
-import xarray as xr
-from typing import Tuple
-from quam_experiments.experiments.T1.parameters import Parameters
-from qualibration_libs.data.xarray_data_fetcher import logger
-from qualibration_libs.qua_datasets import convert_IQ_to_V
-from qualibration_libs.save_utils import fetch_results_as_xarray
-from qm.jobs.qm_job import QmJob
 import time
 import logging
-from typing import Any, Dict, List, Optional, Union
-import numpy as np
 import re
 
+import numpy as np
+import xarray as xr
+
+from typing import Any, Dict, List, Optional, Union
+from qm.jobs.qm_job import QmJob
+
+__all__ = ["XarrayDataFetcher"]
 
 logger = logging.getLogger(__name__)
 
-
-def fetch_dataset(job, qubits, node_parameters: Parameters, sweep_axes: dict) -> xr.Dataset:
-    """
-    Fetches and processes a dataset from a quantum job.
-
-    This function retrieves the results of a quantum job, processes the data into an xarray Dataset,
-    and applies necessary transformations based on the provided parameters.
-
-    Parameters:
-    -----------
-    job : Job
-        The QM job containing the result handles.
-    qubits : list
-        A list of qubits involved in the program.
-    node_parameters : Parameters
-        Parameters related to the node, including whether state discrimination is used.
-    sweep_axes : dict
-        A dictionary of sweep axes, where keys are axis names and values are dictionaries
-        containing 'data' and 'attrs'. The optional 'attrs' dictionary should include the standard xarray coordinate attributes.
-        Example:
-        {
-            "idle_time": {
-                "data": 4 * idle_times,
-                "attrs": {"long_name": "idle time", "units": "ns"},
-            },
-        }
-
-    Returns:
-    --------
-    xr.Dataset
-        An xarray Dataset containing the processed measurement data.
-
-    Notes:
-    ------
-    - The function first flattens the sweep parameters to obtain measurement axes and attributes.
-    - It then fetches the results as an xarray Dataset.
-    - If state discrimination is not used, the function converts IQ data to voltage (V) and sets appropriate attributes.
-    - Finally, it assigns attributes to the coordinates based on the sweep parameters.
-
-    Example:
-    --------
-        >>> ds = fetch_dataset(job, qubits, node_parameters, sweep_axes)
-        >>> print(ds)
-        Dimensions:    (qubit: 2, idle_time: 151)
-        Coordinates:
-          * qubit      (qubit) <U2 16B 'q1' 'q2'
-          * idle_time  (idle_time)
-        Data variables:
-            Q          (qubit, idle_time)
-            I          (qubit, idle_time)
-    """
-
-    measurement_axis, measurement_attributes = _flatten_sweep_parameters(sweep_axes)
-    ds = fetch_results_as_xarray(job.result_handles, qubits, measurement_axis)
-    if getattr(node_parameters, "use_state_discrimination"):
-        if not node_parameters.use_state_discrimination:
-            ds = convert_IQ_to_V(ds, qubits)
-            ds.variables["I"].attrs = {"long_name": "I quadrature", "units": "V"}
-            ds.variables["Q"].attrs = {"long_name": "Q quadrature", "units": "V"}
-    for param in sweep_axes:
-        ds.coords[param].attrs = measurement_attributes[param]
-    return ds
-
-
-def _flatten_sweep_parameters(params) -> Tuple[dict, dict]:
-    meas_axis = {}
-    meas_attr = {}
-    for param in params.keys():
-        if "data" in params[param]:
-            meas_axis[param] = params[param]["data"]
-        else:
-            raise RuntimeError(
-                f"The registered sweep parameter '{param}' doesn't have data."
-                + "sweep_parameters = {param: {'data': data, 'attrs': {**attrs}}}"
-            )
-        if "attrs" in params[param]:
-            meas_attr[param] = params[param]["attrs"]
-        else:
-            meas_attr[param] = {}
-    return meas_axis, meas_attr
-
+# TODO: remove comments after tests
+# def _flatten_sweep_parameters(params) -> Tuple[dict, dict]:
+#     meas_axis = {}
+#     meas_attr = {}
+#     for param in params.keys():
+#         if "data" in params[param]:
+#             meas_axis[param] = params[param]["data"]
+#         else:
+#             raise RuntimeError(
+#                 f"The registered sweep parameter '{param}' doesn't have data."
+#                 + "sweep_parameters = {param: {'data': data, 'attrs': {**attrs}}}"
+#             )
+#         if "attrs" in params[param]:
+#             meas_attr[param] = params[param]["attrs"]
+#         else:
+#             meas_attr[param] = {}
+#     return meas_axis, meas_attr
+#
 
 def timer_decorator(func):
     """
@@ -120,7 +55,7 @@ def timer_decorator(func):
 
 class XarrayDataFetcher:
     """
-    Class to fetch data using a QmJob and update an xarray.Dataset with the acquired data.
+    Class to fetch data using a QmJob and update a xarray.Dataset with the acquired data.
     """
 
     ignore_handles = ["readout", "readout_timestamps", "__qpu_execution_time_seconds", "__total_python_runtime_seconds"]
@@ -212,7 +147,7 @@ class XarrayDataFetcher:
 
     def initialize_dataset(self):
         """
-        Initialize an xarray.Dataset using the provided axes.
+        Initialize a xarray.Dataset using the provided axes.
 
         Returns:
             xr.Dataset: An empty dataset with coordinates if axes is provided.
@@ -434,40 +369,40 @@ class XarrayDataFetcher:
         yield self.dataset
 
 
-def extract_string(input_string):
-    # Find the index of the first occurrence of a digit in the input string
-    index = next((i for i, c in enumerate(input_string) if c.isdigit()), None)
+# def extract_string(input_string):
+#     # Find the index of the first occurrence of a digit in the input string
+#     index = next((i for i, c in enumerate(input_string) if c.isdigit()), None)
+#
+#     if index is not None:
+#         # Extract the substring from the start of the input string to the index
+#         extracted_string = input_string[:index]
+#         return extracted_string
+#     else:
+#         return None
+#
 
-    if index is not None:
-        # Extract the substring from the start of the input string to the index
-        extracted_string = input_string[:index]
-        return extracted_string
-    else:
-        return None
-
-
-def fetch_results_as_xarray(handles, qubits, measurement_axis):
-    """
-    Fetches measurement results as a xarray dataset.
-    Parameters:
-    - handles : A dictionary containing stream handles, obtained through handles = job.result_handles after the execution of the program.
-    - qubits (list): A list of qubits.
-    - measurement_axis (dict): A dictionary containing measurement axis information, e.g. {"idle_time": idle_times, "flux": flux_biases}.
-    Returns:
-    - ds (xarray.Dataset): An xarray dataset containing the fetched measurement results.
-    """
-
-    stream_handles = handles.keys()
-    meas_vars = list(set([extract_string(handle) for handle in stream_handles if extract_string(handle) is not None]))
-    values = [
-        [handles.get(f"{meas_var}{i + 1}").fetch_all() for i, qubit in enumerate(qubits)] for meas_var in meas_vars
-    ]
-    measurement_axis["qubit"] = [qubit.name for qubit in qubits]
-    measurement_axis = {key: measurement_axis[key] for key in reversed(measurement_axis.keys())}
-
-    ds = xr.Dataset(
-        {f"{meas_var}": ([key for key in measurement_axis.keys()], values[i]) for i, meas_var in enumerate(meas_vars)},
-        coords=measurement_axis,
-    )
-
-    return ds
+# def fetch_results_as_xarray(handles, qubits, measurement_axis):
+#     """
+#     Fetches measurement results as a xarray dataset.
+#     Parameters:
+#     - handles : A dictionary containing stream handles, obtained through handles = job.result_handles after the execution of the program.
+#     - qubits (list): A list of qubits.
+#     - measurement_axis (dict): A dictionary containing measurement axis information, e.g. {"idle_time": idle_times, "flux": flux_biases}.
+#     Returns:
+#     - ds (xarray.Dataset): An xarray dataset containing the fetched measurement results.
+#     """
+#
+#     stream_handles = handles.keys()
+#     meas_vars = list(set([extract_string(handle) for handle in stream_handles if extract_string(handle) is not None]))
+#     values = [
+#         [handles.get(f"{meas_var}{i + 1}").fetch_all() for i, qubit in enumerate(qubits)] for meas_var in meas_vars
+#     ]
+#     measurement_axis["qubit"] = [qubit.name for qubit in qubits]
+#     measurement_axis = {key: measurement_axis[key] for key in reversed(measurement_axis.keys())}
+#
+#     ds = xr.Dataset(
+#         {f"{meas_var}": ([key for key in measurement_axis.keys()], values[i]) for i, meas_var in enumerate(meas_vars)},
+#         coords=measurement_axis,
+#     )
+#
+#     return ds
