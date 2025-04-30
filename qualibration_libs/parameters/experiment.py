@@ -33,9 +33,8 @@ def get_qubits(node: QualibrationNode) -> BatchableList[AnyTransmon]:
 
     return qubits_batchable_list
 
-def _get_qubits(
-    machine: AnyQuam, node_parameters: QubitsExperimentNodeParameters
-) -> List[AnyTransmon]:
+
+def _get_qubits(machine: AnyQuam, node_parameters: QubitsExperimentNodeParameters) -> List[AnyTransmon]:
     # todo: make a method once https://github.com/qua-platform/qualibrate-core/pull/89 is merged
     if node_parameters.qubits is None or node_parameters.qubits == "":
         qubits = machine.active_qubits
@@ -44,15 +43,11 @@ def _get_qubits(
 
     return qubits
 
-def _make_batchable_list_from_multiplexed(
-    items: List, multiplexed: bool
-) -> BatchableList:
+
+def _make_batchable_list_from_multiplexed(items: List, multiplexed: bool) -> BatchableList:
     if multiplexed:
         batched_groups = [[i for i in range(len(items))]]
     else:
         batched_groups = [[i] for i in range(len(items))]
 
     return BatchableList(items, batched_groups)
-
-
-
