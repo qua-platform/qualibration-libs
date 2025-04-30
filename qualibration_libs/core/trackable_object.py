@@ -15,7 +15,7 @@ def tracked_updates(obj, auto_revert: bool = True, dont_assign_to_none: bool = F
     :param obj: The object whose attributes are to be updated.
     :param auto_revert: If True, changes are automatically reverted after context exit.
                         If False, changes remain applied.
-    :param dont_assign_none: If True, if a value being set is None, it will not be set.
+    :param dont_assign_to_none: If True, if a value being set is None, it will not be set.
     """
     # Wrap the object in TrackableObject
     trackable_obj = TrackableObject(obj, dont_assign_to_none)
@@ -114,7 +114,7 @@ class TrackableObject:
         return dir(self._obj)
 
     # Special methods forwarding
-    def _forward_special_method(name):
+    def _forward_special_method(self, name):
         def method(self, *args):
             return getattr(self._obj, name)(*args)
 
