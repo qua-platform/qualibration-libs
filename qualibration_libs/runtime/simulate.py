@@ -10,6 +10,9 @@ from qm.waveform_report import WaveformReport
 from qualibration_libs.parameters.common import CommonNodeParameters
 
 
+__all__ = ["simulate_and_plot"]
+
+
 def simulate_and_plot(
     qmm: QuantumMachinesManager,
     config: dict,
@@ -24,17 +27,16 @@ def simulate_and_plot(
     qmm (QuantumMachinesManager): The Quantum Machines Manager instance.
     config (dict): The configuration dictionary for the OPX.
     program (Program): The QUA program to be simulated.
-    node_parameters (CommonNodeParameters): Common parameters for the node, including ``simulation_duration_ns`` and ``use_waveform_report``.
+    node_parameters (CommonNodeParameters): Common parameters for the node, including `simulation_duration_ns` and
+        `use_waveform_report`.
 
     Returns:
     Tuple[SimulatorSamples, Figure, Dict]: A tuple containing the simulated samples, the figure of the plotted samples,
-                                           and the waveform report if applicable.
+        and the waveform report if applicable.
     """
 
     # Simulates the QUA program for the specified duration
-    simulation_config = SimulationConfig(
-        duration=node_parameters.simulation_duration_ns // 4
-    )
+    simulation_config = SimulationConfig(duration=node_parameters.simulation_duration_ns // 4)
 
     # Simulate blocks python until the simulation is done
     job = qmm.simulate(config, program, simulation_config)
