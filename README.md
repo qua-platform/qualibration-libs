@@ -4,7 +4,7 @@ Utility library supporting calibration nodes and graphs for the QUAlibration gra
 
 ## Introduction
 
-`qualibration-libs` provides a collection of essential tools and utility functions designed to support the calibration nodes and graphs found within the [qualibration-graphs](https://github.com/qua-platform/qua-libs/tree/main/qualibration_graphs) repository. 
+`qualibration-libs` provides a collection of essential tools and utility functions designed to support the calibration nodes and graphs found within the [qualibration-graphs](https://github.com/qua-platform/qua-libs/tree/main/qualibration_graphs) repository.
 These libraries facilitate data handling, processing, analysis, plotting, execution management, and interaction with quantum hardware configurations defined using QUAM.
 
 While not a core component of the QUAlibrate platform itself, this library is a key dependency for running many of the example calibration routines provided in `qualibration_graphs`.
@@ -14,8 +14,8 @@ While not a core component of the QUAlibrate platform itself, this library is a 
 QUAlibration-graphs provides a comprehensive library for calibrating qubits using the Quantum Orchestration Platform (QOP), QUAM, and QUAlibrate.
 It includes configurable experiment nodes, analysis routines, and tools for managing the quantum system state ([QUAM](https://qua-platform.github.io/quam/)).
 
-This library is built upon [QUAlibrate](https://qua-platform.github.io/qualibrate/), an advanced, open-source software framework designed specifically for the automated calibration of Quantum Processing Units (QPUs). 
-QUAlibrate provides tools to create, manage, and execute calibration routines efficiently. 
+This library is built upon [QUAlibrate](https://qua-platform.github.io/qualibrate/), an advanced, open-source software framework designed specifically for the automated calibration of Quantum Processing Units (QPUs).
+QUAlibrate provides tools to create, manage, and execute calibration routines efficiently.
 The configurable experiment nodes, analysis routines, and state management tools included here are designed to integrate seamlessly with the QUAlibrate ecosystem.
 
 - **Calibration Nodes:** Reusable scripts for specific calibration tasks.
@@ -37,7 +37,7 @@ This package includes the following modules:
   - `batchable_list`: Provides `BatchableList`, a list-like data structure that allows elements to be grouped into batches for potentially parallel processing or execution.
   - `trackable_object`: Introduces the `TrackableObject` class and the `tracked_updates` context manager. Allows temporary modification of object attributes (including nested objects and dictionaries) while keeping track of original values. Supports automatic or manual reverting of changes, useful for temporarily altering configurations (like QUAM states) during calibration steps. _(Note: May be deprecated in the future)._
 - **`data`**: Handles data fetching and processing:
-  - `fetcher`: Provides `fetch_results_as_xarray` to simplify fetching multiple result handles from a QM job into a structured `xarray.Dataset`. Includes the `XarrayDataFetcher` class for iteratively fetching data from QM jobs and structuring it into an `xarray.Dataset` with coordinate axes, supporting live updates.
+  - `fetcher`: Provides `fetch_results_as_xarray` to simplify fetching multiple result handles from a QM job into a structured `xarray.Dataset`. Includes the `XarrayDataFetcher` class for iteratively fetching data from QM jobs and structuring it into an `xarray.Dataset` with coordinate axes, supporting live updates. Details about the `XarrayDataFetcher` can be found in the [data folder](./qualibration_libs/data/README.md).
   - `processing`: Offers functions for processing `xarray.Dataset` objects commonly resulting from QUA experiments. Includes utilities for converting raw I/Q data to Volts (`convert_IQ_to_V`), calculating and adding amplitude (`IQ_abs`) and phase (`phase`) data variables (`add_amplitude_and_phase`), and so on.
 - **`runtime`**: Set of functions called during the runtime (execution/simulation) of an experiment:
   - `simulate`: Contains `simulate_and_plot` for simulating QUA programs, plotting analog samples, and optionally generating interactive waveform reports using `qm.waveform_report`.
