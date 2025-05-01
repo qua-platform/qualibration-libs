@@ -5,7 +5,9 @@ description = "Qualibration libraries"
 readme = "README.md"
 authors = [{ name = "Theo Laudat", email = "theo@quantum-machines.co" }]
 requires-python = ">=3.9, <=3.12"
-dependencies = []
+dependencies = [
+    "colorama>=0.4.6",
+]
 
 [project.scripts]
 setup-qualibrate-config = "qualibration_libs.config.setup_qualibrate:setup_qualibrate_config"
