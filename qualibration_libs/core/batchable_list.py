@@ -3,6 +3,8 @@ from collections.abc import MutableSequence
 
 T = TypeVar("T")
 
+__all__ = ["BatchableList"]
+
 
 class BatchableList(MutableSequence[T]):
     def __init__(self, items: List[T], batch_groups: List[List[int]]):
