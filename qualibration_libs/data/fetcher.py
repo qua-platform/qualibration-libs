@@ -153,7 +153,7 @@ class XarrayDataFetcher:
                 self._raw_data[data_label] = None
             else:
                 self._raw_data[data_label] = data_handle.fetch_all()
-            logger.debug(f"Data fetched for {data_label}: shape {np.shape(latest_data)}")
+            logger.debug(f"Data fetched for {data_label}: shape {np.shape(self._raw_data[data_label])}")
 
     def initialize_dataset(self):
         """
