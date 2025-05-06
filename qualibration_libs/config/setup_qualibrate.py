@@ -23,7 +23,7 @@ def setup_qualibrate_config():
             f"{Fore.RED}Warning:{Style.RESET_ALL} 'qualibrate_config' not found. Skipping QUAM state configuration."
         )
 
-    current_dir = Path(.).parent.absolute()
+    current_dir = Path.cwd()
 
     # Define default values
     parameters = {
