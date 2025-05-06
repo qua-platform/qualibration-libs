@@ -28,12 +28,8 @@ def setup_qualibrate_config():
     # Define default values
     parameters = {
         "project": "QPU_project",
-        "storage_location": str(
-            current_dir.parent.absolute() / "data/${#/qualibrate/project}"
-        ),
-        "calibration_library_folder": str(
-            current_dir.parent.absolute() / "calibrations"
-        ),
+        "storage_location": str(current_dir / "data/${#/qualibrate/project}"),
+        "calibration_library_folder": str(current_dir / "calibrations"),
         "quam_state_path": str(current_dir / "quam_state"),
     }
 
