@@ -21,7 +21,6 @@ class QubitsExperimentNodeParameters(RunnableParameters):
 
 
 def get_qubits(node: QualibrationNode) -> BatchableList[AnyTransmon]:
-    # todo: make a method once https://github.com/qua-platform/qualibrate-core/pull/89 is merged
     qubits = _get_qubits(node.machine, node.parameters)
 
     if isinstance(node.parameters, QubitsExperimentNodeParameters):
@@ -34,8 +33,9 @@ def get_qubits(node: QualibrationNode) -> BatchableList[AnyTransmon]:
     return qubits_batchable_list
 
 
-def _get_qubits(machine: AnyQuam, node_parameters: QubitsExperimentNodeParameters) -> List[AnyTransmon]:
-    # todo: make a method once https://github.com/qua-platform/qualibrate-core/pull/89 is merged
+def _get_qubits(
+    machine: AnyQuam, node_parameters: QubitsExperimentNodeParameters
+) -> List[AnyTransmon]:
     if node_parameters.qubits is None or node_parameters.qubits == "":
         qubits = machine.active_qubits
     else:
@@ -44,7 +44,9 @@ def _get_qubits(machine: AnyQuam, node_parameters: QubitsExperimentNodeParameter
     return qubits
 
 
-def _make_batchable_list_from_multiplexed(items: List, multiplexed: bool) -> BatchableList:
+def _make_batchable_list_from_multiplexed(
+    items: List, multiplexed: bool
+) -> BatchableList:
     if multiplexed:
         batched_groups = [[i for i in range(len(items))]]
     else:

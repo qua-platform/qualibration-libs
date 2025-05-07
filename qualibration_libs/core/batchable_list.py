@@ -65,7 +65,6 @@ class BatchableList(MutableSequence[T]):
 
     def batch(self) -> List[Dict[int, T]]:
         """
-        todo: clear docstring
         Examples:
             [["q1", "q2", "q3", "q4"]] --> fully multiplexed
             [["q1"], ["q2"], ["q3"], ["q4"]] --> fully sequential
