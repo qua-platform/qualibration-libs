@@ -117,7 +117,27 @@ def decay_exp(t, a, offset, decay, **kwargs):
     """
     return a * np.exp(t * decay) + offset
 
+def expdecay(x, s, a, t):
+    """Exponential decay defined as 1 + a * np.exp(-x / t).
+    :param x: numpy array for the time vector in ns
+    :param a: float for the exponential amplitude
+    :param t0: time shift
+    :param t: float for the exponential decay time in ns
+    :return: numpy array for the exponential decay
+    """
+    return s * (1 + a * np.exp(-(x) / t))
 
+def two_expdecay(x, s, a, t, a2, t2):
+    """Double exponential decay defined as s * (1 + a * np.exp(-x / t) + a2 * np.exp(-x / t2)).
+    :param x: numpy array for the time vector in ns
+    :param s: float for the scaling factor
+    :param a: float for the first exponential amplitude
+    :param t: float for the first exponential decay time in ns
+    :param a2: float for the second exponential amplitude
+    :param t2: float for the second exponential decay time in ns
+    :return: numpy array for the double exponential decay
+    """
+    return s * (1 + a * np.exp(-(x) / t) + a2 * np.exp(-(x) / t2))
 # def S21_abs(w, A, k, phi, kappa_p, omega_p, omega_r, J):
 #     """Calculates the absolute value of the S21 transmission for two coupled resonators.
 #
