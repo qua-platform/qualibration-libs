@@ -19,6 +19,19 @@ class QubitsExperimentNodeParameters(RunnableParameters):
     """The qubit reset method to use. Must be implemented as a method of Quam.qubit. Can be "thermal", "active", or
     "active_gef". Default is "thermal"."""
 
+class TwoQubitExperimentNodeParameters(RunnableParameters):
+    qubit_pairs: Optional[List[str]] = None
+    """A list of qubit names which should participate in the execution of the node. Default is None."""
+    multiplexed: bool = False
+    """Whether to play control pulses, readout pulses and active/thermal reset at the same time for all qubits (True)
+    or to play the experiment sequentially for each qubit (False). Default is False."""
+    use_state_discrimination: bool = False
+    """Whether to use on-the-fly state discrimination and return the qubit 'state', or simply return the demodulated
+    quadratures 'I' and 'Q'. Default is False."""
+    reset_type: Literal["thermal", "active", "active_gef"] = "thermal"
+    """The qubit reset method to use. Must be implemented as a method of Quam.qubit. Can be "thermal", "active", or
+    "active_gef". Default is "thermal"."""
+
 
 def get_qubits(node: QualibrationNode) -> BatchableList[AnyTransmon]:
     qubits = _get_qubits(node.machine, node.parameters)
