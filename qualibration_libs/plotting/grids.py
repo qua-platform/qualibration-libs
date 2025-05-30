@@ -1,10 +1,9 @@
 import re
+from typing import Iterator, List, Optional, Tuple, Union
 
 import matplotlib
-from matplotlib import pyplot as plt
 import xarray as xr
-
-from typing import List, Tuple, Union
+from matplotlib import pyplot as plt
 
 
 def grid_pair_names(qubit_pairs) -> Tuple[List[str], List[str]]:
@@ -139,3 +138,53 @@ def grid_iter(grid: xr.plot.FacetGrid) -> Tuple[matplotlib.axes.Axes, dict]:
     for axr, ndr in zip(grid.axes, grid.name_dicts):
         for ax, nd in zip(axr, ndr):
             yield ax, nd
+
+class PlotlyQubitGrid:
+    """
+    Plotly version of QubitGrid: computes grid shape and qubit ordering for Plotly subplots.
+    """
+    def __init__(self, ds: xr.Dataset, grid_names: Optional[List[str]] = None):
+        if grid_names:
+            if isinstance(grid_names, str):
+                grid_names = [grid_names]
+            grid_indices = [
+                tuple(map(int, re.findall(r"-?\d+", grid_name)))
+                for grid_name in grid_names
+            ]
+        else:
+            grid_indices = [
+                tuple(map(int, re.findall(r"-?\d+", str(ds.qubit.values[q_index]))))
+                for q_index in range(ds.qubit.size)
+            ]
+        if len(grid_indices) > 1:
+            grid_name_mapping = dict(zip(grid_indices, ds.qubit.values))
+        else:
+            try:
+                grid_name_mapping = dict(zip(grid_indices, [str(ds.qubit.values[0])]))
+            except Exception:
+                grid_name_mapping = dict(zip(grid_indices, [str(ds.qubit.values)]))
+        grid_row_idxs = [idx[1] for idx in grid_indices]
+        grid_col_idxs = [idx[0] for idx in grid_indices]
+        min_grid_row = min(grid_row_idxs)
+        min_grid_col = min(grid_col_idxs)
+        n_rows = max(grid_row_idxs) - min_grid_row + 1
+        n_cols = max(grid_col_idxs) - min_grid_col + 1
+        # Build grid order: row-major, from top-left (max_row) to bottom-right (min_row)
+        grid_order = []
+        for row in reversed(range(min_grid_row, min_grid_row + n_rows)):
+            for col in range(min_grid_col, min_grid_col + n_cols):
+                grid_order.append(grid_name_mapping.get((col, row)))
+        self.n_rows = n_rows
+        self.n_cols = n_cols
+        self.grid_order = grid_order
+        self.name_dicts = [
+            {ds.qubit.name: value} for value in grid_order if value is not None
+        ]
+
+
+def plotly_grid_iter(grid: 'PlotlyQubitGrid') -> Iterator:
+    """
+    Generator to iterate over the PlotlyQubitGrid, yielding (subplot_index, name_dict) for each qubit.
+    """
+    for i, name_dict in enumerate(grid.name_dicts):
+        yield i, name_dict
