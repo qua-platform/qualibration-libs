@@ -263,17 +263,30 @@ def fit_oscillation(da, dim):
                 offset=offset,
             )
             if fit.rsquared < 0.9:
+                y_fft = np.fft.fft(y)
+                freqs = np.fft.fftfreq(len(x), d=(x[1] - x[0]))
+
+                # Use only positive frequencies above 0.1
+                positive_freqs = freqs[:len(freqs)//2]
+                fft_magnitude = np.abs(y_fft)[:len(freqs)//2]
+                mask = positive_freqs > 0.1
+
+                # Find peak in FFT for initial guess
+                peak_idx = np.argmax(fft_magnitude[mask])
+                f_guess = positive_freqs[mask][peak_idx]
+                a_guess = 2 * fft_magnitude[mask][peak_idx] / len(x)
+                phi_guess = np.angle(y_fft[:len(freqs)//2][mask][peak_idx])
                 fit = model.fit(
                     y,
                     t=x,
-                    a=Parameter("a", value=a, min=0),
+                    a=Parameter("a", value=a_guess, min=0),
                     f=Parameter(
                         "f",
-                        value=1.0 / (np.max(x) - np.min(x)),
+                        value=f_guess,
                         min=0,
                         max=np.abs(f * 3 + 1e-3),
                     ),
-                    phi=Parameter("phi", value=phi),
+                    phi=Parameter("phi", value=phi_guess),
                     offset=offset,
                 )
             return np.array([fit.values[k] for k in ["a", "f", "phi", "offset"]])
