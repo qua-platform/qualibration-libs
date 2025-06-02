@@ -141,7 +141,23 @@ def grid_iter(grid: xr.plot.FacetGrid) -> Tuple[matplotlib.axes.Axes, dict]:
 
 class PlotlyQubitGrid:
     """
-    Plotly version of QubitGrid: computes grid shape and qubit ordering for Plotly subplots.
+    Computes grid shape and qubit ordering for Plotly subplots based on a dataset's qubit coordinates.
+
+    Unlike QubitGrid, this class does not create or manage any plotting objects or axes. Instead, it provides the necessary information (number of rows, columns, and qubit ordering) to facilitate the arrangement of subplots in Plotly figures.
+
+    The class extracts grid positions from the dataset or from provided grid names, determines the grid shape, and produces an ordered list of qubit names for subplot assignment. This is useful for generating Plotly subplots that mirror the physical or logical layout of qubits, but all actual plotting must be handled externally.
+
+    Attributes:
+        n_rows (int): Number of rows in the grid.
+        n_cols (int): Number of columns in the grid.
+        grid_order (list[str | None]): Qubit names ordered for subplot assignment (row-major, top-left to bottom-right).
+        name_dicts (list[dict]): List of dictionaries mapping the qubit coordinate name to each qubit value, for use in labeling or selection.
+
+    Example usage:
+        grid = PlotlyQubitGrid(ds)
+        for subplot_idx, name_dict in plotly_grid_iter(grid):
+            # Use subplot_idx to assign to Plotly subplot, and name_dict for data selection/labeling
+            ...
     """
     def __init__(self, ds: xr.Dataset, grid_names: Optional[List[str]] = None):
         if grid_names:
