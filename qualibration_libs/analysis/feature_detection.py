@@ -1,15 +1,15 @@
 import numpy as np
-from scipy.fft import fft
 import scipy.sparse as sparse
 import xarray as xr
-from scipy.signal import find_peaks, peak_widths
+from scipy.fft import fft
+from scipy.signal import find_peaks, peak_widths, savgol_filter
 from scipy.sparse.linalg import spsolve
 
 __all__ = ["peaks_dips"]
 
 
 def peaks_dips(
-    da, dim, prominence_factor=5, number=1, remove_baseline=True
+    da, dim, prominence_factor=2, number=1, remove_baseline=True
 ) -> xr.Dataset:
     """
     Searches in a data array along the specified dimension for the most prominent peak or dip, and returns a xarray
@@ -82,6 +82,24 @@ def peaks_dips(
             res.append(np.nan)
         return np.array(res)
 
+    def _num_peaks(arr, prominence):
+        # Baseline correction (ALS)
+        baseline = savgol_filter(arr, window_length=min(51, len(arr)//2*2+1), polyorder=3)
+        arr_bc = arr - baseline
+        # Smoothing
+        smoothed = savgol_filter(arr_bc, window_length=min(21, len(arr_bc)//2*2+1), polyorder=3)
+        # Noise estimation from residual
+        noise = np.std(arr_bc - smoothed)
+        # Peak detection on smoothed, baseline-corrected signal
+        peaks, properties = find_peaks(
+            smoothed,
+            prominence=3*noise,
+            distance=10,
+            width=3
+        )
+        # print(f"[DEBUG] All peaks: indices={peaks}, heights={smoothed[peaks]}, prominences={properties.get('prominences')}, widths={properties.get('widths')}, noise={noise}")
+        return np.array([len(peaks)])
+
     peaks_inversion = (
         2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim))
         - 1
@@ -116,6 +134,14 @@ def peaks_dips(
         input_core_dims=[[dim], []],
         vectorize=True,
     )
+    num_peaks = xr.apply_ufunc(
+        _num_peaks,
+        da,
+        prominence_factor * std,
+        input_core_dims=[[dim], []],
+        output_core_dims=[[]],
+        vectorize=True,
+    )
     peak_position = xr.apply_ufunc(
         _position_from_index,
         1.0 * da.coords[dim],
@@ -143,6 +169,7 @@ def peaks_dips(
             peak_width.rename("width"),
             peak_amp.rename("amplitude"),
             base_line.rename("base_line"),
+            num_peaks.rename("num_peaks"),
         ]
     )
 
