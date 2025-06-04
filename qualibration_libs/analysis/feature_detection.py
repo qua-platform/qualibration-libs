@@ -4,6 +4,7 @@ import xarray as xr
 from scipy.fft import fft
 from scipy.signal import find_peaks, peak_widths, savgol_filter
 from scipy.sparse.linalg import spsolve
+from scipy.stats import skew
 
 __all__ = ["peaks_dips"]
 
@@ -97,7 +98,6 @@ def peaks_dips(
             distance=10,
             width=3
         )
-        # print(f"[DEBUG] All peaks: indices={peaks}, heights={smoothed[peaks]}, prominences={properties.get('prominences')}, widths={properties.get('widths')}, noise={noise}")
         return np.array([len(peaks)])
 
     def _main_peak_snr(arr, prominence):
@@ -123,6 +123,65 @@ def peaks_dips(
         main_height = np.abs(heights[main_idx])
         snr = main_height / (noise if noise > 0 else 1e-12)
         return np.array([snr])
+
+    def _main_peak_asymmetry_skew(arr, prominence):
+        # Baseline correction (ALS)
+        baseline = savgol_filter(arr, window_length=min(51, len(arr)//2*2+1), polyorder=3)
+        arr_bc = arr - baseline
+        # Smoothing
+        smoothed = savgol_filter(arr_bc, window_length=min(21, len(arr_bc)//2*2+1), polyorder=3)
+        # Noise estimation from residual
+        noise = np.std(arr_bc - smoothed)
+        # Peak detection on smoothed, baseline-corrected signal
+        peaks, properties = find_peaks(
+            smoothed,
+            prominence=3*noise,
+            distance=10,
+            width=3
+        )
+        if len(peaks) == 0:
+            return np.array([np.nan, np.nan])
+        main_idx = np.argmax(np.abs(smoothed[peaks]))
+        main_peak = peaks[main_idx]
+        # Asymmetry: left/right width at half-max
+        results_half = peak_widths(smoothed, peaks=[main_peak], rel_height=0.5)
+        left_ips, right_ips = results_half[2][0], results_half[3][0]
+        left_width = abs(main_peak - left_ips)
+        right_width = abs(right_ips - main_peak)
+        asymmetry_ratio = right_width / left_width if left_width > 0 else np.nan
+        # Skewness: window around peak (±width)
+        window_radius = int(max(left_width, right_width, 5))
+        start = max(0, int(main_peak - window_radius))
+        end = min(len(smoothed), int(main_peak + window_radius + 1))
+        window = smoothed[start:end]
+        skewness = skew(window) if len(window) > 3 else np.nan
+        return np.array([asymmetry_ratio, skewness])
+
+    def _opx_bandwidth_artifact(arr, prominence, window=20, exclusion=3, artifact_prominence_factor=2.0):
+        # Baseline correction (ALS)
+        baseline = savgol_filter(arr, window_length=min(51, len(arr)//2*2+1), polyorder=3)
+        arr_bc = arr - baseline
+        # Smoothing
+        smoothed = savgol_filter(arr_bc, window_length=min(21, len(arr_bc)//2*2+1), polyorder=3)
+        # Noise estimation from residual
+        noise = np.std(arr_bc - smoothed)
+        # Find main dip (minimum)
+        main_idx = np.argmin(smoothed)
+        # Define window around main dip, excluding center
+        start = max(0, main_idx - window)
+        end = min(len(smoothed), main_idx + window + 1)
+        exclusion_start = max(start, main_idx - exclusion)
+        exclusion_end = min(end, main_idx + exclusion + 1)
+        # Search for local maxima (peaks) in the window, excluding the dip center
+        search_region = np.concatenate([
+            smoothed[start:exclusion_start],
+            smoothed[exclusion_end:end]
+        ])
+        if len(search_region) == 0:
+            return np.array([False])
+        # Find peaks in the search region
+        peaks, properties = find_peaks(search_region, prominence=artifact_prominence_factor * noise)
+        return np.array([len(peaks) > 0])
 
     peaks_inversion = (
         2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim))
@@ -195,6 +254,24 @@ def peaks_dips(
     )
     peak_amp = da.max(dim=dim) - da.min(dim=dim) - std
 
+    asymmetry_skew = xr.apply_ufunc(
+        _main_peak_asymmetry_skew,
+        da,
+        prominence_factor * std,
+        input_core_dims=[[dim], []],
+        output_core_dims=[["asymmetry_skew"]],
+        vectorize=True,
+    )
+
+    opx_bandwidth_artifact = xr.apply_ufunc(
+        _opx_bandwidth_artifact,
+        da,
+        prominence_factor * std,
+        input_core_dims=[[dim], []],
+        output_core_dims=[[]],
+        vectorize=True,
+    )
+
     return xr.merge(
         [
             peak_position.rename("position"),
@@ -203,6 +280,9 @@ def peaks_dips(
             base_line.rename("base_line"),
             num_peaks.rename("num_peaks"),
             snr.rename("snr"),
+            xr.DataArray(asymmetry_skew[..., 0], dims=peak_position.dims).rename("asymmetry"),
+            xr.DataArray(asymmetry_skew[..., 1], dims=peak_position.dims).rename("skewness"),
+            opx_bandwidth_artifact.rename("opx_bandwidth_artifact"),
         ]
     )
 
