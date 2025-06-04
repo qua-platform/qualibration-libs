@@ -100,6 +100,30 @@ def peaks_dips(
         # print(f"[DEBUG] All peaks: indices={peaks}, heights={smoothed[peaks]}, prominences={properties.get('prominences')}, widths={properties.get('widths')}, noise={noise}")
         return np.array([len(peaks)])
 
+    def _main_peak_snr(arr, prominence):
+        # Baseline correction (ALS)
+        baseline = savgol_filter(arr, window_length=min(51, len(arr)//2*2+1), polyorder=3)
+        arr_bc = arr - baseline
+        # Smoothing
+        smoothed = savgol_filter(arr_bc, window_length=min(21, len(arr_bc)//2*2+1), polyorder=3)
+        # Noise estimation from residual
+        noise = np.std(arr_bc - smoothed)
+        # Peak detection on smoothed, baseline-corrected signal
+        peaks, properties = find_peaks(
+            smoothed,
+            prominence=3*noise,
+            distance=10,
+            width=3
+        )
+        if len(peaks) == 0:
+            return np.array([0.0])
+        heights = smoothed[peaks]
+        # Main peak: largest amplitude change (height)
+        main_idx = np.argmax(np.abs(heights))
+        main_height = np.abs(heights[main_idx])
+        snr = main_height / (noise if noise > 0 else 1e-12)
+        return np.array([snr])
+
     peaks_inversion = (
         2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim))
         - 1
@@ -142,6 +166,14 @@ def peaks_dips(
         output_core_dims=[[]],
         vectorize=True,
     )
+    snr = xr.apply_ufunc(
+        _main_peak_snr,
+        da,
+        prominence_factor * std,
+        input_core_dims=[[dim], []],
+        output_core_dims=[[]],
+        vectorize=True,
+    )
     peak_position = xr.apply_ufunc(
         _position_from_index,
         1.0 * da.coords[dim],
@@ -170,6 +202,7 @@ def peaks_dips(
             peak_amp.rename("amplitude"),
             base_line.rename("base_line"),
             num_peaks.rename("num_peaks"),
+            snr.rename("snr"),
         ]
     )
 
