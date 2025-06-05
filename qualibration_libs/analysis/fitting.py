@@ -244,25 +244,28 @@ def fit_oscillation(da, dim):
         def f(d):
             return guess.frequency(da[dim], d)
 
-        return np.apply_along_axis(f, -1, dat)
+    def get_freq_and_amp_and_phase(da, dim):
+        def compute_FFT(x, y):
+            N = len(x)
+            T = x[1] - x[0]
+            yf = np.fft.fft(y)
+            xf = np.fft.fftfreq(N, T)
+            mask = xf > 0.1
+            xf, fft_magnitude = xf[mask], np.abs(yf)[mask]
+            idx = np.argmax(fft_magnitude)
+            peak_freqs = xf
+            peak_amps = 2 * fft_magnitude/ N
+            peak_phases = np.angle(yf[mask])
+            return peak_freqs[idx], peak_amps[idx], peak_phases[idx]
+        # Apply the FFT computation across the specified dimension
+        def get_fft_param(dat, idx):
+            return np.apply_along_axis(lambda x: compute_FFT(da[dim].values, x)[idx], -1, dat)
 
-    def get_amp(dat):
-        max_ = np.max(dat, axis=-1)
-        min_ = np.min(dat, axis=-1)
-        return (max_ - min_) / 2
+        params = [xr.apply_ufunc(get_fft_param, da, i, input_core_dims=[[dim], []]) for i in range(3)]
+        params = [_fix_initial_value(p, da) for p in params]
+        return [p.rename(n) for p, n in zip(params, ["freq guess", "amp guess", "phase guess"])]
 
-    da_c = da - da.mean(dim=dim)
-    freq_guess = _fix_initial_value(
-        xr.apply_ufunc(get_freq, da_c, input_core_dims=[[dim]]).rename("freq guess"),
-        da_c,
-    )
-    amp_guess = _fix_initial_value(
-        xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess"), da
-    )
-    # phase_guess = np.pi * (da.loc[{dim : da.coords[dim].values[0]}] < da.mean(dim=dim) )
-    phase_guess = np.pi * (
-        da.loc[{dim: np.abs(da.coords[dim]).min()}] < da.mean(dim=dim)
-    )
+    freq_guess, amp_guess, phase_guess = get_freq_and_amp_and_phase(da, dim)
     offset_guess = da.mean(dim=dim)
 
     def apply_fit(x, y, a, f, phi, offset):
@@ -278,33 +281,6 @@ def fit_oscillation(da, dim):
                 phi=Parameter("phi", value=phi),
                 offset=offset,
             )
-            if fit.rsquared < 0.9:
-                y_fft = np.fft.fft(y)
-                freqs = np.fft.fftfreq(len(x), d=(x[1] - x[0]))
-
-                # Use only positive frequencies above 0.1
-                positive_freqs = freqs[:len(freqs)//2]
-                fft_magnitude = np.abs(y_fft)[:len(freqs)//2]
-                mask = positive_freqs > 0.1
-
-                # Find peak in FFT for initial guess
-                peak_idx = np.argmax(fft_magnitude[mask])
-                f_guess = positive_freqs[mask][peak_idx]
-                a_guess = 2 * fft_magnitude[mask][peak_idx] / len(x)
-                phi_guess = np.angle(y_fft[:len(freqs)//2][mask][peak_idx])
-                fit = model.fit(
-                    y,
-                    t=x,
-                    a=Parameter("a", value=a_guess, min=0),
-                    f=Parameter(
-                        "f",
-                        value=f_guess,
-                        min=0,
-                        max=np.abs(f * 3 + 1e-3),
-                    ),
-                    phi=Parameter("phi", value=phi_guess),
-                    offset=offset,
-                )
             return np.array([fit.values[k] for k in ["a", "f", "phi", "offset"]])
         except RuntimeError as e:
             print(f"{a=}, {f=}, {phi=}, {offset=}")
