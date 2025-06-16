@@ -1,5 +1,5 @@
 from .common import CommonNodeParameters
-from .experiment import QubitsExperimentNodeParameters, TwoQubitExperimentNodeParameters, get_qubits
+from .experiment import QubitsExperimentNodeParameters, TwoQubitExperimentNodeParameters, get_qubits, get_qubit_pairs
 from .sweep import IdleTimeNodeParameters, get_idle_times_in_clock_cycles
 
 __all__ = [
@@ -7,6 +7,7 @@ __all__ = [
     "QubitsExperimentNodeParameters",
     "TwoQubitExperimentNodeParameters",
     "get_qubits",
+    "get_qubit_pairs",
     "IdleTimeNodeParameters",
     "get_idle_times_in_clock_cycles",
 ]

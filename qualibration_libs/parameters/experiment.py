@@ -5,6 +5,7 @@ from qualibrate.parameters import RunnableParameters
 from qualibration_libs.core import BatchableList
 from quam_builder.architecture.superconducting.qpu import AnyQuam
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
+from quam_builder.architecture.superconducting.qubit_pair import AnyTransmonPair
 
 
 class BaseExperimentNodeParameters(RunnableParameters):
@@ -49,6 +50,28 @@ def _get_qubits(machine: AnyQuam, node_parameters: QubitsExperimentNodeParameter
         qubits = [machine.qubits[q] for q in node_parameters.qubits]
 
     return qubits
+
+
+def get_qubit_pairs(node: QualibrationNode) -> BatchableList[AnyTransmonPair]:
+    qubit_pairs = _get_qubit_pairs(node.machine, node.parameters)
+
+    if isinstance(node.parameters, TwoQubitExperimentNodeParameters):
+        multiplexed = node.parameters.multiplexed
+    else:
+        multiplexed = False
+
+    qubit_pairs_batchable_list = _make_batchable_list_from_multiplexed(qubit_pairs, multiplexed)
+
+    return qubit_pairs_batchable_list
+
+
+def _get_qubit_pairs(machine: AnyQuam, node_parameters: TwoQubitExperimentNodeParameters) -> List[AnyTransmonPair]:
+    if node_parameters.qubit_pairs is None or node_parameters.qubit_pairs == "":
+        qubit_pairs = machine.active_qubit_pairs
+    else:
+        qubit_pairs = [machine.qubit_pairs[q] for q in node_parameters.qubit_pairs]
+
+    return qubit_pairs
 
 
 def _make_batchable_list_from_multiplexed(items: List, multiplexed: bool) -> BatchableList:
