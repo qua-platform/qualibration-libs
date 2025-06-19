@@ -9,6 +9,24 @@ from scipy.stats import skew
 __all__ = ["peaks_dips"]
 
 
+def _get_savgol_window_length(data_length: int, window_size: int, polyorder: int) -> int:
+    """Safely determine the window length for savgol_filter."""
+    # Ensure window_length is odd and smaller than data_length
+    window_length = min(window_size, data_length)
+    if window_length % 2 == 0:
+        window_length -= 1
+    # Ensure window_length is greater than polyorder
+    if window_length <= polyorder:
+        # If not possible, find the smallest valid window_length
+        if data_length > polyorder:
+            window_length = polyorder + 1 if (polyorder + 1) % 2 != 0 else polyorder + 2
+            if window_length > data_length:
+                return -1  # Not possible to find a valid window
+        else:
+            return -1  # Not possible to find a valid window
+    return window_length
+
+
 def peaks_dips(
     da, dim, prominence_factor=2, number=1, remove_baseline=True
 ) -> xr.Dataset:
@@ -85,10 +103,12 @@ def peaks_dips(
 
     def _num_peaks(arr, prominence):
         # Baseline correction (ALS)
-        baseline = savgol_filter(arr, window_length=min(51, len(arr)//2*2+1), polyorder=3)
+        baseline_window = _get_savgol_window_length(len(arr), 51, 3)
+        baseline = savgol_filter(arr, window_length=baseline_window, polyorder=3) if baseline_window > 0 else arr
         arr_bc = arr - baseline
         # Smoothing
-        smoothed = savgol_filter(arr_bc, window_length=min(21, len(arr_bc)//2*2+1), polyorder=3)
+        smooth_window = _get_savgol_window_length(len(arr_bc), 21, 3)
+        smoothed = savgol_filter(arr_bc, window_length=smooth_window, polyorder=3) if smooth_window > 0 else arr_bc
         # Noise estimation from residual
         noise = np.std(arr_bc - smoothed)
         # Peak detection on smoothed, baseline-corrected signal
@@ -102,10 +122,12 @@ def peaks_dips(
 
     def _main_peak_snr(arr, prominence):
         # Baseline correction (ALS)
-        baseline = savgol_filter(arr, window_length=min(51, len(arr)//2*2+1), polyorder=3)
+        baseline_window = _get_savgol_window_length(len(arr), 51, 3)
+        baseline = savgol_filter(arr, window_length=baseline_window, polyorder=3) if baseline_window > 0 else arr
         arr_bc = arr - baseline
         # Smoothing
-        smoothed = savgol_filter(arr_bc, window_length=min(21, len(arr_bc)//2*2+1), polyorder=3)
+        smooth_window = _get_savgol_window_length(len(arr_bc), 21, 3)
+        smoothed = savgol_filter(arr_bc, window_length=smooth_window, polyorder=3) if smooth_window > 0 else arr_bc
         # Noise estimation from residual
         noise = np.std(arr_bc - smoothed)
         # Peak detection on smoothed, baseline-corrected signal
@@ -126,10 +148,12 @@ def peaks_dips(
 
     def _main_peak_asymmetry_skew(arr, prominence):
         # Baseline correction (ALS)
-        baseline = savgol_filter(arr, window_length=min(51, len(arr)//2*2+1), polyorder=3)
+        baseline_window = _get_savgol_window_length(len(arr), 51, 3)
+        baseline = savgol_filter(arr, window_length=baseline_window, polyorder=3) if baseline_window > 0 else arr
         arr_bc = arr - baseline
         # Smoothing
-        smoothed = savgol_filter(arr_bc, window_length=min(21, len(arr_bc)//2*2+1), polyorder=3)
+        smooth_window = _get_savgol_window_length(len(arr_bc), 21, 3)
+        smoothed = savgol_filter(arr_bc, window_length=smooth_window, polyorder=3) if smooth_window > 0 else arr_bc
         # Noise estimation from residual
         noise = np.std(arr_bc - smoothed)
         # Peak detection on smoothed, baseline-corrected signal
@@ -159,10 +183,12 @@ def peaks_dips(
 
     def _opx_bandwidth_artifact(arr, prominence, window=20, exclusion=3, artifact_prominence_factor=2.0):
         # Baseline correction (ALS)
-        baseline = savgol_filter(arr, window_length=min(51, len(arr)//2*2+1), polyorder=3)
+        baseline_window = _get_savgol_window_length(len(arr), 51, 3)
+        baseline = savgol_filter(arr, window_length=baseline_window, polyorder=3) if baseline_window > 0 else arr
         arr_bc = arr - baseline
         # Smoothing
-        smoothed = savgol_filter(arr_bc, window_length=min(21, len(arr_bc)//2*2+1), polyorder=3)
+        smooth_window = _get_savgol_window_length(len(arr_bc), 21, 3)
+        smoothed = savgol_filter(arr_bc, window_length=smooth_window, polyorder=3) if smooth_window > 0 else arr_bc
         # Noise estimation from residual
         noise = np.std(arr_bc - smoothed)
         # Find main dip (minimum)
