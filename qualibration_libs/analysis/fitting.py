@@ -42,9 +42,9 @@ def fit_decay_exp(da, dim):
         return np.apply_along_axis(oed, -1, dat)
 
     def get_amp(dat):
-        max_ = np.max(dat, axis=-1)
-        min_ = np.min(dat, axis=-1)
-        return (max_ - min_) / 2
+        end_ = np.mean(dat[:,-10:], axis=-1)
+        start_ = np.mean(dat[:,:10], axis=-1)
+        return (start_ - end_) / 2
 
     def get_min(dat):
         return np.min(dat, axis=-1)
