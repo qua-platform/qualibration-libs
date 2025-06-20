@@ -254,14 +254,20 @@ def fit_oscillation(da, dim):
             xf, fft_magnitude = xf[mask], np.abs(yf)[mask]
             idx = np.argmax(fft_magnitude)
             peak_freqs = xf
-            peak_amps = 2 * fft_magnitude/ N
+            peak_amps = 2 * fft_magnitude / N
             peak_phases = np.angle(yf[mask])
             return peak_freqs[idx], peak_amps[idx], peak_phases[idx]
+
         # Apply the FFT computation across the specified dimension
         def get_fft_param(dat, idx):
-            return np.apply_along_axis(lambda x: compute_FFT(da[dim].values, x)[idx], -1, dat)
+            return np.apply_along_axis(
+                lambda x: compute_FFT(da[dim].values, x)[idx], -1, dat
+            )
 
-        params = [xr.apply_ufunc(get_fft_param, da, i, input_core_dims=[[dim], []]) for i in range(3)]
+        params = [
+            xr.apply_ufunc(get_fft_param, da, i, input_core_dims=[[dim], []])
+            for i in range(3)
+        ]
         params = [_fix_initial_value(p, da) for p in params]
         return [p.rename(n) for p, n in zip(params, ["freq guess", "amp guess", "phase guess"])]
 
