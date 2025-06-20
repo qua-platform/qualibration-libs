@@ -1,12 +1,10 @@
-from matplotlib import pyplot as plt
-import qiskit_experiments.curve_analysis as ca
-from scipy.optimize import curve_fit
 import numpy as np
+import qiskit_experiments.curve_analysis as ca
 import xarray as xr
 from lmfit import Model, Parameter
-
+from matplotlib import pyplot as plt
 from qualibration_libs.analysis.models import *
-
+from scipy.optimize import curve_fit
 
 __all__ = ["fit_oscillation", "fit_oscillation_decay_exp", "fit_decay_exp"]
 
@@ -243,7 +241,6 @@ def fit_oscillation(da, dim):
     amp_guess = _fix_initial_value(
         xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess"), da
     )
-    # phase_guess = np.pi * (da.loc[{dim : da.coords[dim].values[0]}] < da.mean(dim=dim) )
     phase_guess = np.pi * (
         da.loc[{dim: np.abs(da.coords[dim]).min()}] < da.mean(dim=dim)
     )
@@ -276,9 +273,8 @@ def fit_oscillation(da, dim):
                     phi=Parameter("phi", value=phi),
                     offset=offset,
                 )
-            return np.array([fit.values[k] for k in ["a", "f", "phi", "offset"]])
+            return np.array([fit.values[k] for k in ["a", "f", "phi", "offset"]]), fit.rsquared
         except RuntimeError as e:
-            print(f"{a=}, {f=}, {phi=}, {offset=}")
             plt.plot(x, oscillation(x, a, f, phi, offset))
             plt.plot(x, y)
             plt.show()
@@ -293,10 +289,26 @@ def fit_oscillation(da, dim):
         phase_guess,
         offset_guess,
         input_core_dims=[[dim], [dim], [], [], [], []],
-        output_core_dims=[["fit_vals"]],
+        output_core_dims=[["fit_vals"], []],
         vectorize=True,
     )
-    return fit_res.assign_coords(fit_vals=("fit_vals", ["a", "f", "phi", "offset"]))
+    
+    # Extract the fit parameters and R² values
+    fit_params = fit_res[0].assign_coords(fit_vals=("fit_vals", ["a", "f", "phi", "offset"]))
+    r_squared = fit_res[1]
+    
+    # Add R² as an attribute to the fit parameters
+    if hasattr(r_squared, 'values'):
+        r_squared = r_squared.values
+    
+    if isinstance(r_squared, np.ndarray):
+        r_squared = float(np.mean(r_squared))
+    else:
+        r_squared = float(r_squared)
+    
+    fit_params.attrs['r_squared'] = r_squared
+    
+    return fit_params
 
 
 # def _truncate_data(transmission, window):
@@ -341,7 +353,7 @@ def fit_oscillation(da, dim):
 #     init_params.add("phi", value=0)
 #
 #     return init_params
-
+#
 #
 # class _two_resonator_model(Model):
 #     # A class to fit the S21 model to a data. Accepts an xarray data
