@@ -1,11 +1,15 @@
 from typing import Dict, List, Literal, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
 import xarray as xr
+from matplotlib.figure import Figure as MatplotlibFigure
 from plotly.subplots import make_subplots
 from pydantic import BaseModel, Field
-from qualibration_libs.plotting.grids import PlotlyQubitGrid, plotly_grid_iter
+from qualibration_libs.analysis import lorentzian_dip
+from qualibration_libs.plotting.grids import (PlotlyQubitGrid, QubitGrid,
+                                              grid_iter, plotly_grid_iter)
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
 
@@ -73,7 +77,6 @@ def create_plotly_figure(
         ds_qubit_raw = ds_raw.sel(qubit=qubit_id)
         ds_qubit_fit = ds_fit.sel(qubit=qubit_id) if ds_fit is not None else None
 
-
         for trace_config in config.traces + config.fit_traces:
             if not trace_config.visible:
                 continue
@@ -82,6 +85,13 @@ def create_plotly_figure(
             ds_source = ds_qubit_fit if is_fit_trace else ds_qubit_raw
 
             if ds_source is None:
+                continue
+
+            # Check that all required data sources for this trace exist in the dataset
+            required_sources = [trace_config.x_source, trace_config.y_source]
+            if trace_config.z_source:
+                required_sources.append(trace_config.z_source)
+            if not all(source in ds_source for source in required_sources):
                 continue
 
             if trace_config.custom_data_sources:
@@ -124,4 +134,63 @@ def create_plotly_figure(
         height=350 * grid.n_rows,
         width=max(800, 350 * grid.n_cols)
     )
-    return fig 
+    return fig
+
+
+def create_matplotlib_figure(
+    ds_raw: xr.Dataset,
+    qubits: List[AnyTransmon],
+    plot_configs: List[PlotConfig],
+    ds_fit: Optional[xr.Dataset] = None,
+) -> MatplotlibFigure:
+    """
+    Creates a static Matplotlib figure from raw data, fit data, and a list of plot configurations.
+    """
+    if not plot_configs:
+        fig, _ = plt.subplots()
+        return fig
+
+    config = plot_configs[0]
+    grid = QubitGrid(ds_raw, [q.grid_location for q in qubits])
+    grid.fig.suptitle(config.layout.title)
+
+    for i, (ax, name_dict) in enumerate(grid_iter(grid)):
+        qubit_id = list(name_dict.values())[0]
+        ds_qubit_raw = ds_raw.sel(qubit=qubit_id)
+        ds_qubit_fit = ds_fit.sel(qubit=qubit_id) if ds_fit is not None else None
+
+        # Plot raw data traces
+        for trace_config in config.traces:
+            if trace_config.visible and all(s in ds_qubit_raw for s in [trace_config.x_source, trace_config.y_source]):
+                ax.plot(
+                    ds_qubit_raw[trace_config.x_source].values,
+                    ds_qubit_raw[trace_config.y_source].values,
+                    marker='.', linestyle='-',
+                    label=trace_config.name if i == 0 else ""
+                )
+
+        # Plot fit traces
+        if ds_qubit_fit:
+            for trace_config in config.fit_traces:
+                if trace_config.visible and all(s in ds_qubit_fit for s in [trace_config.x_source, trace_config.y_source]):
+                    # Translate plotly dash styles to matplotlib linestyle
+                    linestyle_map = {"solid": "-", "dot": ":", "dash": "--", "longdash": "-.", "dashdot": "-."}
+                    linestyle = linestyle_map.get(trace_config.style.get("dash"), "--")
+                    
+                    ax.plot(
+                        ds_qubit_fit[trace_config.x_source].values,
+                        ds_qubit_fit[trace_config.y_source].values,
+                        linestyle=linestyle,
+                        label=trace_config.name if i == 0 else "",
+                        color=trace_config.style.get("color", "red")
+                    )
+
+        ax.set_xlabel(config.layout.x_axis_title)
+        ax.set_ylabel(config.layout.y_axis_title)
+        ax.set_title(f"Qubit {qubit_id}")
+
+    if any(trace.name for trace in config.traces + config.fit_traces):
+        grid.fig.legend()
+        
+    grid.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+    return grid.fig 
