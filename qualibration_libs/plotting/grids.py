@@ -172,6 +172,7 @@ class PlotlyQubitGrid:
                 tuple(map(int, re.findall(r"-?\d+", str(ds.qubit.values[q_index]))))
                 for q_index in range(ds.qubit.size)
             ]
+            
         if len(grid_indices) > 1:
             grid_name_mapping = dict(zip(grid_indices, ds.qubit.values))
         else:
@@ -179,23 +180,39 @@ class PlotlyQubitGrid:
                 grid_name_mapping = dict(zip(grid_indices, [str(ds.qubit.values[0])]))
             except Exception:
                 grid_name_mapping = dict(zip(grid_indices, [str(ds.qubit.values)]))
+                
         grid_row_idxs = [idx[1] for idx in grid_indices]
         grid_col_idxs = [idx[0] for idx in grid_indices]
         min_grid_row = min(grid_row_idxs)
+        max_grid_row = max(grid_row_idxs)
         min_grid_col = min(grid_col_idxs)
-        n_rows = max(grid_row_idxs) - min_grid_row + 1
+        n_rows = max_grid_row - min_grid_row + 1
         n_cols = max(grid_col_idxs) - min_grid_col + 1
-        # Build grid order: row-major, from top-left (max_row) to bottom-right (min_row)
+        
+        # Build grid order using the same coordinate mapping logic as QubitGrid
+        # This ensures consistent layout between matplotlib and plotly versions
         grid_order = []
-        for row in reversed(range(min_grid_row, min_grid_row + n_rows)):
-            for col in range(min_grid_col, min_grid_col + n_cols):
-                grid_order.append(grid_name_mapping.get((col, row)))
+        name_dicts = []
+        
+        for row in range(n_rows):
+            for col in range(n_cols):
+                # Use the same coordinate transformation as QubitGrid:
+                # grid_row = max(grid_row_idxs) - row
+                # grid_col = col + min_grid_col
+                grid_row = max_grid_row - row
+                grid_col = col + min_grid_col
+                
+                qubit_name = grid_name_mapping.get((grid_col, grid_row))
+                grid_order.append(qubit_name)
+                
+                # Only add to name_dicts if qubit exists at this position
+                if qubit_name is not None:
+                    name_dicts.append({ds.qubit.name: qubit_name})
+        
         self.n_rows = n_rows
         self.n_cols = n_cols
         self.grid_order = grid_order
-        self.name_dicts = [
-            {ds.qubit.name: value} for value in grid_order if value is not None
-        ]
+        self.name_dicts = name_dicts
 
 
 def plotly_grid_iter(grid: 'PlotlyQubitGrid') -> Iterator:
