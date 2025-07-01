@@ -376,6 +376,13 @@ class XarrayDataFetcher:
 
         # Continuously update and yield the dataset while the job is processing
         while self.job.result_handles.is_processing():
+            if self.job.status in ["canceled", "completed"]:
+                logger.warning(
+                    "Job canceled; performing final fetch before stopping acquisition."
+                )
+                break
+            else:
+                logger.warning("Job is processing; retrieving latest data.")
             self.retrieve_latest_data()
             self.update_dataset()
             yield self.dataset
