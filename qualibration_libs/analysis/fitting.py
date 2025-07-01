@@ -578,3 +578,40 @@ def fit_oscillation(da, dim):
 #         fit.params.pretty_print()
 #
 #     return fit, fit_eval
+
+
+def circle_fit_s21_resonator_model(dataset: xr.Dataset):
+    """
+    Performs a full S21 circle fit for each qubit in the raw xarray Dataset.
+    """
+    required_vars = ['full_freq', 'I', 'Q']
+    if not all(var in dataset for var in required_vars):
+        print(f"Error: Dataset must contain the data variables: {required_vars}")
+        return None
+
+    results = {}
+    fitters = {}
+    qubits = dataset.coords["qubit"].values
+
+    for qubit in qubits:
+        # print(f"\n{'='*20}\n--- Fitting qubit: {qubit} ---\n{'='*20}")
+        qubit_data = dataset.sel(qubit=qubit)
+        frequencies = qubit_data["full_freq"].values
+        I_data = qubit_data["I"].values
+        Q_data = qubit_data["Q"].values
+        valid_indices = ~np.isnan(frequencies) & ~np.isnan(I_data) & ~np.isnan(Q_data)
+        frequencies, I_data, Q_data = frequencies[valid_indices], I_data[valid_indices], Q_data[valid_indices]
+        s21_complex = I_data + 1j * Q_data
+
+        fitter = S21Resonator(frequencies, s21_complex)
+        fit_params = fitter.fit()
+
+        if fit_params:
+            results[qubit] = fit_params
+            # print("S21 Fit successful.")
+            fitters[qubit] = fitter
+        else:
+            print("S21 Fit failed.")
+            results[qubit] = {"fit_parameters": None}
+
+    return results, fitters

@@ -1,3 +1,5 @@
+from typing import Dict, Tuple
+
 import numpy as np
 import scipy.sparse as sparse
 import xarray as xr
@@ -7,6 +9,85 @@ from scipy.sparse.linalg import spsolve
 from scipy.stats import skew
 
 __all__ = ["peaks_dips"]
+
+# Constants for signal processing parameters
+BASELINE_WINDOW_SIZE = 51
+SMOOTH_WINDOW_SIZE = 21
+POLYORDER = 3
+NOISE_PROMINENCE_FACTOR = 3
+PEAK_DISTANCE = 10
+PEAK_WIDTH = 3
+MIN_SKEW_WINDOW_SIZE = 3
+MIN_WINDOW_RADIUS = 5
+NOISE_FLOOR = 1e-12
+
+
+def _preprocess_signal_for_peak_detection(arr: np.ndarray) -> Dict[str, np.ndarray]:
+    """
+    Apply consistent preprocessing to signal data for peak detection.
+    
+    This function performs baseline correction using ALS, applies smoothing with
+    Savitzky-Golay filter, and estimates noise from the residual. All functions
+    use identical preprocessing parameters to ensure consistency.
+    
+    Parameters
+    ----------
+    arr : np.ndarray
+        Input signal array to preprocess
+        
+    Returns
+    -------
+    Dict[str, np.ndarray]
+        Dictionary containing:
+        - 'smoothed': Baseline-corrected and smoothed signal
+        - 'noise': Estimated noise level from residual
+        - 'baseline': Original baseline estimate
+        - 'baseline_corrected': Signal with baseline removed
+    """
+    # Baseline correction (ALS)
+    baseline_window = _get_savgol_window_length(len(arr), BASELINE_WINDOW_SIZE, POLYORDER)
+    baseline = (savgol_filter(arr, window_length=baseline_window, polyorder=POLYORDER) 
+                if baseline_window > 0 else arr)
+    arr_bc = arr - baseline
+    
+    # Smoothing
+    smooth_window = _get_savgol_window_length(len(arr_bc), SMOOTH_WINDOW_SIZE, POLYORDER)
+    smoothed = (savgol_filter(arr_bc, window_length=smooth_window, polyorder=POLYORDER) 
+                if smooth_window > 0 else arr_bc)
+    
+    # Noise estimation from residual
+    noise = np.std(arr_bc - smoothed)
+    
+    return {
+        'smoothed': smoothed,
+        'noise': noise,
+        'baseline': baseline,
+        'baseline_corrected': arr_bc
+    }
+
+
+def _detect_peaks_with_consistent_parameters(signal: np.ndarray, prominence: float) -> Tuple[np.ndarray, Dict]:
+    """
+    Detect peaks using consistent parameters across all detection functions.
+    
+    Parameters
+    ----------
+    signal : np.ndarray
+        Signal to analyze for peaks
+    prominence : float
+        Minimum prominence threshold for peak detection
+        
+    Returns
+    -------
+    Tuple[np.ndarray, Dict]
+        Peaks and properties from scipy.signal.find_peaks
+    """
+    return find_peaks(
+        signal,
+        prominence=prominence,
+        distance=PEAK_DISTANCE,
+        width=PEAK_WIDTH
+    )
 
 
 def _get_savgol_window_length(data_length: int, window_size: int, polyorder: int) -> int:
@@ -101,112 +182,92 @@ def peaks_dips(
             res.append(np.nan)
         return np.array(res)
 
-    def _num_peaks(arr, prominence):
-        # Baseline correction (ALS)
-        baseline_window = _get_savgol_window_length(len(arr), 51, 3)
-        baseline = savgol_filter(arr, window_length=baseline_window, polyorder=3) if baseline_window > 0 else arr
-        arr_bc = arr - baseline
-        # Smoothing
-        smooth_window = _get_savgol_window_length(len(arr_bc), 21, 3)
-        smoothed = savgol_filter(arr_bc, window_length=smooth_window, polyorder=3) if smooth_window > 0 else arr_bc
-        # Noise estimation from residual
-        noise = np.std(arr_bc - smoothed)
-        # Peak detection on smoothed, baseline-corrected signal
-        peaks, properties = find_peaks(
-            smoothed,
-            prominence=3*noise,
-            distance=10,
-            width=3
+    def _num_peaks(arr: np.ndarray, prominence: float) -> np.ndarray:
+        """Count the number of peaks in the signal using consistent preprocessing."""
+        processed = _preprocess_signal_for_peak_detection(arr)
+        peaks, _ = _detect_peaks_with_consistent_parameters(
+            processed['smoothed'], 
+            NOISE_PROMINENCE_FACTOR * processed['noise']
         )
         return np.array([len(peaks)])
 
-    def _main_peak_snr(arr, prominence):
-        # Baseline correction (ALS)
-        baseline_window = _get_savgol_window_length(len(arr), 51, 3)
-        baseline = savgol_filter(arr, window_length=baseline_window, polyorder=3) if baseline_window > 0 else arr
-        arr_bc = arr - baseline
-        # Smoothing
-        smooth_window = _get_savgol_window_length(len(arr_bc), 21, 3)
-        smoothed = savgol_filter(arr_bc, window_length=smooth_window, polyorder=3) if smooth_window > 0 else arr_bc
-        # Noise estimation from residual
-        noise = np.std(arr_bc - smoothed)
-        # Peak detection on smoothed, baseline-corrected signal
-        peaks, properties = find_peaks(
-            smoothed,
-            prominence=3*noise,
-            distance=10,
-            width=3
+    def _main_peak_snr(arr: np.ndarray, prominence: float) -> np.ndarray:
+        """Calculate signal-to-noise ratio of the main peak."""
+        processed = _preprocess_signal_for_peak_detection(arr)
+        peaks, _ = _detect_peaks_with_consistent_parameters(
+            processed['smoothed'], 
+            NOISE_PROMINENCE_FACTOR * processed['noise']
         )
+        
         if len(peaks) == 0:
             return np.array([0.0])
-        heights = smoothed[peaks]
+            
+        heights = processed['smoothed'][peaks]
         # Main peak: largest amplitude change (height)
         main_idx = np.argmax(np.abs(heights))
         main_height = np.abs(heights[main_idx])
-        snr = main_height / (noise if noise > 0 else 1e-12)
+        snr = main_height / (processed['noise'] if processed['noise'] > 0 else NOISE_FLOOR)
         return np.array([snr])
 
-    def _main_peak_asymmetry_skew(arr, prominence):
-        # Baseline correction (ALS)
-        baseline_window = _get_savgol_window_length(len(arr), 51, 3)
-        baseline = savgol_filter(arr, window_length=baseline_window, polyorder=3) if baseline_window > 0 else arr
-        arr_bc = arr - baseline
-        # Smoothing
-        smooth_window = _get_savgol_window_length(len(arr_bc), 21, 3)
-        smoothed = savgol_filter(arr_bc, window_length=smooth_window, polyorder=3) if smooth_window > 0 else arr_bc
-        # Noise estimation from residual
-        noise = np.std(arr_bc - smoothed)
-        # Peak detection on smoothed, baseline-corrected signal
-        peaks, properties = find_peaks(
-            smoothed,
-            prominence=3*noise,
-            distance=10,
-            width=3
+    def _main_peak_asymmetry_skew(arr: np.ndarray, prominence: float) -> np.ndarray:
+        """Calculate asymmetry and skewness of the main peak."""
+        processed = _preprocess_signal_for_peak_detection(arr)
+        peaks, _ = _detect_peaks_with_consistent_parameters(
+            processed['smoothed'], 
+            NOISE_PROMINENCE_FACTOR * processed['noise']
         )
+        
         if len(peaks) == 0:
             return np.array([np.nan, np.nan])
-        main_idx = np.argmax(np.abs(smoothed[peaks]))
+            
+        main_idx = np.argmax(np.abs(processed['smoothed'][peaks]))
         main_peak = peaks[main_idx]
+        
         # Asymmetry: left/right width at half-max
-        results_half = peak_widths(smoothed, peaks=[main_peak], rel_height=0.5)
+        results_half = peak_widths(processed['smoothed'], peaks=[main_peak], rel_height=0.5)
         left_ips, right_ips = results_half[2][0], results_half[3][0]
         left_width = abs(main_peak - left_ips)
         right_width = abs(right_ips - main_peak)
         asymmetry_ratio = right_width / left_width if left_width > 0 else np.nan
+        
         # Skewness: window around peak (±width)
-        window_radius = int(max(left_width, right_width, 5))
+        window_radius = int(max(left_width, right_width, MIN_WINDOW_RADIUS))
         start = max(0, int(main_peak - window_radius))
-        end = min(len(smoothed), int(main_peak + window_radius + 1))
-        window = smoothed[start:end]
-        skewness = skew(window) if len(window) > 3 else np.nan
+        end = min(len(processed['smoothed']), int(main_peak + window_radius + 1))
+        window = processed['smoothed'][start:end]
+        skewness = skew(window) if len(window) > MIN_SKEW_WINDOW_SIZE else np.nan
         return np.array([asymmetry_ratio, skewness])
 
-    def _opx_bandwidth_artifact(arr, prominence, window=20, exclusion=3, artifact_prominence_factor=2.0):
-        # Baseline correction (ALS)
-        baseline_window = _get_savgol_window_length(len(arr), 51, 3)
-        baseline = savgol_filter(arr, window_length=baseline_window, polyorder=3) if baseline_window > 0 else arr
-        arr_bc = arr - baseline
-        # Smoothing
-        smooth_window = _get_savgol_window_length(len(arr_bc), 21, 3)
-        smoothed = savgol_filter(arr_bc, window_length=smooth_window, polyorder=3) if smooth_window > 0 else arr_bc
-        # Noise estimation from residual
-        noise = np.std(arr_bc - smoothed)
+    def _opx_bandwidth_artifact(
+        arr: np.ndarray, 
+        prominence: float, 
+        window: int = 20, 
+        exclusion: int = 3, 
+        artifact_prominence_factor: float = 2.0
+    ) -> np.ndarray:
+        """Detect OPX bandwidth artifacts around the main dip."""
+        processed = _preprocess_signal_for_peak_detection(arr)
+        
         # Find main dip (minimum)
-        main_idx = np.argmin(smoothed)
+        main_idx = np.argmin(processed['smoothed'])
+        
         # Define window around main dip, excluding center
         start = max(0, main_idx - window)
-        end = min(len(smoothed), main_idx + window + 1)
+        end = min(len(processed['smoothed']), main_idx + window + 1)
         exclusion_start = max(start, main_idx - exclusion)
         exclusion_end = min(end, main_idx + exclusion + 1)
+        
         # Search for local maxima (peaks) in the window, excluding the dip center
         search_region = np.concatenate([
-            smoothed[start:exclusion_start],
-            smoothed[exclusion_end:end]
+            processed['smoothed'][start:exclusion_start],
+            processed['smoothed'][exclusion_end:end]
         ])
+        
         if len(search_region) == 0:
             return np.array([False])
+            
         # Find peaks in the search region
-        peaks, properties = find_peaks(search_region, prominence=artifact_prominence_factor * noise)
+        peaks, _ = find_peaks(search_region, prominence=artifact_prominence_factor * processed['noise'])
         return np.array([len(peaks) > 0])
 
     peaks_inversion = (
