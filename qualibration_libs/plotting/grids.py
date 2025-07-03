@@ -193,6 +193,7 @@ class PlotlyQubitGrid:
         # This ensures consistent layout between matplotlib and plotly versions
         grid_order = []
         name_dicts = []
+        grid_positions = []  # Track (row, col) for each qubit
         
         for row in range(n_rows):
             for col in range(n_cols):
@@ -205,19 +206,46 @@ class PlotlyQubitGrid:
                 qubit_name = grid_name_mapping.get((grid_col, grid_row))
                 grid_order.append(qubit_name)
                 
-                # Only add to name_dicts if qubit exists at this position
+                # Only add to name_dicts and positions if qubit exists at this position
                 if qubit_name is not None:
                     name_dicts.append({ds.qubit.name: qubit_name})
+                    grid_positions.append((row, col))  # Store actual grid position (0-indexed)
         
         self.n_rows = n_rows
         self.n_cols = n_cols
         self.grid_order = grid_order
         self.name_dicts = name_dicts
+        self.grid_positions = grid_positions  # Store grid positions for proper subplot mapping
+
+    def get_subplot_titles(self, title_template: str = "Qubit {qubit}") -> List[str]:
+        """
+        Generate subplot titles for the full grid layout, including empty positions.
+        
+        Parameters
+        ----------
+        title_template : str
+            Template string for titles. Use {qubit} as placeholder for qubit name.
+            
+        Returns
+        -------
+        List[str]
+            List of subplot titles matching the grid layout (row-major order).
+            Empty positions get empty string titles.
+        """
+        titles = []
+        for qubit_name in self.grid_order:
+            if qubit_name is not None:
+                titles.append(title_template.format(qubit=qubit_name))
+            else:
+                titles.append("")  # Empty title for empty grid positions
+        return titles
 
 
 def plotly_grid_iter(grid: 'PlotlyQubitGrid') -> Iterator:
     """
-    Generator to iterate over the PlotlyQubitGrid, yielding (subplot_index, name_dict) for each qubit.
+    Generator to iterate over the PlotlyQubitGrid, yielding (grid_position, name_dict) for each qubit.
+    Returns the actual grid position (row, col) rather than sequential index to preserve layout.
     """
     for i, name_dict in enumerate(grid.name_dicts):
-        yield i, name_dict
+        row, col = grid.grid_positions[i]
+        yield (row, col), name_dict
