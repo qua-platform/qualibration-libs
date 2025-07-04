@@ -8,8 +8,7 @@ from matplotlib.figure import Figure as MatplotlibFigure
 from plotly.subplots import make_subplots
 from pydantic import BaseModel, Field
 from qualibration_libs.analysis import lorentzian_dip
-from qualibration_libs.plotting.grids import (PlotlyQubitGrid, QubitGrid,
-                                              grid_iter, plotly_grid_iter)
+from qualibration_libs.plotting.grids import (QubitGrid, grid_iter)
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
 
@@ -59,7 +58,7 @@ def create_plotly_figure(
         return go.Figure()
 
     config = plot_configs[0] # For now, assume one config for the whole figure.
-    grid = PlotlyQubitGrid(ds_raw, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds_raw, [q.grid_location for q in qubits], create_figure=False)
 
     fig = make_subplots(
         rows=grid.n_rows,
@@ -69,7 +68,7 @@ def create_plotly_figure(
         vertical_spacing=0.2,
     )
 
-    for i, ((grid_row, grid_col), name_dict) in enumerate(plotly_grid_iter(grid)):
+    for i, ((grid_row, grid_col), name_dict) in enumerate(grid.plotly_grid_iter()):
         row = grid_row + 1  # Convert to 1-based indexing for Plotly
         col = grid_col + 1  # Convert to 1-based indexing for Plotly
         qubit_id = list(name_dict.values())[0]
@@ -257,7 +256,7 @@ def _create_heatmap_figure(
     ds_fit: Optional[xr.Dataset] = None
 ) -> go.Figure:
     """Create a heatmap figure with overlays and dual axes."""
-    grid = PlotlyQubitGrid(ds, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds, [q.grid_location for q in qubits], create_figure=False)
     
     # Create subplots with custom spacing
     spacing = config.subplot_spacing
@@ -273,7 +272,7 @@ def _create_heatmap_figure(
     
     heatmap_info = []
     
-    for idx, ((grid_row, grid_col), name_dict) in enumerate(plotly_grid_iter(grid)):
+    for idx, ((grid_row, grid_col), name_dict) in enumerate(grid.plotly_grid_iter()):
         row = grid_row + 1
         col = grid_col + 1
         qubit_id = list(name_dict.values())[0]
@@ -313,7 +312,7 @@ def _create_chevron_figure(
     ds_fit: Optional[xr.Dataset] = None
 ) -> go.Figure:
     """Create a chevron-style figure for power Rabi plots."""
-    grid = PlotlyQubitGrid(ds, [q.grid_location for q in qubits])
+    grid = QubitGrid(ds, [q.grid_location for q in qubits], create_figure=False)
     
     spacing = config.subplot_spacing
     fig = make_subplots(
@@ -326,7 +325,7 @@ def _create_chevron_figure(
         shared_yaxes=False
     )
     
-    for idx, ((grid_row, grid_col), name_dict) in enumerate(plotly_grid_iter(grid)):
+    for idx, ((grid_row, grid_col), name_dict) in enumerate(grid.plotly_grid_iter()):
         row = grid_row + 1
         col = grid_col + 1
         qubit_id = list(name_dict.values())[0]
@@ -372,8 +371,8 @@ def _create_spectroscopy_figure(
     
     # Add dual axis if configured
     if config.dual_axis and config.dual_axis.enabled:
-        grid = PlotlyQubitGrid(ds, [q.grid_location for q in qubits])
-        for idx, ((grid_row, grid_col), name_dict) in enumerate(plotly_grid_iter(grid)):
+        grid = QubitGrid(ds, [q.grid_location for q in qubits], create_figure=False)
+        for idx, ((grid_row, grid_col), name_dict) in enumerate(grid.plotly_grid_iter()):
             row = grid_row + 1
             col = grid_col + 1
             qubit_id = list(name_dict.values())[0]
