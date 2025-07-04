@@ -222,28 +222,63 @@ def fit_oscillation_decay_exp(da, dim):
 
 
 def fit_oscillation(da, dim):
-    def get_freq(dat):
-        def f(d):
-            return ca.guess.frequency(da[dim], d)
+    """
+    Fits an oscillatory model to data along a specified dimension using FFT-based initial guesses.
+    This function estimates the frequency, amplitude, and phase of an oscillatory signal in the input
+    data array `da` along the given dimension `dim` using the Fast Fourier Transform (FFT) for initial
+    parameter guesses. It then fits the data to an oscillatory model of the form:
+        y(t) = a * cos(2π * f * t + phi) + offset
+    using non-linear least squares optimization.
+    Parameters
+    ----------
+    da : xarray.DataArray
+        The input data array containing the oscillatory signal to be fitted.
+    dim : str
+        The name of the dimension along which to perform the fit.
+    Returns
+    -------
+    xarray.DataArray
+        An array containing the fitted parameters for each slice along the specified dimension.
+        The output has a new dimension 'fit_vals' with coordinates: ['a', 'f', 'phi', 'offset'],
+        corresponding to amplitude, frequency, phase, and offset of the fitted oscillation.
+    Notes
+    -----
+    - The function uses FFT to estimate initial values for frequency, amplitude, and phase.
+    - The fitting is performed using a model function (oscillation) and the lmfit library.
+    - If the fit fails, diagnostic plots are shown for debugging.
+    """
 
-        return np.apply_along_axis(f, -1, dat)
+    def get_freq_and_amp_and_phase(da, dim):
+        def compute_FFT(x, y):
+            N = len(x)
+            T = x[1] - x[0]
+            yf = np.fft.fft(y)
+            xf = np.fft.fftfreq(N, T)
+            mask = xf > 0.1
+            xf, fft_magnitude = xf[mask], np.abs(yf)[mask]
+            idx = np.argmax(fft_magnitude)
+            peak_freqs = xf
+            peak_amps = 2 * fft_magnitude / N
+            peak_phases = np.angle(yf[mask])
+            return peak_freqs[idx], peak_amps[idx], peak_phases[idx]
 
-    def get_amp(dat):
-        max_ = np.max(dat, axis=-1)
-        min_ = np.min(dat, axis=-1)
-        return (max_ - min_) / 2
+        # Apply the FFT computation across the specified dimension
+        def get_fft_param(dat, idx):
+            return np.apply_along_axis(
+                lambda x: compute_FFT(da[dim].values, x)[idx], -1, dat
+            )
 
-    da_c = da - da.mean(dim=dim)
-    freq_guess = _fix_initial_value(
-        xr.apply_ufunc(get_freq, da_c, input_core_dims=[[dim]]).rename("freq guess"),
-        da_c,
-    )
-    amp_guess = _fix_initial_value(
-        xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess"), da
-    )
-    phase_guess = np.pi * (
-        da.loc[{dim: np.abs(da.coords[dim]).min()}] < da.mean(dim=dim)
-    )
+        params = [
+            xr.apply_ufunc(get_fft_param, da, i, input_core_dims=[[dim], []])
+            for i in range(3)
+        ]
+        params = [_fix_initial_value(p, da) for p in params]
+        return [
+            p.rename(n)
+            for p, n in zip(params, ["freq guess", "amp guess", "phase guess"])
+        ]
+
+    freq_guess, amp_guess, phase_guess = get_freq_and_amp_and_phase(da, dim)
     offset_guess = da.mean(dim=dim)
 
     def apply_fit(x, y, a, f, phi, offset):
@@ -259,22 +294,16 @@ def fit_oscillation(da, dim):
                 phi=Parameter("phi", value=phi),
                 offset=offset,
             )
-            if fit.rsquared < 0.9:
-                fit = model.fit(
-                    y,
-                    t=x,
-                    a=Parameter("a", value=a, min=0),
-                    f=Parameter(
-                        "f",
-                        value=1.0 / (np.max(x) - np.min(x)),
-                        min=0,
-                        max=np.abs(f * 3 + 1e-3),
-                    ),
-                    phi=Parameter("phi", value=phi),
-                    offset=offset,
-                )
-            return np.array([fit.values[k] for k in ["a", "f", "phi", "offset"]]), fit.rsquared
+            
+            # Calculate NRMSE (Normalized Root Mean Square Error)
+            y_pred = oscillation(x, fit.values["a"], fit.values["f"], fit.values["phi"], fit.values["offset"])
+            rmse = np.sqrt(np.mean((y - y_pred) ** 2))
+            y_range = np.ptp(y)  # Peak-to-peak range
+            nrmse = rmse / y_range if y_range > 0 else np.inf
+            
+            return np.array([fit.values[k] for k in ["a", "f", "phi", "offset"]]), fit.rsquared, nrmse
         except RuntimeError as e:
+            print(f"{a=}, {f=}, {phi=}, {offset=}")
             plt.plot(x, oscillation(x, a, f, phi, offset))
             plt.plot(x, y)
             plt.show()
@@ -289,24 +318,33 @@ def fit_oscillation(da, dim):
         phase_guess,
         offset_guess,
         input_core_dims=[[dim], [dim], [], [], [], []],
-        output_core_dims=[["fit_vals"], []],
+        output_core_dims=[["fit_vals"], [], []],
         vectorize=True,
     )
     
-    # Extract the fit parameters and R² values
+    # Extract the fit parameters, R² values, and NRMSE values
     fit_params = fit_res[0].assign_coords(fit_vals=("fit_vals", ["a", "f", "phi", "offset"]))
     r_squared = fit_res[1]
+    nrmse = fit_res[2]
     
-    # Add R² as an attribute to the fit parameters
+    # Add R² and NRMSE as attributes to the fit parameters
     if hasattr(r_squared, 'values'):
         r_squared = r_squared.values
+    if hasattr(nrmse, 'values'):
+        nrmse = nrmse.values
     
     if isinstance(r_squared, np.ndarray):
         r_squared = float(np.mean(r_squared))
     else:
         r_squared = float(r_squared)
+        
+    if isinstance(nrmse, np.ndarray):
+        nrmse = float(np.mean(nrmse))
+    else:
+        nrmse = float(nrmse)
     
     fit_params.attrs['r_squared'] = r_squared
+    fit_params.attrs['nrmse'] = nrmse
     
     return fit_params
 
