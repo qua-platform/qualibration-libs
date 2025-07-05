@@ -323,7 +323,22 @@ class MatplotlibEngine(BaseRenderingEngine):
         legend_entries_created: set,
         is_fit: bool = False
     ) -> None:
-        """Add spectroscopy-specific traces to axis."""
+        """Add spectroscopy-specific traces to axis.
+        
+        This method orchestrates the plotting of spectroscopy traces by:
+        1. Validating trace data sources
+        2. Extracting trace data and styling
+        3. Managing legend labels
+        4. Plotting the traces with appropriate styles
+        
+        Args:
+            ax: Matplotlib axis to plot on
+            ds: Dataset containing the trace data
+            traces: List of trace configurations
+            subplot_index: Index of the current subplot
+            legend_entries_created: Set tracking which legend entries exist
+            is_fit: Whether these are fit traces (affects plotting style)
+        """
         
         for trace_config in traces:
             if not self._validate_trace_sources(ds, trace_config):
@@ -332,37 +347,15 @@ class MatplotlibEngine(BaseRenderingEngine):
             x_data, y_data, _ = extract_trace_data(ds, trace_config.x_source, trace_config.y_source)
             
             # Extract styling
-            color = self.utils.extract_matplotlib_color(trace_config.style)
-            linestyle = self.utils.translate_plotly_linestyle(
-                trace_config.style.get("dash", "solid")
+            style_params = self._extract_trace_style(trace_config)
+            
+            # Determine label for legend
+            label = self._get_trace_label(trace_config, legend_entries_created)
+            
+            # Plot the trace
+            self._plot_spectroscopy_trace(
+                ax, x_data, y_data, style_params, label, trace_config.plot_type, is_fit
             )
-            linewidth = trace_config.style.get("width", PlotConstants.DEFAULT_LINE_WIDTH)
-            
-            # Only set label the first time this trace type appears
-            label = ""
-            if trace_config.name and trace_config.name not in legend_entries_created:
-                label = trace_config.name
-                legend_entries_created.add(trace_config.name)
-            
-            # Plot based on type
-            if trace_config.plot_type in ["scatter", "line"]:
-                if is_fit:
-                    ax.plot(
-                        x_data, y_data,
-                        color=color,
-                        linestyle=linestyle,
-                        linewidth=linewidth,
-                        label=label
-                    )
-                else:
-                    ax.plot(
-                        x_data, y_data,
-                        marker='.',
-                        linestyle='-',
-                        color=color,
-                        linewidth=linewidth,
-                        label=label
-                    )
     
     def _add_heatmap_trace(
         self,
@@ -404,7 +397,23 @@ class MatplotlibEngine(BaseRenderingEngine):
         legend_entries_created: set,
         is_fit: bool = False
     ) -> None:
-        """Add generic trace to axis."""
+        """Add generic trace to axis.
+        
+        This method handles plotting of generic traces by:
+        1. Validating trace data sources
+        2. Routing heatmap traces to specialized handler
+        3. Extracting data and styling for line/scatter plots
+        4. Managing legend labels
+        5. Plotting with appropriate style based on trace type
+        
+        Args:
+            ax: Matplotlib axis to plot on
+            ds: Dataset containing the trace data
+            trace_config: Configuration for the trace
+            subplot_index: Index of the current subplot
+            legend_entries_created: Set tracking which legend entries exist
+            is_fit: Whether this is a fit trace (affects plotting style)
+        """
         
         if not self._validate_trace_sources(ds, trace_config):
             return
@@ -415,35 +424,16 @@ class MatplotlibEngine(BaseRenderingEngine):
             # Handle as line/scatter plot
             x_data, y_data, _ = extract_trace_data(ds, trace_config.x_source, trace_config.y_source)
             
-            color = self.utils.extract_matplotlib_color(trace_config.style)
-            linestyle = self.utils.translate_plotly_linestyle(
-                trace_config.style.get("dash", "solid")
+            # Extract styling
+            style_params = self._extract_trace_style(trace_config)
+            
+            # Determine label for legend
+            label = self._get_trace_label(trace_config, legend_entries_created)
+            
+            # Plot the trace
+            self._plot_line_scatter_trace(
+                ax, x_data, y_data, style_params, label, trace_config.plot_type, is_fit
             )
-            linewidth = trace_config.style.get("width", PlotConstants.DEFAULT_LINE_WIDTH)
-            
-            # Only set label the first time this trace type appears
-            label = ""
-            if trace_config.name and trace_config.name not in legend_entries_created:
-                label = trace_config.name
-                legend_entries_created.add(trace_config.name)
-            
-            if is_fit or trace_config.plot_type == "line":
-                ax.plot(
-                    x_data, y_data,
-                    color=color,
-                    linestyle=linestyle,
-                    linewidth=linewidth,
-                    label=label
-                )
-            else:
-                ax.plot(
-                    x_data, y_data,
-                    marker='.',
-                    linestyle='-',
-                    color=color,
-                    linewidth=linewidth,
-                    label=label
-                )
     
     def _add_overlays(
         self,
@@ -712,3 +702,114 @@ class MatplotlibEngine(BaseRenderingEngine):
         except (KeyError, ValueError, AttributeError) as e:
             logger.warning(f"Could not add flux spectroscopy overlays to matplotlib for {qubit_id}: {e}")
             return
+    
+    def _extract_trace_style(self, trace_config: TraceConfig) -> dict:
+        """Extract matplotlib styling parameters from trace configuration.
+        
+        Args:
+            trace_config: Configuration containing style information
+            
+        Returns:
+            Dictionary with matplotlib styling parameters (color, linestyle, linewidth)
+        """
+        return {
+            'color': self.utils.extract_matplotlib_color(trace_config.style),
+            'linestyle': self.utils.translate_plotly_linestyle(
+                trace_config.style.get("dash", "solid")
+            ),
+            'linewidth': trace_config.style.get("width", PlotConstants.DEFAULT_LINE_WIDTH)
+        }
+    
+    def _get_trace_label(self, trace_config: TraceConfig, legend_entries_created: set) -> str:
+        """Get trace label for legend, ensuring no duplicates.
+        
+        Args:
+            trace_config: Configuration containing trace name
+            legend_entries_created: Set tracking which legend entries already exist
+            
+        Returns:
+            Label string (empty if label already exists or no name provided)
+        """
+        if trace_config.name and trace_config.name not in legend_entries_created:
+            legend_entries_created.add(trace_config.name)
+            return trace_config.name
+        return ""
+    
+    def _plot_spectroscopy_trace(
+        self,
+        ax: plt.Axes,
+        x_data,
+        y_data,
+        style_params: dict,
+        label: str,
+        plot_type: str,
+        is_fit: bool
+    ) -> None:
+        """Plot a spectroscopy trace with appropriate styling.
+        
+        Args:
+            ax: Matplotlib axis to plot on
+            x_data: X-axis data
+            y_data: Y-axis data
+            style_params: Dictionary with styling parameters
+            label: Label for legend
+            plot_type: Type of plot (scatter, line)
+            is_fit: Whether this is a fit trace
+        """
+        if plot_type in ["scatter", "line"]:
+            if is_fit:
+                ax.plot(
+                    x_data, y_data,
+                    color=style_params['color'],
+                    linestyle=style_params['linestyle'],
+                    linewidth=style_params['linewidth'],
+                    label=label
+                )
+            else:
+                ax.plot(
+                    x_data, y_data,
+                    marker='.',
+                    linestyle='-',
+                    color=style_params['color'],
+                    linewidth=style_params['linewidth'],
+                    label=label
+                )
+    
+    def _plot_line_scatter_trace(
+        self,
+        ax: plt.Axes,
+        x_data,
+        y_data,
+        style_params: dict,
+        label: str,
+        plot_type: str,
+        is_fit: bool
+    ) -> None:
+        """Plot a line or scatter trace with appropriate styling.
+        
+        Args:
+            ax: Matplotlib axis to plot on
+            x_data: X-axis data
+            y_data: Y-axis data
+            style_params: Dictionary with styling parameters
+            label: Label for legend
+            plot_type: Type of plot (line, scatter, etc.)
+            is_fit: Whether this is a fit trace
+        """
+        if is_fit or plot_type == "line":
+            ax.plot(
+                x_data, y_data,
+                color=style_params['color'],
+                linestyle=style_params['linestyle'],
+                linewidth=style_params['linewidth'],
+                label=label
+            )
+        else:
+            ax.plot(
+                x_data, y_data,
+                marker='.',
+                linestyle='-',
+                color=style_params['color'],
+                linewidth=style_params['linewidth'],
+                label=label
+            )
