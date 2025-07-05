@@ -581,6 +581,147 @@ class BaseRenderingEngine(ABC):
         else:
             return ExperimentTypes.UNKNOWN.value
     
+    # ==================== Grid and Layout Methods ====================
+    
+    def _create_grid_layout(
+        self,
+        ds_raw: xr.Dataset,
+        qubits: List[str],
+        create_figure: bool = False
+    ) -> 'QubitGrid':
+        """Create a unified grid layout for subplots.
+        
+        Args:
+            ds_raw: Raw dataset containing qubit data
+            qubits: List of qubit IDs to plot
+            create_figure: Whether to create matplotlib figure (for matplotlib engine)
+            
+        Returns:
+            QubitGrid: Grid object with layout information
+        """
+        return self.grid_manager.create_grid(ds_raw, qubits, create_figure=create_figure)
+    
+    def _calculate_figure_dimensions(
+        self,
+        n_rows: int,
+        n_cols: int,
+        plot_type: str = "standard"
+    ) -> Dict[str, float]:
+        """Calculate figure dimensions based on grid size and plot type.
+        
+        Args:
+            n_rows: Number of rows in grid
+            n_cols: Number of columns in grid
+            plot_type: Type of plot ("standard", "heatmap", etc.)
+            
+        Returns:
+            Dictionary with width and height values
+        """
+        from ..configs.visual_standards import FigureDimensions
+        
+        # Base dimensions per subplot
+        subplot_width = FigureDimensions.SUBPLOT_WIDTH
+        subplot_height = FigureDimensions.SUBPLOT_HEIGHT
+        
+        # Calculate total dimensions
+        width = max(FigureDimensions.PLOTLY_MIN_WIDTH, subplot_width * n_cols)
+        height = subplot_height * n_rows
+        
+        return {
+            "width": width,
+            "height": height,
+            "width_inches": width / 100,  # Convert pixels to inches for matplotlib
+            "height_inches": height / 100
+        }
+    
+    def _get_subplot_spacing(
+        self,
+        plot_type: str = "standard",
+        custom_spacing: Optional[Dict[str, float]] = None
+    ) -> Dict[str, float]:
+        """Get appropriate subplot spacing based on plot type.
+        
+        Args:
+            plot_type: Type of plot ("standard", "heatmap", "flux")
+            custom_spacing: Optional custom spacing override
+            
+        Returns:
+            Dictionary with horizontal and vertical spacing values
+        """
+        from ..configs.visual_standards import SubplotSpacing
+        
+        if custom_spacing:
+            return custom_spacing
+        
+        spacing_map = {
+            "standard": {
+                "horizontal": SubplotSpacing.STANDARD_HORIZONTAL,
+                "vertical": SubplotSpacing.STANDARD_VERTICAL
+            },
+            "heatmap": {
+                "horizontal": SubplotSpacing.HEATMAP_HORIZONTAL,
+                "vertical": SubplotSpacing.HEATMAP_VERTICAL
+            },
+            "flux": {
+                "horizontal": SubplotSpacing.FLUX_HORIZONTAL,
+                "vertical": SubplotSpacing.FLUX_VERTICAL
+            }
+        }
+        
+        return spacing_map.get(plot_type, spacing_map["standard"])
+    
+    def _generate_subplot_titles(
+        self,
+        grid: 'QubitGrid',
+        title_template: str = "Qubit {qubit}"
+    ) -> List[str]:
+        """Generate standardized subplot titles.
+        
+        Args:
+            grid: QubitGrid object
+            title_template: Template for subplot titles
+            
+        Returns:
+            List of subplot titles
+        """
+        return grid.get_subplot_titles(title_template)
+    
+    def _calculate_colorbar_positions(
+        self,
+        n_rows: int,
+        n_cols: int,
+        subplot_indices: List[Tuple[int, int]]
+    ) -> List[Dict[str, float]]:
+        """Calculate colorbar positions for heatmap subplots.
+        
+        Args:
+            n_rows: Number of rows in grid
+            n_cols: Number of columns in grid
+            subplot_indices: List of (row, col) positions for subplots
+            
+        Returns:
+            List of colorbar position dictionaries
+        """
+        from ..configs.visual_standards import ColorbarConfig
+        
+        positions = []
+        for row, col in subplot_indices:
+            # Calculate normalized position based on subplot location
+            x_base = (col + 1) / n_cols
+            y_center = 1 - (row + 0.5) / n_rows
+            
+            position = {
+                "x": x_base + ColorbarConfig.X_OFFSET,
+                "y": y_center,
+                "len": ColorbarConfig.HEIGHT_RATIO / n_rows,
+                "thickness": ColorbarConfig.THICKNESS,
+                "xanchor": "left",
+                "yanchor": "middle"
+            }
+            positions.append(position)
+        
+        return positions
+    
     def _should_add_overlays(
         self, 
         config: PlotConfig, 
@@ -722,3 +863,149 @@ class BaseRenderingEngine(ABC):
             logger.warning(f"Could not extract frequency range: {e}")
             
         return None
+    
+    def _prepare_multi_qubit_heatmap_data(
+        self,
+        ds_full: xr.Dataset,
+        qubit_id: str,
+        freq_coord: str,
+        power_coord: str,
+        iq_var: str
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Prepare heatmap data for multi-qubit experiments.
+        
+        Args:
+            ds_full: Full dataset with all qubits
+            qubit_id: ID of qubit to extract
+            freq_coord: Name of frequency coordinate
+            power_coord: Name of power coordinate
+            iq_var: Name of IQ variable
+            
+        Returns:
+            Tuple of (freq_vals_ghz, power_vals, z_matrix, detuning_mhz)
+        """
+        # Transpose to standard order
+        ds_transposed = ds_full.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, power_coord)
+        
+        # Extract arrays using DataExtractor
+        freq_array = DataExtractor.extract_multi_qubit_array(ds_transposed, freq_coord, qubit_id, qubit_dim_position=0)
+        iq_array = DataExtractor.extract_multi_qubit_array(ds_transposed, iq_var, qubit_id, qubit_dim_position=0)
+        
+        # Get coordinate arrays
+        power_vals = DataExtractor.get_coordinate_values(ds_transposed, power_coord)
+        detuning_vals = DataExtractor.get_coordinate_values(ds_transposed, CoordinateNames.DETUNING)
+        
+        # Convert units
+        freq_vals_ghz = freq_array * PlotConstants.GHZ_PER_HZ
+        detuning_mhz = detuning_vals * PlotConstants.MHZ_PER_HZ
+        
+        # Prepare z matrix with proper orientation
+        z_matrix = ArrayManipulator.prepare_heatmap_data(iq_array, orientation="horizontal", transpose_axes=(1, 0))
+        
+        # Validate and handle NaNs
+        nan_info = DataValidator.check_for_nans(z_matrix, raise_on_all_nan=False)
+        if nan_info['all_nans']:
+            z_matrix = np.zeros_like(z_matrix)
+            
+        return freq_vals_ghz, power_vals, z_matrix, detuning_mhz
+    
+    def _prepare_flux_spectroscopy_heatmap_data(
+        self,
+        ds_full: xr.Dataset,
+        qubit_id: str
+    ) -> Dict[str, np.ndarray]:
+        """Prepare heatmap data for flux spectroscopy experiments.
+        
+        Args:
+            ds_full: Full dataset with all qubits
+            qubit_id: ID of qubit to extract
+            
+        Returns:
+            Dictionary with prepared data arrays
+        """
+        # Transpose to standard order
+        ds_transposed = ds_full.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.FLUX_BIAS)
+        
+        # Determine frequency coordinate name
+        freq_coord = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds_transposed else CoordinateNames.FREQ_FULL
+        
+        # Extract arrays using DataExtractor
+        freq_array = DataExtractor.extract_multi_qubit_array(ds_transposed, freq_coord, qubit_id)
+        iq_array = DataExtractor.extract_multi_qubit_array(ds_transposed, CoordinateNames.IQ_ABS, qubit_id)
+        
+        # Get coordinate arrays
+        flux_vals = DataExtractor.get_coordinate_values(ds_transposed, CoordinateNames.FLUX_BIAS)
+        current_vals = DataExtractor.get_coordinate_values(ds_transposed, CoordinateNames.ATTENUATED_CURRENT)
+        detuning_vals = DataExtractor.get_coordinate_values(ds_transposed, CoordinateNames.DETUNING)
+        
+        # Convert units
+        freq_vals_ghz = freq_array * PlotConstants.GHZ_PER_HZ
+        detuning_mhz = detuning_vals * PlotConstants.MHZ_PER_HZ
+        
+        # Validate z matrix
+        nan_info = DataValidator.check_for_nans(iq_array, raise_on_all_nan=False)
+        if nan_info['all_nans']:
+            iq_array = np.zeros_like(iq_array)
+            
+        return {
+            'freq_ghz': freq_vals_ghz,
+            'flux_v': flux_vals,
+            'current_a': current_vals,
+            'detuning_mhz': detuning_mhz,
+            'z_data': iq_array
+        }
+    
+    def _prepare_power_rabi_heatmap_data(
+        self,
+        ds: xr.Dataset
+    ) -> Dict[str, np.ndarray]:
+        """Prepare heatmap data for power rabi experiments.
+        
+        Args:
+            ds: Dataset containing power rabi data
+            
+        Returns:
+            Dictionary with prepared data arrays
+        """
+        # Determine data variable
+        if hasattr(ds, CoordinateNames.I):
+            data_var = CoordinateNames.I
+        elif hasattr(ds, CoordinateNames.STATE):
+            data_var = CoordinateNames.STATE
+        else:
+            raise DataSourceError("No suitable data variable found for power rabi")
+            
+        # Get arrays
+        amp_v = DataExtractor.get_coordinate_values(ds, CoordinateNames.FULL_AMP)
+        amp_prefactor = DataExtractor.get_coordinate_values(ds, CoordinateNames.AMP_PREFACTOR)
+        nb_pulses = DataExtractor.get_coordinate_values(ds, CoordinateNames.NB_OF_PULSES)
+        z_data = ds[data_var].values
+        
+        # Convert units
+        amp_mv = amp_v * PlotConstants.MV_PER_V
+        
+        # Ensure proper z_data shape
+        expected_shape = (len(nb_pulses), len(amp_prefactor))
+        if z_data.shape != expected_shape:
+            z_data = ArrayManipulator.prepare_heatmap_data(z_data, orientation="horizontal")
+            
+        return {
+            'amp_mv': amp_mv,
+            'amp_prefactor': amp_prefactor,
+            'nb_pulses': nb_pulses,
+            'z_data': z_data
+        }
+    
+    # ==================== Title Generation Methods ====================
+    
+    def _create_subplot_title(self, qubit_id: str, template: str = "Qubit {qubit}") -> str:
+        """Create a standardized subplot title for a qubit.
+        
+        Args:
+            qubit_id: ID of the qubit
+            template: Title template with {qubit} placeholder
+            
+        Returns:
+            Formatted title string
+        """
+        return template.format(qubit=qubit_id)

@@ -15,10 +15,10 @@ import xarray as xr
 from plotly.subplots import make_subplots
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
-from ..configs import (DualAxisConfig, FigureDimensions, HeatmapConfig,
+from ..configs import (DualAxisConfig, HeatmapConfig,
                        HeatmapTraceConfig, LineOverlayConfig,
                        MarkerOverlayConfig, PlotConfig, SpectroscopyConfig,
-                       SubplotSpacing, TraceConfig, get_standard_plotly_style)
+                       TraceConfig, get_standard_plotly_style)
 from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes, ColorScales
 from .common import GridManager, OverlayRenderer, PlotlyEngineUtils
 from .data_validators import DataValidator
@@ -90,14 +90,17 @@ class PlotlyEngine(BaseRenderingEngine):
             go.Figure: Plotly figure with spectroscopy plots for each qubit
         """
         
-        grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=False)
+        # Use base class methods for grid creation
+        grid = self._create_grid_layout(ds_raw, qubits, create_figure=False)
+        spacing = self._get_subplot_spacing("standard")
+        titles = self._generate_subplot_titles(grid)
         
         fig = make_subplots(
             rows=grid.n_rows,
             cols=grid.n_cols,
-            subplot_titles=grid.get_subplot_titles(),
-            horizontal_spacing=SubplotSpacing.STANDARD_HORIZONTAL,
-            vertical_spacing=SubplotSpacing.STANDARD_VERTICAL,
+            subplot_titles=titles,
+            horizontal_spacing=spacing["horizontal"],
+            vertical_spacing=spacing["vertical"],
         )
         
         # Add traces for each qubit
@@ -123,12 +126,13 @@ class PlotlyEngine(BaseRenderingEngine):
             if config.dual_axis and config.dual_axis.enabled:
                 self._add_dual_axis(fig, ds_qubit_raw, config.dual_axis, row, col, grid.n_cols)
         
-        # Apply layout settings
+        # Apply layout settings using base class dimensions
+        dimensions = self._calculate_figure_dimensions(grid.n_rows, grid.n_cols, "standard")
         layout_settings = get_standard_plotly_style()
         layout_settings.update({
             "title_text": config.layout.title,
-            "height": FigureDimensions.SUBPLOT_HEIGHT * grid.n_rows,
-            "width": max(FigureDimensions.PLOTLY_MIN_WIDTH, FigureDimensions.SUBPLOT_WIDTH * grid.n_cols)
+            "height": dimensions["height"],
+            "width": dimensions["width"]
         })
         
         fig.update_layout(**layout_settings)
@@ -153,16 +157,19 @@ class PlotlyEngine(BaseRenderingEngine):
             go.Figure: Plotly figure with heatmap plots for each qubit
         """
         
-        grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=False)
+        # Use base class methods for grid creation
+        grid = self._create_grid_layout(ds_raw, qubits, create_figure=False)
+        # Determine plot type for spacing
+        plot_type = "flux" if self._is_flux_spectroscopy(ds_raw) else "heatmap"
+        spacing = self._get_subplot_spacing(plot_type, config.subplot_spacing if hasattr(config, 'subplot_spacing') else None)
+        titles = self._generate_subplot_titles(grid)
         
-        # Use config-specific spacing
-        spacing = config.subplot_spacing
         fig = make_subplots(
             rows=grid.n_rows,
             cols=grid.n_cols,
-            subplot_titles=grid.get_subplot_titles(),
-            horizontal_spacing=spacing.get("horizontal", SubplotSpacing.HEATMAP_HORIZONTAL),
-            vertical_spacing=spacing.get("vertical", SubplotSpacing.HEATMAP_VERTICAL),
+            subplot_titles=titles,
+            horizontal_spacing=spacing["horizontal"],
+            vertical_spacing=spacing["vertical"],
         )
         
         heatmap_info = []
@@ -219,13 +226,14 @@ class PlotlyEngine(BaseRenderingEngine):
         # Position colorbars
         self._position_colorbars(fig, heatmap_info, grid.n_cols, config.traces)
         
-        # Apply layout settings
+        # Apply layout settings using base class dimensions
+        dimensions = self._calculate_figure_dimensions(grid.n_rows, grid.n_cols, "heatmap")
         layout_settings = get_standard_plotly_style()
         layout_settings.update({
             "title_text": config.layout.title,
             "showlegend": False,  # Heatmaps typically don't show legends
-            "height": FigureDimensions.SUBPLOT_HEIGHT * grid.n_rows,
-            "width": max(FigureDimensions.PLOTLY_MIN_WIDTH, FigureDimensions.SUBPLOT_WIDTH * grid.n_cols)
+            "height": dimensions["height"],
+            "width": dimensions["width"]
         })
         
         fig.update_layout(**layout_settings)
@@ -251,14 +259,17 @@ class PlotlyEngine(BaseRenderingEngine):
             go.Figure: Plotly figure with plots for each qubit
         """
         
-        grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=False)
+        # Use base class methods for grid creation
+        grid = self._create_grid_layout(ds_raw, qubits, create_figure=False)
+        spacing = self._get_subplot_spacing("standard")
+        titles = self._generate_subplot_titles(grid)
         
         fig = make_subplots(
             rows=grid.n_rows,
             cols=grid.n_cols,
-            subplot_titles=grid.get_subplot_titles(),
-            horizontal_spacing=SubplotSpacing.STANDARD_HORIZONTAL,
-            vertical_spacing=SubplotSpacing.STANDARD_VERTICAL,
+            subplot_titles=titles,
+            horizontal_spacing=spacing["horizontal"],
+            vertical_spacing=spacing["vertical"],
         )
         
         # Add traces for each qubit
@@ -423,70 +434,29 @@ class PlotlyEngine(BaseRenderingEngine):
         qubit_id: str,
         qubit_index: int
     ) -> None:
-        """Add heatmap trace using EXACT original logic."""
+        """Add heatmap trace for multi-qubit experiments using centralized data extraction."""
         
-        # EXACTLY REPLICATE the original plotting.py logic
-        # 1) Transpose ds_raw so that its dims become (qubit, detuning, power)
-        ds2 = ds_full.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.POWER)
+        # Determine coordinate names
+        freq_coord = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds_full else CoordinateNames.FREQ_FULL
+        power_coord = CoordinateNames.POWER if CoordinateNames.POWER in ds_full.coords else CoordinateNames.POWER_DBM
         
-        # 2) Pull out the raw arrays exactly like original
-        if CoordinateNames.FULL_FREQ in ds2:
-            freq_array = ds2[CoordinateNames.FULL_FREQ].values  # (n_qubits, n_freqs)
-        elif CoordinateNames.FREQ_FULL in ds2:
-            freq_array = ds2[CoordinateNames.FREQ_FULL].values
-        else:
-            return
-            
-        if CoordinateNames.IQ_ABS_NORM not in ds2:
-            return
-        IQ_array = ds2[CoordinateNames.IQ_ABS_NORM].values  # (n_qubits, n_freqs, n_powers)
-        
-        # Pick the power axis:
-        if CoordinateNames.POWER in ds2.coords:
-            power_array = ds2[CoordinateNames.POWER].values  # (n_powers,) in dBm
-        elif CoordinateNames.POWER_DBM in ds2.coords:
-            power_array = ds2[CoordinateNames.POWER_DBM].values
-        else:
-            return
-            
-        # Detuning axis (Hz):
-        if CoordinateNames.DETUNING not in ds2.coords:
-            return
-        detuning_array = ds2[CoordinateNames.DETUNING].values  # (n_freqs,) in Hz
-        
-        n_qubits, n_freqs, n_powers = IQ_array.shape
-        
-        # 3) Find qubit index in dataset (NOT grid iteration index)
-        q_labels = list(ds2[CoordinateNames.QUBIT].values)  # e.g. ["q1", "q2", "q3", "q4"] 
+        # Use base class method to prepare data
         try:
-            q_idx = q_labels.index(qubit_id)  # CRITICAL: Use dataset array index
-        except ValueError:
+            freq_vals, power_vals, z_mat, detuning_mhz = self._prepare_multi_qubit_heatmap_data(
+                ds_full, qubit_id, freq_coord, power_coord, CoordinateNames.IQ_ABS_NORM
+            )
+        except (KeyError, ValueError) as e:
+            logger.warning(f"Could not prepare heatmap data for {qubit_id}: {e}")
             return
-            
-        # 4) Extract data for this specific qubit using DATASET INDEX
-        freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ  # (n_freqs,) in GHz
-        power_vals = power_array  # (n_powers,) in dBm
         
+        # Build custom data for hover
+        n_powers, n_freqs = z_mat.shape
+        det2d = ArrayManipulator.tile_for_hover_data(detuning_mhz, (n_powers, n_freqs), axis=0)
         
-        # 5) Build 2D z‐matrix for heatmap (n_powers, n_freqs):
-        z_mat = IQ_array[q_idx].T  # Use DATASET index, not grid index
-        if z_mat.ndim == 1:
-            z_mat = z_mat[np.newaxis, :]
-        if z_mat.shape[0] != n_powers:
-            z_mat = z_mat.T
-        nan_info = DataValidatorUtils.check_for_nans(z_mat, raise_on_all_nan=False)
-        if nan_info['all_nans']:
-            z_mat = np.zeros_like(z_mat)
-            
-        # 6) Build custom data for hover (exactly like original)
-        detuning_MHz = (detuning_array * PlotConstants.MHZ_PER_HZ).astype(float)  # (n_freqs,) in MHz
-        det2d = ArrayManipulator.tile_for_hover_data(detuning_MHz, (n_powers, n_freqs), axis=0)  # (n_powers, n_freqs)
-        
-        # 7) Calculate z-limits (use robust percentiles like original)
+        # Calculate z-limits using base class method
         zmin, zmax = self._calculate_robust_zlimits(z_mat, 2, 98)
         
-        
-        # 8) Create heatmap trace EXACTLY like original
+        # Create heatmap trace
         fig.add_trace(
             go.Heatmap(
                 z=z_mat,
@@ -496,9 +466,9 @@ class PlotlyEngine(BaseRenderingEngine):
                 colorscale=ColorScales.VIRIDIS,
                 zmin=zmin,
                 zmax=zmax,
-                showscale=False,  # Original uses False, positions later
+                showscale=False,
                 colorbar=dict(
-                    x=1.0,  # placeholder (moved later like original)
+                    x=1.0,
                     y=0.5,
                     len=1.0,
                     thickness=14,
@@ -520,7 +490,7 @@ class PlotlyEngine(BaseRenderingEngine):
             col=col
         )
         
-        # CRITICAL: Set axis ranges to match actual data (fix auto-scaling issue)
+        # Set axis ranges
         fig.update_xaxes(
             range=[freq_vals.min(), freq_vals.max()],
             row=row, col=col
@@ -538,37 +508,30 @@ class PlotlyEngine(BaseRenderingEngine):
         row: int,
         col: int
     ) -> None:
-        """Add heatmap trace for power rabi using EXACT original logic."""
+        """Add heatmap trace for power rabi using centralized data extraction."""
         
-        # EXACTLY REPLICATE the original plotting.py logic for power rabi 2D
-        if hasattr(ds, CoordinateNames.I):
-            data = CoordinateNames.I
-        elif hasattr(ds, CoordinateNames.STATE):
-            data = CoordinateNames.STATE
-        else:
+        # Use base class method to prepare data
+        try:
+            data_dict = self._prepare_power_rabi_heatmap_data(ds)
+        except (KeyError, ValueError, DataSourceError) as e:
+            logger.warning(f"Could not prepare power rabi heatmap data: {e}")
             return
         
-        # Get the data arrays
-        amp_mV = ds[CoordinateNames.FULL_AMP].values * PlotConstants.MV_PER_V  # MV_PER_V
-        amp_prefactor = ds[CoordinateNames.AMP_PREFACTOR].values
-        nb_of_pulses = ds[CoordinateNames.NB_OF_PULSES].values
-        z_data = ds[data].values
-        
-        # Ensure z_data shape is (nb_of_pulses, amp_mV)
-        if z_data.shape[0] == len(nb_of_pulses) and z_data.shape[1] == len(amp_mV):
-            z_plot = z_data
-        elif z_data.shape[1] == len(nb_of_pulses) and z_data.shape[0] == len(amp_mV):
-            z_plot = z_data.T
-        else:
-            z_plot = z_data
+        # Extract prepared data
+        amp_mv = data_dict['amp_mv']
+        amp_prefactor = data_dict['amp_prefactor']
+        nb_pulses = data_dict['nb_pulses']
+        z_plot = data_dict['z_data']
         
         # Customdata for hover: each column is the prefactor value
-        customdata = ArrayManipulator.tile_for_hover_data(amp_prefactor, (len(nb_of_pulses), len(amp_prefactor)), axis=1)
+        customdata = ArrayManipulator.tile_for_hover_data(
+            amp_prefactor, (len(nb_pulses), len(amp_prefactor)), axis=1
+        )
         
         hm_trace = go.Heatmap(
             z=z_plot,
-            x=amp_mV,
-            y=nb_of_pulses,
+            x=amp_mv,
+            y=nb_pulses,
             colorscale="Viridis",
             showscale=False,
             colorbar=dict(
@@ -592,95 +555,49 @@ class PlotlyEngine(BaseRenderingEngine):
         qubit_id: str,
         qubit_index: int
     ) -> None:
-        """Add heatmap trace for flux spectroscopy using EXACT original logic."""
+        """Add heatmap trace for flux spectroscopy using centralized data extraction."""
         
-        # EXACTLY REPLICATE the original 02c plotting.py logic
-        # 1) Transpose ds_raw so that its dims become (qubit, detuning, flux_bias)
-        ds2 = ds_full.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.FLUX_BIAS)
-        
-        # 2) Pull out the raw arrays exactly like original
-        if CoordinateNames.FULL_FREQ in ds2:
-            freq_array = ds2[CoordinateNames.FULL_FREQ].values  # (n_qubits, n_freqs)
-        elif CoordinateNames.FREQ_FULL in ds2:
-            freq_array = ds2[CoordinateNames.FREQ_FULL].values
-        else:
-            return
-            
-        if CoordinateNames.IQ_ABS not in ds2:
-            return
-        IQ_array = ds2[CoordinateNames.IQ_ABS].values  # (n_qubits, n_freqs, n_flux)
-        
-        # Pick the flux_bias axis:
-        if CoordinateNames.FLUX_BIAS not in ds2.coords:
-            return
-        flux_array = ds2[CoordinateNames.FLUX_BIAS].values  # (n_flux,) in V
-        
-        # Attenuated current axis:
-        if CoordinateNames.ATTENUATED_CURRENT not in ds2.coords:
-            return
-        current_array = ds2[CoordinateNames.ATTENUATED_CURRENT].values  # (n_flux,) in A
-            
-        # Detuning axis (Hz):
-        if CoordinateNames.DETUNING not in ds2.coords:
-            return
-        detuning_array = ds2[CoordinateNames.DETUNING].values  # (n_freqs,) in Hz
-        
-        n_qubits, n_freqs, n_flux = IQ_array.shape
-        
-        # 3) Find qubit index in dataset (NOT grid iteration index)
-        q_labels = list(ds2[CoordinateNames.QUBIT].values)  # e.g. ["qC1", "qC2", "qC3"] 
+        # Use base class method to prepare data
         try:
-            q_idx = q_labels.index(qubit_id)  # CRITICAL: Use dataset array index
-        except ValueError:
+            data_dict = self._prepare_flux_spectroscopy_heatmap_data(ds_full, qubit_id)
+        except (KeyError, ValueError) as e:
+            logger.warning(f"Could not prepare flux spectroscopy data for {qubit_id}: {e}")
             return
             
-        # 4) Extract data for this specific qubit using DATASET INDEX
-        freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ  # (n_freqs,) in GHz
-        flux_vals = flux_array  # (n_flux,) in V
-        current_vals = current_array  # (n_flux,) in A
+        # Extract prepared data
+        freq_vals = data_dict['freq_ghz']
+        flux_vals = data_dict['flux_v']
+        current_vals = data_dict['current_a']
+        detuning_mhz = data_dict['detuning_mhz']
+        z_mat = data_dict['z_data']
         
-        # 5) Build 2D z‐matrix for heatmap (n_freqs, n_flux)
-        # Note: 02c uses different orientation than 02b
-        z_mat = IQ_array[q_idx]  # Use DATASET index, shape (n_freqs, n_flux)
-        if z_mat.ndim == 1:
-            z_mat = z_mat[np.newaxis, :]
-        if z_mat.shape != (n_freqs, n_flux):
-            z_mat = z_mat.T  # fallback transpose if needed
-        nan_info = DataValidatorUtils.check_for_nans(z_mat, raise_on_all_nan=False)
-        if nan_info['all_nans']:
-            z_mat = np.zeros_like(z_mat)
-            
-        # 6) Build custom data for hover (exactly like original)
-        detuning_MHz = (detuning_array * PlotConstants.MHZ_PER_HZ).astype(float)  # (n_freqs,) in MHz
-        det2d = ArrayManipulator.tile_for_hover_data(detuning_MHz, (n_freqs, n_flux), axis=1)  # shape (n_freqs, n_flux)
+        # Build custom data for hover
+        n_freqs, n_flux = z_mat.shape
+        det2d = ArrayManipulator.tile_for_hover_data(detuning_mhz, (n_freqs, n_flux), axis=1)
+        current2d = ArrayManipulator.tile_for_hover_data(current_vals, (n_freqs, n_flux), axis=0)
+        customdata = ArrayManipulator.stack_custom_data([det2d, current2d], axis=-1)
         
-        # Build 2D current array for hover
-        current2d = ArrayManipulator.tile_for_hover_data(current_array, (n_freqs, n_flux), axis=0)  # shape (n_freqs, n_flux)
-        
-        # Stack them for custom data
-        customdata = ArrayManipulator.stack_custom_data([det2d, current2d], axis=-1)  # shape (n_freqs, n_flux, 2)
-        
-        # 7) Calculate z-limits (use robust percentiles like original)
-        finite_values = DataValidatorUtils.get_finite_values(z_mat)
+        # Calculate z-limits
+        finite_values = DataValidator.get_finite_values(z_mat)
         if len(finite_values) > 0:
             zmin = float(np.min(finite_values))
             zmax = float(np.max(finite_values))
         else:
             zmin, zmax = 0.0, 1.0
         
-        # 8) Create heatmap trace EXACTLY like original
+        # Create heatmap trace
         fig.add_trace(
             go.Heatmap(
                 z=z_mat,
-                x=flux_vals,  # flux on x-axis 
-                y=freq_vals,  # frequency on y-axis
+                x=flux_vals,
+                y=freq_vals,
                 customdata=customdata,
                 colorscale=ColorScales.VIRIDIS,
                 zmin=zmin,
                 zmax=zmax,
-                showscale=False,  # Original uses False, positions later
+                showscale=False,
                 colorbar=dict(
-                    x=1.0,  # placeholder (moved later like original)
+                    x=1.0,
                     y=0.5,
                     len=1.0,
                     thickness=14,
@@ -703,7 +620,7 @@ class PlotlyEngine(BaseRenderingEngine):
             col=col
         )
         
-        # CRITICAL: Set axis ranges to match actual data (fix auto-scaling issue)
+        # Set axis ranges
         fig.update_xaxes(
             range=[flux_vals.min(), flux_vals.max()],
             row=row, col=col
@@ -722,7 +639,7 @@ class PlotlyEngine(BaseRenderingEngine):
         row: int,
         col: int
     ) -> None:
-        """Add overlays for multi-qubit heatmap using original logic."""
+        """Add overlays for multi-qubit heatmap using centralized methods."""
         
         # Use base class validation method
         if not self._validate_overlay_fit(ds_fit, qubit_id):
@@ -765,15 +682,10 @@ class PlotlyEngine(BaseRenderingEngine):
                 col=col,
             )
             
-            # Get current axis data for frequency range
-            ds2 = ds_fit.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.POWER)
-            freq_coord_name = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds2 else CoordinateNames.FREQ_FULL
-            if freq_coord_name in ds2:
-                freq_array = ds2[freq_coord_name].values
-                q_labels = list(ds2[CoordinateNames.QUBIT].values)
-                q_idx = q_labels.index(qubit_id)
-                freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ  # Convert to GHz
-                freq_min, freq_max = freq_vals.min(), freq_vals.max()
+            # Get frequency range using centralized method
+            freq_range = self._get_frequency_range(ds_fit, qubit_id)
+            if freq_range:
+                freq_min, freq_max = freq_range
                 
                 # Add magenta horizontal line at optimal power
                 fig.add_trace(
@@ -1154,26 +1066,19 @@ class PlotlyEngine(BaseRenderingEngine):
         if not trace_configs or not trace_configs[0].colorbar:
             return
         
-        colorbar_config = trace_configs[0].colorbar
+        # Get the number of rows from heatmap info
+        n_rows = max(row for _, row, _ in heatmap_info) if heatmap_info else 1
         
-        for hm_idx, row, col in heatmap_info:
+        # Use base class method to calculate positions
+        subplot_indices = [(row - 1, col - 1) for _, row, col in heatmap_info]
+        colorbar_positions = self._calculate_colorbar_positions(n_rows, n_cols, subplot_indices)
+        
+        # Apply positions to each heatmap
+        for (hm_idx, _, _), position in zip(heatmap_info, colorbar_positions):
             if hm_idx >= len(fig.data):
                 continue
             
-            # Calculate colorbar position based on subplot location
-            subplot_index = (row - 1) * n_cols + col
-            
-            # Basic positioning - can be enhanced based on layout
-            x_offset = colorbar_config.x_offset
-            
-            fig.data[hm_idx].colorbar.update({
-                "x": 1.0 + x_offset,
-                "thickness": colorbar_config.thickness,
-                "len": colorbar_config.height_ratio,
-                "xanchor": "left",
-                "ticks": colorbar_config.ticks,
-                "ticklabelposition": colorbar_config.ticklabelposition
-            })
+            fig.data[hm_idx].colorbar.update(position)
     
     def _add_power_rabi_dual_axis(
         self,

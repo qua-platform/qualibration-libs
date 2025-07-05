@@ -131,6 +131,123 @@ class DataExtractor:
             return ds[var_name]
         else:
             return default
+    
+    @staticmethod
+    def get_qubit_index(
+        ds: xr.Dataset,
+        qubit_id: str,
+        coordinate_name: str = CoordinateNames.QUBIT
+    ) -> int:
+        """Get the index of a qubit in the dataset's qubit coordinate.
+        
+        Args:
+            ds: Dataset containing qubit coordinate
+            qubit_id: ID of the qubit to find
+            coordinate_name: Name of the qubit coordinate
+            
+        Returns:
+            Index of the qubit in the coordinate array
+            
+        Raises:
+            DataSourceError: If qubit not found
+        """
+        if coordinate_name not in ds.coords:
+            raise DataSourceError(
+                f"Coordinate '{coordinate_name}' not found",
+                context={"available_coords": list(ds.coords)}
+            )
+            
+        qubit_labels = list(ds[coordinate_name].values)
+        try:
+            return qubit_labels.index(qubit_id)
+        except ValueError:
+            raise DataSourceError(
+                f"Qubit '{qubit_id}' not found in dataset",
+                context={"available_qubits": qubit_labels}
+            )
+    
+    @staticmethod
+    def extract_multi_qubit_array(
+        ds: xr.Dataset,
+        var_name: str,
+        qubit_id: str,
+        qubit_dim_position: int = 0
+    ) -> np.ndarray:
+        """Extract data for a specific qubit from a multi-dimensional array.
+        
+        Args:
+            ds: Dataset containing the variable
+            var_name: Name of the variable to extract
+            qubit_id: ID of the qubit to extract
+            qubit_dim_position: Position of qubit dimension in the array
+            
+        Returns:
+            Numpy array with data for the specified qubit
+        """
+        if var_name not in ds:
+            raise DataSourceError(
+                f"Variable '{var_name}' not found",
+                context={"available_vars": list(ds.data_vars) + list(ds.coords)}
+            )
+            
+        qubit_idx = DataExtractor.get_qubit_index(ds, qubit_id)
+        data_array = ds[var_name].values
+        
+        # Extract along the qubit dimension
+        if qubit_dim_position == 0:
+            return data_array[qubit_idx]
+        elif qubit_dim_position == 1:
+            return data_array[:, qubit_idx]
+        elif qubit_dim_position == 2:
+            return data_array[:, :, qubit_idx]
+        else:
+            # General case using numpy advanced indexing
+            indices = [slice(None)] * data_array.ndim
+            indices[qubit_dim_position] = qubit_idx
+            return data_array[tuple(indices)]
+    
+    @staticmethod
+    def extract_heatmap_data(
+        ds: xr.Dataset,
+        x_coord: str,
+        y_coord: str,
+        z_var: str,
+        qubit_id: Optional[str] = None,
+        transpose: bool = False
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Extract and prepare data for heatmap plotting.
+        
+        Args:
+            ds: Dataset containing the data
+            x_coord: Name of x coordinate
+            y_coord: Name of y coordinate
+            z_var: Name of z variable (2D data)
+            qubit_id: Optional qubit ID for multi-qubit datasets
+            transpose: Whether to transpose the z data
+            
+        Returns:
+            Tuple of (x_values, y_values, z_values) ready for plotting
+        """
+        # Extract qubit-specific data if needed
+        if qubit_id and CoordinateNames.QUBIT in ds.dims:
+            ds_qubit = DataExtractor.extract_qubit_data(ds, qubit_id)
+        else:
+            ds_qubit = ds
+            
+        # Get coordinate values
+        x_values = DataExtractor.get_coordinate_values(ds_qubit, x_coord)
+        y_values = DataExtractor.get_coordinate_values(ds_qubit, y_coord)
+        
+        # Get z data
+        z_data = ds_qubit[z_var].values
+        
+        # Ensure proper shape
+        if z_data.ndim == 1:
+            z_data = z_data.reshape(len(y_values), len(x_values))
+        elif transpose or (z_data.shape[0] != len(y_values)):
+            z_data = z_data.T
+            
+        return x_values, y_values, z_data
 
 
 class UnitConverter:

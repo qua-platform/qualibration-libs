@@ -24,13 +24,12 @@ Use parallel subagents to work on distinct files at the same time.
 - [x] **Merge duplicate overlay methods** (✅ Completed - net reduction of ~150 lines)
   - [x] Consolidate \_add_overlays variants into base class
   - [x] Remove engine-specific overlay implementations
-- [ ] **Extract common data extraction patterns**
-  - [ ] Use DataExtractor consistently
-  - [ ] Remove manual qubit extraction code
-- [ ] **Unify subplot/grid creation**
-
-  - [ ] Create single grid setup method in base class
-  - [ ] Remove duplicate grid logic from engines
+- [x] **Extract common data extraction patterns** (✅ Completed via parallel agents)
+  - [x] Use DataExtractor consistently
+  - [x] Remove manual qubit extraction code
+- [x] **Unify subplot/grid creation** (✅ Completed via parallel agents)
+  - [x] Create single grid setup method in base class
+  - [x] Remove duplicate grid logic from engines
 
 - test Run the full test suite to check for regressions:
   `bash cd /Users/shanto/Docs/internship/quantum-elements/qua-libs/qualibration_graphs/superconducting p3 test_02a_unified_plotting.py & p3 test_02b_unified_plotting.py & p3 test_02c_unified_plotting.py & p3 test_04b_unified_plotting.py & wait `

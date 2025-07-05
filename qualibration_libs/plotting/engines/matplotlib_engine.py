@@ -15,8 +15,7 @@ from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
 from ..configs import (Colors, HeatmapConfig, HeatmapTraceConfig,
                        LineOverlayConfig, MarkerOverlayConfig,
-                       PlotConfig, SpectroscopyConfig, TraceConfig,
-                       get_standard_matplotlib_size)
+                       PlotConfig, SpectroscopyConfig, TraceConfig)
 from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes
 from ..grids import QubitGrid, grid_iter
 from .base_engine import BaseRenderingEngine
@@ -103,8 +102,11 @@ class MatplotlibEngine(BaseRenderingEngine):
     
     def _setup_figure_grid(self, ds_raw: xr.Dataset, qubits: List[AnyTransmon], title: str) -> QubitGrid:
         """Set up the figure grid with standard settings."""
-        grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=True)
-        grid.fig.set_size_inches(*get_standard_matplotlib_size())
+        grid = self._create_grid_layout(ds_raw, qubits, create_figure=True)
+        
+        # Use base class dimensions calculation
+        dimensions = self._calculate_figure_dimensions(grid.n_rows, grid.n_cols, "standard")
+        grid.fig.set_size_inches(dimensions["width_inches"], dimensions["height_inches"])
         grid.fig.suptitle(title)
         return grid
     
@@ -172,8 +174,13 @@ class MatplotlibEngine(BaseRenderingEngine):
     ) -> MatplotlibFigure:
         """Create specialized figure for 2D heatmap plots."""
         
-        grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=True)
-        grid.fig.set_size_inches(*get_standard_matplotlib_size())
+        # Use base class methods for grid creation
+        grid = self._create_grid_layout(ds_raw, qubits, create_figure=True)
+        
+        # Determine plot type and calculate dimensions
+        plot_type = "flux" if self._is_flux_spectroscopy(ds_raw) else "heatmap"
+        dimensions = self._calculate_figure_dimensions(grid.n_rows, grid.n_cols, plot_type)
+        grid.fig.set_size_inches(dimensions["width_inches"], dimensions["height_inches"])
         grid.fig.suptitle(config.layout.title)
         
         for i, (ax, name_dict) in enumerate(grid_iter(grid)):

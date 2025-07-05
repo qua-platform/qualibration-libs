@@ -16,6 +16,7 @@ from ..configs import (ColorbarConfig, Colors, HeatmapTraceConfig,
                        TraceConfig)
 from ..configs.constants import CoordinateNames, PlotConstants
 from ..grids import QubitGrid
+from ..data_utils import DataExtractor
 
 
 class PlotlyEngineUtils:
@@ -48,8 +49,10 @@ class PlotlyEngineUtils:
         
         custom_arrays = []
         for source in custom_data_sources:
-            if source in ds:
-                custom_arrays.append(ds[source].values)
+            if DataExtractor.check_data_source_exists(ds, source):
+                data_array = DataExtractor.get_data_array_safe(ds, source)
+                if data_array is not None:
+                    custom_arrays.append(data_array.values)
         
         if not custom_arrays:
             return None
@@ -62,14 +65,16 @@ class PlotlyEngineUtils:
         if not trace_config.visible:
             return False
         
-        if trace_config.condition_source and trace_config.condition_source in ds:
-            condition_value = ds[trace_config.condition_source].values
-            # Handle scalar and array conditions
-            if np.isscalar(condition_value):
-                return condition_value == trace_config.condition_value
-            else:
-                # For array conditions, check if any values match
-                return np.any(condition_value == trace_config.condition_value)
+        if trace_config.condition_source and DataExtractor.check_data_source_exists(ds, trace_config.condition_source):
+            data_array = DataExtractor.get_data_array_safe(ds, trace_config.condition_source)
+            if data_array is not None:
+                condition_value = data_array.values
+                # Handle scalar and array conditions
+                if np.isscalar(condition_value):
+                    return condition_value == trace_config.condition_value
+                else:
+                    # For array conditions, check if any values match
+                    return np.any(condition_value == trace_config.condition_value)
         
         return True
     
@@ -144,13 +149,16 @@ class OverlayRenderer:
         except ValueError:
             return False
         
-        # Check if condition source is in data variables or coordinates
-        if overlay_config.condition_source in fit_qubit.data_vars:
-            condition_value = fit_qubit[overlay_config.condition_source].values
-        elif overlay_config.condition_source in fit_qubit.coords:
-            condition_value = fit_qubit.coords[overlay_config.condition_source].values
-        else:
+        # Check if condition source exists using DataExtractor
+        if not DataExtractor.check_data_source_exists(fit_qubit, overlay_config.condition_source):
             return False
+            
+        # Get condition value using DataExtractor
+        data_array = DataExtractor.get_data_array_safe(fit_qubit, overlay_config.condition_source)
+        if data_array is None:
+            return False
+            
+        condition_value = data_array.values
         
         # Check if condition matches - handle both scalar and array values
         if np.isscalar(condition_value):
@@ -173,13 +181,12 @@ class OverlayRenderer:
         except ValueError:
             return None
         
-        # Check if source is in data variables or coordinates
-        if source in fit_qubit.data_vars:
-            value = fit_qubit[source].values
-        elif source in fit_qubit.coords:
-            value = fit_qubit.coords[source].values
-        else:
+        # Get data using DataExtractor
+        data_array = DataExtractor.get_data_array_safe(fit_qubit, source)
+        if data_array is None:
             return None
+            
+        value = data_array.values
             
         if np.isscalar(value):
             return float(value)

@@ -510,3 +510,19 @@ Address the gap between promised refactoring and actual implementation. Remove d
   - ✅ Removed 4 redundant helper methods from matplotlib_engine
   - **Estimated lines saved: ~200+ lines**
   - All tests passing - no regressions
+
+### 7.5 Extract Common Data Extraction & Unify Grid Creation (Parallel)
+- **Status:** ✅ COMPLETED
+- **Started:** 2025-07-05 10:20:00
+- **Completed:** 2025-07-05 10:28:00
+- **Details:**
+  - ✅ Used parallel sub-agents to work on two tasks simultaneously
+  - ✅ **Data Extraction Consolidation:**
+    - Added common data preparation methods to data_utils
+    - Updated engines to use DataExtractor consistently
+    - Removed manual qubit data extraction code
+  - ✅ **Grid/Subplot Unification:**
+    - Added 6 methods to base class for grid/layout management
+    - Unified spacing, dimensions, and title generation
+    - Both engines now use consistent grid creation logic
+  - **Lines changed:** +555 additions, -232 deletions (net +323 but better organized)
