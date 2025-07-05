@@ -14,6 +14,7 @@ from ..configs import (
     PlotConfig, SpectroscopyConfig, HeatmapConfig, HeatmapTraceConfig, 
     TraceConfig
 )
+from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes
 from .common import (
     GridManager, OverlayRenderer, QubitGrid
 )
@@ -21,6 +22,7 @@ from .data_validators import DataValidator
 from ..exceptions import (
     ConfigurationError, DataSourceError, EngineError, QubitError
 )
+from ..data_utils import RobustStatistics, DataExtractor, ArrayManipulator
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +128,8 @@ class BaseRenderingEngine(ABC):
         Returns:
             True if this is a flux spectroscopy experiment
         """
-        flux_indicators = ["flux_bias", "attenuated_current"]
-        power_indicators = ["power", "power_dbm"]
+        flux_indicators = [CoordinateNames.FLUX_BIAS, CoordinateNames.ATTENUATED_CURRENT]
+        power_indicators = [CoordinateNames.POWER, CoordinateNames.POWER_DBM]
         
         has_flux = any(coord in ds_raw.coords for coord in flux_indicators)
         has_power = any(coord in ds_raw.coords for coord in power_indicators)
@@ -145,7 +147,7 @@ class BaseRenderingEngine(ABC):
         Returns:
             True if this is a power rabi experiment
         """
-        power_rabi_indicators = ["amp_prefactor", "full_amp", "nb_of_pulses"]
+        power_rabi_indicators = [CoordinateNames.AMP_PREFACTOR, CoordinateNames.FULL_AMP, CoordinateNames.NB_OF_PULSES]
         
         return all(
             coord in ds_raw.coords or coord in ds_raw.dims 
@@ -165,8 +167,8 @@ class BaseRenderingEngine(ABC):
             return False
             
         return (
-            hasattr(ds_fit, "outcome") and 
-            getattr(ds_fit.outcome, "values", None) == "successful"
+            hasattr(ds_fit, CoordinateNames.OUTCOME) and 
+            getattr(ds_fit.outcome, "values", None) == CoordinateNames.SUCCESSFUL
         )
     
     # ==================== Validation Methods ====================
@@ -264,8 +266,8 @@ class BaseRenderingEngine(ABC):
     def _calculate_robust_zlimits(
         self, 
         z_data: np.ndarray, 
-        zmin_percentile: float = 2.0, 
-        zmax_percentile: float = 98.0
+        zmin_percentile: float = PlotConstants.DEFAULT_MIN_PERCENTILE, 
+        zmax_percentile: float = PlotConstants.DEFAULT_MAX_PERCENTILE
     ) -> Tuple[float, float]:
         """Calculate robust z-axis limits using percentiles.
         
@@ -277,21 +279,7 @@ class BaseRenderingEngine(ABC):
         Returns:
             Tuple of (zmin, zmax)
         """
-        flat_data = z_data.flatten()
-        valid_data = flat_data[~np.isnan(flat_data)]
-        
-        if len(valid_data) == 0:
-            return 0.0, 1.0
-        
-        zmin = float(np.percentile(valid_data, zmin_percentile))
-        zmax = float(np.percentile(valid_data, zmax_percentile))
-        
-        # Ensure zmin < zmax
-        if zmin >= zmax:
-            zmin = float(np.min(valid_data))
-            zmax = float(np.max(valid_data))
-            
-        return zmin, zmax
+        return RobustStatistics.calculate_percentile_limits(z_data, zmin_percentile, zmax_percentile)
     
     # ==================== Abstract Methods ====================
     
@@ -488,6 +476,95 @@ class BaseRenderingEngine(ABC):
     
     # ==================== Helper Methods for Subclasses ====================
     
+    def _extract_qubit_datasets(
+        self,
+        ds_raw: xr.Dataset,
+        ds_fit: Optional[xr.Dataset],
+        qubit_id: str,
+        qubit_coord: str = CoordinateNames.QUBIT
+    ) -> Tuple[xr.Dataset, Optional[xr.Dataset]]:
+        """Extract raw and fit datasets for a specific qubit.
+        
+        Args:
+            ds_raw: Raw measurement dataset
+            ds_fit: Optional fit results dataset
+            qubit_id: ID of the qubit to extract
+            qubit_coord: Name of the qubit coordinate (default: "qubit")
+            
+        Returns:
+            Tuple of (raw_qubit_dataset, fit_qubit_dataset)
+        """
+        ds_qubit_raw = DataExtractor.extract_qubit_data(ds_raw, qubit_id, qubit_coord)
+        ds_qubit_fit = (
+            DataExtractor.extract_qubit_data(ds_fit, qubit_id, qubit_coord)
+            if ds_fit is not None else None
+        )
+        return ds_qubit_raw, ds_qubit_fit
+    
+    @staticmethod
+    def translate_plotly_colorscale(plotly_colorscale: str) -> str:
+        """Translate Plotly colorscale to matplotlib colormap.
+        
+        Args:
+            plotly_colorscale: Plotly colorscale name
+            
+        Returns:
+            Corresponding matplotlib colormap name
+        """
+        colorscale_map = {
+            "Viridis": "viridis",
+            "Plasma": "plasma",
+            "Inferno": "inferno",
+            "Magma": "magma",
+            "Blues": "Blues",
+            "Reds": "Reds",
+            "Greens": "Greens",
+            "binary": "binary",
+            "RdBu": "RdBu",
+            "Turbo": "turbo",
+            "Cividis": "cividis"
+        }
+        return colorscale_map.get(plotly_colorscale, "viridis")
+    
+    def _build_custom_data(
+        self,
+        ds: xr.Dataset,
+        custom_data_sources: Optional[List[str]]
+    ) -> Optional[np.ndarray]:
+        """Build custom data array for hover/tooltips.
+        
+        Args:
+            ds: Dataset containing the data sources
+            custom_data_sources: List of data source names to include
+            
+        Returns:
+            Custom data array or None if no valid sources
+        """
+        if not custom_data_sources:
+            return None
+        
+        custom_arrays = []
+        for source in custom_data_sources:
+            if DataExtractor.check_data_source_exists(ds, source):
+                data = DataExtractor.get_data_array_safe(ds, source)
+                if data is not None:
+                    custom_arrays.append(data.values)
+            else:
+                logger.warning(f"Custom data source '{source}' not found")
+        
+        if not custom_arrays:
+            return None
+        
+        # Stack arrays if multiple sources, otherwise return single array
+        if len(custom_arrays) > 1:
+            try:
+                return ArrayManipulator.stack_custom_data(custom_arrays)
+            except Exception as e:
+                logger.warning(f"Could not stack custom data: {e}")
+                return custom_arrays[0]
+        else:
+            return custom_arrays[0]
+    
     def _get_experiment_type(self, ds_raw: xr.Dataset) -> str:
         """Determine the experiment type from dataset structure.
         
@@ -498,11 +575,11 @@ class BaseRenderingEngine(ABC):
             String identifier for experiment type
         """
         if self._is_power_rabi(ds_raw):
-            return "power_rabi"
+            return ExperimentTypes.POWER_RABI.value
         elif self._is_flux_spectroscopy(ds_raw):
-            return "flux_spectroscopy"
+            return ExperimentTypes.FLUX_SPECTROSCOPY.value
         else:
-            return "generic"
+            return ExperimentTypes.UNKNOWN.value
     
     def _should_add_overlays(
         self, 

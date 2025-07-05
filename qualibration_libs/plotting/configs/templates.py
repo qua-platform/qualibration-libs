@@ -12,6 +12,9 @@ from .builder import PlotConfigurationBuilder
 from .spectroscopy import SpectroscopyConfig
 from .heatmap import HeatmapConfig
 from .visual_standards import AxisLabels, Colors, LineStyles
+from .constants import (
+    CoordinateNames, ExperimentTypes, PlotConstants, PlotModes, ColorScales
+)
 
 
 class ConfigurationTemplates:
@@ -23,8 +26,8 @@ class ConfigurationTemplates:
     
     @staticmethod
     def simple_spectroscopy(
-        x_source: str = "full_freq_GHz",
-        y_source: str = "IQ_abs_mV",
+        x_source: str = CoordinateNames.FULL_FREQ_GHZ,
+        y_source: str = CoordinateNames.IQ_ABS_MV,
         title: str = "Spectroscopy",
         x_label: Optional[str] = None,
         y_label: Optional[str] = None
@@ -56,9 +59,9 @@ class ConfigurationTemplates:
             .title("Resonator Spectroscopy")
             .x_axis(AxisLabels.RF_FREQUENCY_GHZ)
             .y_axis(AxisLabels.IQ_AMPLITUDE_MV)
-            .add_raw_trace("full_freq_GHz", "IQ_abs_mV", "Raw Data")
-            .add_fit_trace("full_freq_GHz", "fitted_data_mV", "Lorentzian Fit")
-            .add_dual_axis("Detuning [MHz]", "detuning_MHz", "{:.1f}")
+            .add_raw_trace(CoordinateNames.FULL_FREQ_GHZ, CoordinateNames.IQ_ABS_MV, "Raw Data")
+            .add_fit_trace(CoordinateNames.FULL_FREQ_GHZ, CoordinateNames.FITTED_DATA_MV, "Lorentzian Fit")
+            .add_dual_axis("Detuning [MHz]", CoordinateNames.DETUNING_MHZ, "{:.1f}")
             .plot_family("spectroscopy")
             .build())
     
@@ -69,8 +72,8 @@ class ConfigurationTemplates:
             .title("Resonator Spectroscopy (Phase)")
             .x_axis(AxisLabels.RF_FREQUENCY_GHZ)
             .y_axis(AxisLabels.PHASE_DEG)
-            .add_raw_trace("full_freq_GHz", "phase_deg", "Raw Phase")
-            .add_fit_trace("full_freq_GHz", "fitted_phase_deg", "Phase Fit")
+            .add_raw_trace(CoordinateNames.FULL_FREQ_GHZ, CoordinateNames.PHASE_DEG, "Raw Phase")
+            .add_fit_trace(CoordinateNames.FULL_FREQ_GHZ, "fitted_phase_deg", "Phase Fit")
             .plot_family("spectroscopy")
             .build())
     
@@ -90,12 +93,12 @@ class ConfigurationTemplates:
             .title("Power Rabi")
             .x_axis(AxisLabels.PULSE_AMPLITUDE_MV)
             .y_axis(AxisLabels.I_MV)
-            .add_raw_trace("amp_mV", "I_mV", "Raw Data")
-            .add_fit_trace("amp_mV", "fitted_data_mV", "Sinusoidal Fit")
+            .add_raw_trace(CoordinateNames.AMP_MV, "I_mV", "Raw Data")
+            .add_fit_trace(CoordinateNames.AMP_MV, CoordinateNames.FITTED_DATA_MV, "Sinusoidal Fit")
             .plot_family("spectroscopy"))
         
         if include_prefactor_axis:
-            builder.add_dual_axis("Amplitude Prefactor", "amp_prefactor", "{:.3f}")
+            builder.add_dual_axis("Amplitude Prefactor", CoordinateNames.AMP_PREFACTOR, "{:.3f}")
             
         return builder.build()
     
@@ -106,7 +109,7 @@ class ConfigurationTemplates:
             .title("Power Rabi Chevron")
             .x_axis(AxisLabels.PULSE_AMPLITUDE_MV)
             .y_axis(AxisLabels.NUMBER_OF_PULSES)
-            .add_heatmap_trace("amp_mV", "nb_of_pulses", "IQ_abs_mV", "Signal")
+            .add_heatmap_trace(CoordinateNames.AMP_MV, CoordinateNames.NB_OF_PULSES, CoordinateNames.IQ_ABS_MV, "Signal")
             .plot_family("heatmap")
             .build())
     
@@ -117,9 +120,9 @@ class ConfigurationTemplates:
             .title("Flux Spectroscopy")
             .x_axis(AxisLabels.FLUX_BIAS_V)
             .y_axis(AxisLabels.RF_FREQUENCY_GHZ)
-            .add_heatmap_trace("flux_bias", "freq_GHz", "IQ_abs_mV", colorbar_title="|IQ| [mV]")
-            .add_vertical_line("idle_offset", "outcome", "successful")
-            .add_vertical_line("flux_min", "outcome", "successful")
+            .add_heatmap_trace(CoordinateNames.FLUX_BIAS, CoordinateNames.FREQ_GHZ, CoordinateNames.IQ_ABS_MV, colorbar_title="|IQ| [mV]")
+            .add_vertical_line("idle_offset", CoordinateNames.OUTCOME, CoordinateNames.SUCCESSFUL)
+            .add_vertical_line("flux_min", CoordinateNames.OUTCOME, CoordinateNames.SUCCESSFUL)
             .add_optimal_marker("idle_offset", "sweet_spot_frequency")
             .plot_family("heatmap")
             .build())
@@ -131,7 +134,7 @@ class ConfigurationTemplates:
             .title("Resonator Spectroscopy vs Power")
             .x_axis(AxisLabels.DETUNING_MHZ)
             .y_axis(AxisLabels.POWER_DBM)
-            .add_heatmap_trace("detuning_MHz", "power_dbm", "freq_shift_MHz", 
+            .add_heatmap_trace(CoordinateNames.DETUNING_MHZ, CoordinateNames.POWER_DBM, "freq_shift_MHz", 
                              colorbar_title="Frequency Shift [MHz]")
             .add_optimal_marker("optimal_detuning", "optimal_power")
             .plot_family("heatmap")
@@ -144,7 +147,7 @@ class ConfigurationTemplates:
             .title("Ramsey Experiment")
             .x_axis(AxisLabels.IDLE_TIME_NS)
             .y_axis(AxisLabels.STATE)
-            .add_raw_trace("idle_time_ns", "state", "Raw Data")
+            .add_raw_trace("idle_time_ns", CoordinateNames.STATE, "Raw Data")
             .add_fit_trace("idle_time_ns", "fitted_state", "Oscillation Fit")
             .plot_family("spectroscopy")
             .build())
@@ -156,7 +159,7 @@ class ConfigurationTemplates:
             .title("T1 Relaxation")
             .x_axis(AxisLabels.WAIT_TIME_NS)
             .y_axis(AxisLabels.STATE)
-            .add_raw_trace("wait_time_ns", "state", "Raw Data")
+            .add_raw_trace("wait_time_ns", CoordinateNames.STATE, "Raw Data")
             .add_fit_trace("wait_time_ns", "fitted_state", "Exponential Fit")
             .plot_family("spectroscopy")
             .build())
@@ -290,15 +293,15 @@ def get_template(experiment_type: str) -> Union[SpectroscopyConfig, HeatmapConfi
         ValueError: If experiment type is not recognized
     """
     templates = {
-        "resonator_spectroscopy": ConfigurationTemplates.resonator_spectroscopy,
+        ExperimentTypes.RESONATOR_SPECTROSCOPY.value: ConfigurationTemplates.resonator_spectroscopy,
         "phase_spectroscopy": ConfigurationTemplates.phase_spectroscopy,
-        "power_rabi": ConfigurationTemplates.power_rabi_1d,
+        ExperimentTypes.POWER_RABI.value: ConfigurationTemplates.power_rabi_1d,
         "power_rabi_1d": ConfigurationTemplates.power_rabi_1d,
         "power_rabi_2d": ConfigurationTemplates.power_rabi_2d,
-        "flux_spectroscopy": ConfigurationTemplates.flux_spectroscopy,
-        "amplitude_spectroscopy": ConfigurationTemplates.amplitude_spectroscopy,
-        "ramsey": ConfigurationTemplates.ramsey_experiment,
-        "t1": ConfigurationTemplates.t1_experiment,
+        ExperimentTypes.FLUX_SPECTROSCOPY.value: ConfigurationTemplates.flux_spectroscopy,
+        ExperimentTypes.AMPLITUDE_SPECTROSCOPY.value: ConfigurationTemplates.amplitude_spectroscopy,
+        ExperimentTypes.RAMSEY.value: ConfigurationTemplates.ramsey_experiment,
+        ExperimentTypes.T1.value: ConfigurationTemplates.t1_experiment,
     }
     
     if experiment_type not in templates:
@@ -380,7 +383,7 @@ class TemplateSets:
             "phase_response": ConfigurationTemplates.phase_spectroscopy(),
             "power_dependence": ConfigurationTemplates.amplitude_spectroscopy(),
             "flux_dependence": customize_template(
-                "flux_spectroscopy",
+                ExperimentTypes.FLUX_SPECTROSCOPY.value,
                 title="Resonator vs Flux",
                 y_label=AxisLabels.DETUNING_MHZ
             ),

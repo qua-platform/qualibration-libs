@@ -18,6 +18,7 @@ from ..configs import (Colors, HeatmapConfig, HeatmapTraceConfig,
                        LineOverlayConfig, LineStyles, MarkerOverlayConfig,
                        PlotConfig, SpectroscopyConfig, TraceConfig,
                        get_standard_matplotlib_size)
+from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes
 from ..grids import QubitGrid, grid_iter
 from .base_engine import BaseRenderingEngine
 from .common import GridManager, MatplotlibEngineUtils, OverlayRenderer
@@ -26,6 +27,7 @@ from .experiment_detector import ExperimentDetector
 from ..exceptions import (
     DataSourceError, QubitError, OverlayError, ConfigurationError
 )
+from ..data_utils import DataExtractor, DataValidator as DataUtilsValidator, extract_trace_data
 
 logger = logging.getLogger(__name__)
 
@@ -85,20 +87,19 @@ class MatplotlibEngine(BaseRenderingEngine):
         
         for i, (ax, name_dict) in enumerate(grid_iter(grid)):
             qubit_id = list(name_dict.values())[0]
-            ds_qubit_raw = ds_raw.sel(qubit=qubit_id)
-            ds_qubit_fit = ds_fit.sel(qubit=qubit_id) if ds_fit is not None else None
+            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
             
             # Plot raw data traces
             self._add_spectroscopy_traces(ax, ds_qubit_raw, config.traces, i, legend_entries_created)
             
             # Plot fit traces - only if fit was successful
-            if ds_qubit_fit is not None and self._is_fit_successful(ds_qubit_fit):
+            if ds_qubit_fit is not None and DataUtilsValidator.validate_fit_success(ds_qubit_fit):
                 self._add_spectroscopy_traces(ax, ds_qubit_fit, config.fit_traces, i, legend_entries_created, is_fit=True)
             
             # Set labels and title
             ax.set_xlabel(config.layout.x_axis_title)
             ax.set_ylabel(config.layout.y_axis_title)
-            ax.set_title(f"Qubit {qubit_id}")
+            ax.set_title(f"{CoordinateNames.QUBIT.capitalize()} {qubit_id}")
             
             # Add dual axis if configured
             if config.dual_axis and config.dual_axis.enabled:
@@ -137,8 +138,7 @@ class MatplotlibEngine(BaseRenderingEngine):
         
         for i, (ax, name_dict) in enumerate(grid_iter(grid)):
             qubit_id = list(name_dict.values())[0]
-            ds_qubit_raw = ds_raw.sel(qubit=qubit_id)
-            ds_qubit_fit = ds_fit.sel(qubit=qubit_id) if ds_fit is not None else None
+            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
             
             # Plot heatmap traces
             for trace_config in config.traces:
@@ -149,7 +149,7 @@ class MatplotlibEngine(BaseRenderingEngine):
             if ds_qubit_fit is not None and config.overlays:
                 # Route to appropriate overlay handler based on experiment type
                 experiment_type = self.experiment_detector.detect_experiment_type(ds_raw)
-                if experiment_type == "flux_spectroscopy":
+                if experiment_type == ExperimentTypes.FLUX_SPECTROSCOPY:
                     self._add_overlays_flux_spectroscopy_matplotlib(ax, ds_qubit_fit, qubit_id, config.overlays, ds_raw)
                 else:
                     self._add_overlays(ax, ds_qubit_fit, qubit_id, config.overlays)
@@ -157,7 +157,7 @@ class MatplotlibEngine(BaseRenderingEngine):
             # Set labels and title
             ax.set_xlabel(config.layout.x_axis_title)
             ax.set_ylabel(config.layout.y_axis_title)
-            ax.set_title(f"Qubit {qubit_id}")
+            ax.set_title(f"{CoordinateNames.QUBIT.capitalize()} {qubit_id}")
         
         grid.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
         return grid.fig
@@ -180,8 +180,7 @@ class MatplotlibEngine(BaseRenderingEngine):
         
         for i, (ax, name_dict) in enumerate(grid_iter(grid)):
             qubit_id = list(name_dict.values())[0]
-            ds_qubit_raw = ds_raw.sel(qubit=qubit_id)
-            ds_qubit_fit = ds_fit.sel(qubit=qubit_id) if ds_fit is not None else None
+            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
             
             # Plot raw traces
             for trace_config in config.traces:
@@ -189,7 +188,7 @@ class MatplotlibEngine(BaseRenderingEngine):
                     self._add_generic_trace(ax, ds_qubit_raw, trace_config, i, legend_entries_created)
             
             # Plot fit traces - only if fit was successful
-            if ds_qubit_fit is not None and self._is_fit_successful(ds_qubit_fit):
+            if ds_qubit_fit is not None and DataUtilsValidator.validate_fit_success(ds_qubit_fit):
                 for trace_config in config.fit_traces:
                     if self._check_trace_visibility(ds_qubit_fit, trace_config, qubit_id):
                         self._add_generic_trace(ax, ds_qubit_fit, trace_config, i, legend_entries_created, is_fit=True)
@@ -197,7 +196,7 @@ class MatplotlibEngine(BaseRenderingEngine):
             # Set labels and title
             ax.set_xlabel(config.layout.x_axis_title)
             ax.set_ylabel(config.layout.y_axis_title)
-            ax.set_title(f"Qubit {qubit_id}")
+            ax.set_title(f"{CoordinateNames.QUBIT.capitalize()} {qubit_id}")
         
         # Add legend by collecting handles and labels from all subplots
         all_handles = []
@@ -232,15 +231,14 @@ class MatplotlibEngine(BaseRenderingEngine):
             if not self._validate_trace_sources(ds, trace_config):
                 continue
             
-            x_data = ds[trace_config.x_source].values
-            y_data = ds[trace_config.y_source].values
+            x_data, y_data, _ = extract_trace_data(ds, trace_config.x_source, trace_config.y_source)
             
             # Extract styling
             color = self.utils.extract_matplotlib_color(trace_config.style)
             linestyle = self.utils.translate_plotly_linestyle(
                 trace_config.style.get("dash", "solid")
             )
-            linewidth = trace_config.style.get("width", LineStyles.RAW_LINE_WIDTH)
+            linewidth = trace_config.style.get("width", PlotConstants.DEFAULT_LINE_WIDTH)
             
             # Only set label the first time this trace type appears
             label = ""
@@ -287,12 +285,12 @@ class MatplotlibEngine(BaseRenderingEngine):
                 x=trace_config.x_source,
                 y=trace_config.y_source,
                 add_colorbar=False,  # No colorbar for 2D heatmaps like original 02b
-                cmap=self._translate_plotly_colorscale(trace_config.colorscale)
+                cmap=self.translate_plotly_colorscale(trace_config.colorscale)
             )
             
             # Apply robust color scaling
             if hasattr(im, 'set_clim'):
-                z_data = ds[trace_config.z_source].values
+                _, _, z_data = extract_trace_data(ds, trace_config.x_source, trace_config.y_source, trace_config.z_source)
                 zmin, zmax = self._calculate_robust_zlimits(z_data, trace_config.zmin_percentile, trace_config.zmax_percentile)
                 im.set_clim(zmin, zmax)
                 
@@ -317,14 +315,13 @@ class MatplotlibEngine(BaseRenderingEngine):
             self._add_heatmap_trace(ax, ds, trace_config, subplot_index)
         else:
             # Handle as line/scatter plot
-            x_data = ds[trace_config.x_source].values
-            y_data = ds[trace_config.y_source].values
+            x_data, y_data, _ = extract_trace_data(ds, trace_config.x_source, trace_config.y_source)
             
             color = self.utils.extract_matplotlib_color(trace_config.style)
             linestyle = self.utils.translate_plotly_linestyle(
                 trace_config.style.get("dash", "solid")
             )
-            linewidth = trace_config.style.get("width", LineStyles.RAW_LINE_WIDTH)
+            linewidth = trace_config.style.get("width", PlotConstants.DEFAULT_LINE_WIDTH)
             
             # Only set label the first time this trace type appears
             label = ""
@@ -385,7 +382,7 @@ class MatplotlibEngine(BaseRenderingEngine):
         linestyle = self.utils.translate_plotly_linestyle(
             overlay.line_style.get("dash", "dash")
         )
-        linewidth = overlay.line_style.get("width", LineStyles.OVERLAY_LINE_WIDTH)
+        linewidth = overlay.line_style.get("width", PlotConstants.OVERLAY_LINE_WIDTH)
         
         if overlay.orientation == "vertical":
             ax.axvline(
@@ -419,7 +416,7 @@ class MatplotlibEngine(BaseRenderingEngine):
         
         # Translate Plotly marker style to matplotlib
         color = overlay.marker_style.get("color", Colors.OPTIMAL_MARKER)
-        size = overlay.marker_style.get("size", LineStyles.MARKER_SIZE)
+        size = overlay.marker_style.get("size", PlotConstants.OVERLAY_MARKER_SIZE)
         symbol = overlay.marker_style.get("symbol", "x")
         
         # Map Plotly symbols to matplotlib markers
@@ -456,20 +453,20 @@ class MatplotlibEngine(BaseRenderingEngine):
         
         # Find the main x-coordinate that was used for the main plot
         main_x_coord = None
-        if 'amp_mV' in ds.coords:
-            main_x_coord = 'amp_mV'
-        elif 'frequency' in ds.coords:
-            main_x_coord = 'frequency'
+        if CoordinateNames.AMP_MV in ds.coords:
+            main_x_coord = CoordinateNames.AMP_MV
+        elif CoordinateNames.FREQUENCY in ds.coords:
+            main_x_coord = CoordinateNames.FREQUENCY
         
         if main_x_coord is None:
             return
         
         # Find the data variable that was plotted
         data_var = None
-        if 'I' in ds.data_vars:
-            data_var = 'I'
-        elif 'state' in ds.data_vars:
-            data_var = 'state'
+        if CoordinateNames.I in ds.data_vars:
+            data_var = CoordinateNames.I
+        elif CoordinateNames.STATE in ds.data_vars:
+            data_var = CoordinateNames.STATE
         
         if data_var is None:
             return
@@ -478,12 +475,12 @@ class MatplotlibEngine(BaseRenderingEngine):
             ds_twin = ds.assign_coords({main_x_coord: ds[dual_config.top_axis_source]})
             
             # Plot on twin axis with alpha=0 to make it invisible (just for axis scaling)
-            if 'nb_of_pulses' in ds.dims and ds.sizes.get('nb_of_pulses', 1) > 1:
+            if CoordinateNames.NB_OF_PULSES in ds.dims and ds.sizes.get(CoordinateNames.NB_OF_PULSES, 1) > 1:
                                      # 2D case - plot heatmap
                      ds_twin[data_var].plot(
                          ax=ax_top,
                          x=main_x_coord,
-                         y='nb_of_pulses',
+                         y=CoordinateNames.NB_OF_PULSES,
                          add_colorbar=False,
                          alpha=0,  # Make invisible, just for axis scaling
                          add_labels=False  # Suppress automatic title generation
@@ -506,21 +503,6 @@ class MatplotlibEngine(BaseRenderingEngine):
             # Don't fallback, just skip the dual axis if it fails
     
     
-    def _translate_plotly_colorscale(self, plotly_colorscale: str) -> str:
-        """Translate Plotly colorscale to matplotlib colormap."""
-        colorscale_map = {
-            "Viridis": "viridis",
-            "Plasma": "plasma",
-            "Inferno": "inferno",
-            "Magma": "magma",
-            "Blues": "Blues",
-            "Reds": "Reds",
-            "binary": "binary",
-            "RdBu": "RdBu",
-        }
-        return colorscale_map.get(plotly_colorscale, "viridis")
-    
-    
     def _add_overlays_flux_spectroscopy_matplotlib(
         self,
         ax: plt.Axes,
@@ -532,7 +514,7 @@ class MatplotlibEngine(BaseRenderingEngine):
         """Add flux spectroscopy overlays to matplotlib axis (EXACT copy of original logic)."""
         
         # Check if fit was successful (exact same check as original)
-        if not (hasattr(ds_qubit_fit, "outcome") and ds_qubit_fit.outcome.values == "successful"):
+        if not (hasattr(ds_qubit_fit, CoordinateNames.OUTCOME) and getattr(ds_qubit_fit, CoordinateNames.OUTCOME).values == CoordinateNames.SUCCESSFUL):
             return
             
         try:
@@ -541,7 +523,7 @@ class MatplotlibEngine(BaseRenderingEngine):
                 # Use fit_results like original code  
                 idle_offset = ds_qubit_fit.fit_results.idle_offset
                 flux_min = ds_qubit_fit.fit_results.flux_min
-                sweet_spot_frequency = ds_qubit_fit.fit_results.sweet_spot_frequency.values * 1e-9  # Convert Hz to GHz
+                sweet_spot_frequency = ds_qubit_fit.fit_results.sweet_spot_frequency.values * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
                 
                 # Red dashed vertical line at idle_offset (EXACT copy of original)
                 ax.axvline(
@@ -574,7 +556,7 @@ class MatplotlibEngine(BaseRenderingEngine):
                 # Fallback for different fit dataset structure
                 idle_offset = ds_qubit_fit.idle_offset.values * 1e-3  # Convert mV to V
                 flux_min = ds_qubit_fit.flux_min.values * 1e-3  # Convert mV to V
-                sweet_spot_frequency = ds_qubit_fit.sweet_spot_frequency.values * 1e-9  # Convert Hz to GHz
+                sweet_spot_frequency = ds_qubit_fit.sweet_spot_frequency.values * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
                 
                 ax.axvline(idle_offset, linestyle="dashed", linewidth=2.5, color="#FF0000")
                 ax.axvline(flux_min, linestyle="dashed", linewidth=2.5, color="#800080")

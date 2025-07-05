@@ -19,6 +19,7 @@ from ..configs import (DualAxisConfig, FigureDimensions, HeatmapConfig,
                        HeatmapTraceConfig, LineOverlayConfig,
                        MarkerOverlayConfig, PlotConfig, SpectroscopyConfig,
                        SubplotSpacing, TraceConfig, get_standard_plotly_style)
+from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes, ColorScales
 from ..grids import QubitGrid
 from .common import GridManager, OverlayRenderer, PlotlyEngineUtils
 from .data_validators import DataValidator
@@ -27,6 +28,7 @@ from .experiment_detector import ExperimentDetector
 from ..exceptions import (
     DataSourceError, QubitError, OverlayError, ConfigurationError
 )
+from ..data_utils import DataExtractor, DataValidator as DataValidatorUtils, RobustStatistics, ArrayManipulator, extract_trace_data
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +107,7 @@ class PlotlyEngine(BaseRenderingEngine):
             col = grid_col + 1
             qubit_id = list(name_dict.values())[0]
             
-            ds_qubit_raw = ds_raw.sel(qubit=qubit_id)
-            ds_qubit_fit = ds_fit.sel(qubit=qubit_id) if ds_fit is not None else None
+            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
             
             # Add raw data traces
             self._add_spectroscopy_traces(fig, ds_qubit_raw, config.traces, row, col, i)
@@ -174,12 +175,11 @@ class PlotlyEngine(BaseRenderingEngine):
             qubit_id = list(name_dict.values())[0]
             
             # For multi-qubit datasets with 2D frequency arrays, handle differently
-            ds_qubit_raw = ds_raw.sel(qubit=qubit_id)
-            ds_qubit_fit = ds_fit.sel(qubit=qubit_id) if ds_fit is not None else None
+            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
             
             # Add heatmap traces  
             for trace_config in config.traces:
-                if self.utils.check_trace_visibility(ds_qubit_raw, trace_config, qubit_id):
+                if self._check_trace_visibility(ds_qubit_raw, trace_config, qubit_id):
                     # For 2D heatmaps, route to specialized handlers
                     if hasattr(config, 'traces') and len(config.traces) > 0 and config.traces[0].plot_type == "heatmap":
                         # Detect experiment type to choose correct handler
@@ -268,18 +268,17 @@ class PlotlyEngine(BaseRenderingEngine):
             col = grid_col + 1
             qubit_id = list(name_dict.values())[0]
             
-            ds_qubit_raw = ds_raw.sel(qubit=qubit_id)
-            ds_qubit_fit = ds_fit.sel(qubit=qubit_id) if ds_fit is not None else None
+            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
             
             # Add traces based on type
             for trace_config in config.traces + config.fit_traces:
-                if not self.utils.check_trace_visibility(ds_qubit_raw, trace_config, qubit_id):
+                if not self._check_trace_visibility(ds_qubit_raw, trace_config, qubit_id):
                     continue
                 
                 is_fit_trace = trace_config in config.fit_traces
                 ds_source = ds_qubit_fit if is_fit_trace else ds_qubit_raw
                 
-                if ds_source is None or not self.utils.validate_trace_sources(ds_source, trace_config):
+                if ds_source is None or not self._validate_trace_sources(ds_source, trace_config):
                     continue
                 
                 self._add_generic_trace(fig, ds_source, trace_config, row, col, i)
@@ -309,11 +308,11 @@ class PlotlyEngine(BaseRenderingEngine):
             if is_fit and ("outcome" not in ds.coords or ds.outcome != "successful"):
                 continue
 
-            if not self.utils.validate_trace_sources(ds, trace_config):
+            if not self._validate_trace_sources(ds, trace_config):
                 continue
             
             # Build custom data
-            custom_data = self.utils.build_custom_data(ds, trace_config.custom_data_sources)
+            custom_data = self._build_custom_data(ds, trace_config.custom_data_sources)
             
             # Create trace properties
             trace_props = {
@@ -348,7 +347,7 @@ class PlotlyEngine(BaseRenderingEngine):
     ) -> None:
         """Add heatmap trace to figure."""
         
-        if not self.utils.validate_trace_sources(ds, trace_config):
+        if not self._validate_trace_sources(ds, trace_config):
             return
         
         # Get data arrays
@@ -363,18 +362,19 @@ class PlotlyEngine(BaseRenderingEngine):
             z_data = z_data.T
             if z_data.shape[0] != len(y_data):
                 z_data = z_data.T
-            if np.all(np.isnan(z_data)):
+            nan_info = DataValidatorUtils.check_for_nans(z_data, raise_on_all_nan=False)
+            if nan_info['all_nans']:
                 z_data = np.zeros_like(z_data)
         elif z_data.ndim == 1:
             z_data = z_data[np.newaxis, :]
         
         # Calculate robust z-limits
-        zmin, zmax = self.utils.calculate_robust_zlimits(
+        zmin, zmax = self._calculate_robust_zlimits(
             z_data, trace_config.zmin_percentile, trace_config.zmax_percentile
         )
         
         # Build custom data - for 2D heatmaps need to reshape to match z_data
-        custom_data = self.utils.build_custom_data(ds, trace_config.custom_data_sources)
+        custom_data = self._build_custom_data(ds, trace_config.custom_data_sources)
         if custom_data is not None and z_data.ndim == 2:
             # For 2D heatmaps, custom data needs to be tiled to match heatmap shape
             if len(custom_data.shape) == 2 and custom_data.shape[1] == 1:
@@ -382,7 +382,7 @@ class PlotlyEngine(BaseRenderingEngine):
                 custom_data = custom_data.squeeze()
             if custom_data.shape[0] == x_data.shape[0]:  # matches frequency dimension
                 # Tile to (n_powers, n_freqs) like the original det2d
-                custom_data = np.tile(custom_data[np.newaxis, :], (z_data.shape[0], 1))
+                custom_data = ArrayManipulator.tile_for_hover_data(custom_data, z_data.shape, axis=0)
         
         # Create heatmap trace
         
@@ -431,16 +431,16 @@ class PlotlyEngine(BaseRenderingEngine):
         ds2 = ds_full.transpose("qubit", "detuning", "power")
         
         # 2) Pull out the raw arrays exactly like original
-        if "full_freq" in ds2:
-            freq_array = ds2["full_freq"].values  # (n_qubits, n_freqs)
+        if CoordinateNames.FULL_FREQ in ds2:
+            freq_array = ds2[CoordinateNames.FULL_FREQ].values  # (n_qubits, n_freqs)
         elif "freq_full" in ds2:
             freq_array = ds2["freq_full"].values
         else:
             return
             
-        if "IQ_abs_norm" not in ds2:
+        if CoordinateNames.IQ_ABS_NORM not in ds2:
             return
-        IQ_array = ds2["IQ_abs_norm"].values  # (n_qubits, n_freqs, n_powers)
+        IQ_array = ds2[CoordinateNames.IQ_ABS_NORM].values  # (n_qubits, n_freqs, n_powers)
         
         # Pick the power axis:
         if "power" in ds2.coords:
@@ -458,17 +458,14 @@ class PlotlyEngine(BaseRenderingEngine):
         n_qubits, n_freqs, n_powers = IQ_array.shape
         
         # 3) Find qubit index in dataset (NOT grid iteration index)
-        q_labels = list(ds2.qubit.values)  # e.g. ["q1", "q2", "q3", "q4"] 
+        q_labels = list(ds2[CoordinateNames.QUBIT].values)  # e.g. ["q1", "q2", "q3", "q4"] 
         try:
             q_idx = q_labels.index(qubit_id)  # CRITICAL: Use dataset array index
         except ValueError:
             return
             
         # 4) Extract data for this specific qubit using DATASET INDEX
-        GHZ_PER_HZ = 1e-9
-        MHZ_PER_HZ = 1e-6
-        
-        freq_vals = freq_array[q_idx] * GHZ_PER_HZ  # (n_freqs,) in GHz
+        freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ  # (n_freqs,) in GHz
         power_vals = power_array  # (n_powers,) in dBm
         
         
@@ -478,16 +475,16 @@ class PlotlyEngine(BaseRenderingEngine):
             z_mat = z_mat[np.newaxis, :]
         if z_mat.shape[0] != n_powers:
             z_mat = z_mat.T
-        if np.all(np.isnan(z_mat)):
+        nan_info = DataValidatorUtils.check_for_nans(z_mat, raise_on_all_nan=False)
+        if nan_info['all_nans']:
             z_mat = np.zeros_like(z_mat)
             
         # 6) Build custom data for hover (exactly like original)
-        detuning_MHz = (detuning_array * MHZ_PER_HZ).astype(float)  # (n_freqs,) in MHz
-        det2d = np.tile(detuning_MHz[np.newaxis, :], (n_powers, 1))  # (n_powers, n_freqs)
+        detuning_MHz = (detuning_array * PlotConstants.MHZ_PER_HZ).astype(float)  # (n_freqs,) in MHz
+        det2d = ArrayManipulator.tile_for_hover_data(detuning_MHz, (n_powers, n_freqs), axis=0)  # (n_powers, n_freqs)
         
         # 7) Calculate z-limits (use robust percentiles like original)
-        zmin = float(np.nanpercentile(z_mat.flatten(), 2))
-        zmax = float(np.nanpercentile(z_mat.flatten(), 98))
+        zmin, zmax = self._calculate_robust_zlimits(z_mat, 2, 98)
         
         
         # 8) Create heatmap trace EXACTLY like original
@@ -497,7 +494,7 @@ class PlotlyEngine(BaseRenderingEngine):
                 x=freq_vals,
                 y=power_vals,
                 customdata=det2d,
-                colorscale="Viridis",
+                colorscale=ColorScales.VIRIDIS,
                 zmin=zmin,
                 zmax=zmax,
                 showscale=False,  # Original uses False, positions later
@@ -545,17 +542,17 @@ class PlotlyEngine(BaseRenderingEngine):
         """Add heatmap trace for power rabi using EXACT original logic."""
         
         # EXACTLY REPLICATE the original plotting.py logic for power rabi 2D
-        if hasattr(ds, "I"):
-            data = "I"
-        elif hasattr(ds, "state"):
-            data = "state"
+        if hasattr(ds, CoordinateNames.I):
+            data = CoordinateNames.I
+        elif hasattr(ds, CoordinateNames.STATE):
+            data = CoordinateNames.STATE
         else:
             return
         
         # Get the data arrays
-        amp_mV = ds['full_amp'].values * 1e3  # MV_PER_V = 1e3
-        amp_prefactor = ds['amp_prefactor'].values
-        nb_of_pulses = ds['nb_of_pulses'].values
+        amp_mV = ds['full_amp'].values * PlotConstants.MV_PER_V  # MV_PER_V
+        amp_prefactor = ds[CoordinateNames.AMP_PREFACTOR].values
+        nb_of_pulses = ds[CoordinateNames.NB_OF_PULSES].values
         z_data = ds[data].values
         
         # Ensure z_data shape is (nb_of_pulses, amp_mV)
@@ -567,7 +564,7 @@ class PlotlyEngine(BaseRenderingEngine):
             z_plot = z_data
         
         # Customdata for hover: each column is the prefactor value
-        customdata = np.tile(amp_prefactor, (len(nb_of_pulses), 1))
+        customdata = ArrayManipulator.tile_for_hover_data(amp_prefactor, (len(nb_of_pulses), len(amp_prefactor)), axis=1)
         
         hm_trace = go.Heatmap(
             z=z_plot,
@@ -600,29 +597,29 @@ class PlotlyEngine(BaseRenderingEngine):
         
         # EXACTLY REPLICATE the original 02c plotting.py logic
         # 1) Transpose ds_raw so that its dims become (qubit, detuning, flux_bias)
-        ds2 = ds_full.transpose("qubit", "detuning", "flux_bias")
+        ds2 = ds_full.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.FLUX_BIAS)
         
         # 2) Pull out the raw arrays exactly like original
-        if "full_freq" in ds2:
-            freq_array = ds2["full_freq"].values  # (n_qubits, n_freqs)
+        if CoordinateNames.FULL_FREQ in ds2:
+            freq_array = ds2[CoordinateNames.FULL_FREQ].values  # (n_qubits, n_freqs)
         elif "freq_full" in ds2:
             freq_array = ds2["freq_full"].values
         else:
             return
             
-        if "IQ_abs" not in ds2:
+        if CoordinateNames.IQ_ABS not in ds2:
             return
-        IQ_array = ds2["IQ_abs"].values  # (n_qubits, n_freqs, n_flux)
+        IQ_array = ds2[CoordinateNames.IQ_ABS].values  # (n_qubits, n_freqs, n_flux)
         
         # Pick the flux_bias axis:
-        if "flux_bias" not in ds2.coords:
+        if CoordinateNames.FLUX_BIAS not in ds2.coords:
             return
-        flux_array = ds2["flux_bias"].values  # (n_flux,) in V
+        flux_array = ds2[CoordinateNames.FLUX_BIAS].values  # (n_flux,) in V
         
         # Attenuated current axis:
-        if "attenuated_current" not in ds2.coords:
+        if CoordinateNames.ATTENUATED_CURRENT not in ds2.coords:
             return
-        current_array = ds2["attenuated_current"].values  # (n_flux,) in A
+        current_array = ds2[CoordinateNames.ATTENUATED_CURRENT].values  # (n_flux,) in A
             
         # Detuning axis (Hz):
         if "detuning" not in ds2.coords:
@@ -632,17 +629,14 @@ class PlotlyEngine(BaseRenderingEngine):
         n_qubits, n_freqs, n_flux = IQ_array.shape
         
         # 3) Find qubit index in dataset (NOT grid iteration index)
-        q_labels = list(ds2.qubit.values)  # e.g. ["qC1", "qC2", "qC3"] 
+        q_labels = list(ds2[CoordinateNames.QUBIT].values)  # e.g. ["qC1", "qC2", "qC3"] 
         try:
             q_idx = q_labels.index(qubit_id)  # CRITICAL: Use dataset array index
         except ValueError:
             return
             
         # 4) Extract data for this specific qubit using DATASET INDEX
-        GHZ_PER_HZ = 1e-9
-        MHZ_PER_HZ = 1e-6
-        
-        freq_vals = freq_array[q_idx] * GHZ_PER_HZ  # (n_freqs,) in GHz
+        freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ  # (n_freqs,) in GHz
         flux_vals = flux_array  # (n_flux,) in V
         current_vals = current_array  # (n_flux,) in A
         
@@ -653,22 +647,27 @@ class PlotlyEngine(BaseRenderingEngine):
             z_mat = z_mat[np.newaxis, :]
         if z_mat.shape != (n_freqs, n_flux):
             z_mat = z_mat.T  # fallback transpose if needed
-        if np.all(np.isnan(z_mat)):
+        nan_info = DataValidatorUtils.check_for_nans(z_mat, raise_on_all_nan=False)
+        if nan_info['all_nans']:
             z_mat = np.zeros_like(z_mat)
             
         # 6) Build custom data for hover (exactly like original)
-        detuning_MHz = (detuning_array * MHZ_PER_HZ).astype(float)  # (n_freqs,) in MHz
-        det2d = np.tile(detuning_MHz[:, None], (1, n_flux))  # shape (n_freqs, n_flux)
+        detuning_MHz = (detuning_array * PlotConstants.MHZ_PER_HZ).astype(float)  # (n_freqs,) in MHz
+        det2d = ArrayManipulator.tile_for_hover_data(detuning_MHz, (n_freqs, n_flux), axis=1)  # shape (n_freqs, n_flux)
         
         # Build 2D current array for hover
-        current2d = np.tile(current_array[np.newaxis, :], (n_freqs, 1))  # shape (n_freqs, n_flux)
+        current2d = ArrayManipulator.tile_for_hover_data(current_array, (n_freqs, n_flux), axis=0)  # shape (n_freqs, n_flux)
         
         # Stack them for custom data
-        customdata = np.stack([det2d, current2d], axis=-1)  # shape (n_freqs, n_flux, 2)
+        customdata = ArrayManipulator.stack_custom_data([det2d, current2d], axis=-1)  # shape (n_freqs, n_flux, 2)
         
         # 7) Calculate z-limits (use robust percentiles like original)
-        zmin = float(np.nanmin(z_mat))
-        zmax = float(np.nanmax(z_mat))
+        finite_values = DataValidatorUtils.get_finite_values(z_mat)
+        if len(finite_values) > 0:
+            zmin = float(np.min(finite_values))
+            zmax = float(np.max(finite_values))
+        else:
+            zmin, zmax = 0.0, 1.0
         
         # 8) Create heatmap trace EXACTLY like original
         fig.add_trace(
@@ -677,7 +676,7 @@ class PlotlyEngine(BaseRenderingEngine):
                 x=flux_vals,  # flux on x-axis 
                 y=freq_vals,  # frequency on y-axis
                 customdata=customdata,
-                colorscale="Viridis",
+                colorscale=ColorScales.VIRIDIS,
                 zmin=zmin,
                 zmax=zmax,
                 showscale=False,  # Original uses False, positions later
@@ -728,19 +727,19 @@ class PlotlyEngine(BaseRenderingEngine):
         
         # Get fit data for this qubit like original code
         try:
-            fit_ds = ds_fit.sel(qubit=qubit_id)
+            fit_ds = DataExtractor.extract_qubit_data(ds_fit, qubit_id)
         except (KeyError, ValueError):
             return
             
         # Check if fit was successful (like original: outcome == "successful")
-        if "outcome" not in fit_ds.coords or fit_ds.outcome != "successful":
+        if CoordinateNames.OUTCOME not in fit_ds.coords or fit_ds[CoordinateNames.OUTCOME] != CoordinateNames.SUCCESSFUL:
             return
             
         # Extract values like original code
         try:
             # Red dashed vertical line at resonator frequency
-            res_freq_hz = float(fit_ds.res_freq.values)
-            res_freq_ghz = res_freq_hz * 1e-9  # Convert Hz to GHz
+            res_freq_hz = float(fit_ds["res_freq"].values)
+            res_freq_ghz = res_freq_hz * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
             
             # Get power range for vertical line (from -50 to -25 dBm)
             power_min, power_max = -50.0, -25.0
@@ -764,16 +763,16 @@ class PlotlyEngine(BaseRenderingEngine):
             )
             
             # Magenta horizontal line at optimal power
-            optimal_power = float(fit_ds.optimal_power.values)
+            optimal_power = float(fit_ds["optimal_power"].values)
             
             # Get current axis data for frequency range
-            ds2 = ds_fit.transpose("qubit", "detuning", "power")
-            freq_coord_name = "full_freq" if "full_freq" in ds2 else "freq_full"
+            ds2 = ds_fit.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.POWER)
+            freq_coord_name = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds2 else "freq_full"
             if freq_coord_name in ds2:
                 freq_array = ds2[freq_coord_name].values
-                q_labels = list(ds2.qubit.values)
+                q_labels = list(ds2[CoordinateNames.QUBIT].values)
                 q_idx = q_labels.index(qubit_id)
-                freq_vals = freq_array[q_idx] * 1e-9  # Convert to GHz
+                freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ  # Convert to GHz
                 freq_min, freq_max = freq_vals.min(), freq_vals.max()
                 
                 # Add magenta horizontal line
@@ -811,12 +810,12 @@ class PlotlyEngine(BaseRenderingEngine):
         
         # Get fit data for this qubit like original code
         try:
-            fit_ds = ds_fit.sel(qubit=qubit_id)
+            fit_ds = DataExtractor.extract_qubit_data(ds_fit, qubit_id)
         except (KeyError, ValueError):
             return
             
         # Check if fit was successful (like original: outcome == "successful")
-        if "outcome" not in fit_ds.coords or fit_ds.outcome != "successful":
+        if CoordinateNames.OUTCOME not in fit_ds.coords or fit_ds[CoordinateNames.OUTCOME] != CoordinateNames.SUCCESSFUL:
             return
             
         # Extract values like original code - following exact same pattern as original plotting.py
@@ -824,14 +823,14 @@ class PlotlyEngine(BaseRenderingEngine):
             # The fit dataset structure uses fit_results just like the original
             if hasattr(fit_ds, 'fit_results'):
                 # Extract from fit_results like original code
-                idle_offset = float(fit_ds.fit_results.idle_offset.values)
-                flux_min = float(fit_ds.fit_results.flux_min.values)
-                sweet_spot_freq = float(fit_ds.fit_results.sweet_spot_frequency.values) * 1e-9  # Convert Hz to GHz
+                idle_offset = float(fit_ds.fit_results["idle_offset"].values)
+                flux_min = float(fit_ds.fit_results["flux_min"].values)
+                sweet_spot_freq = float(fit_ds.fit_results["sweet_spot_frequency"].values) * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
             else:
                 # Fallback: direct access (for different fit dataset structure)
-                idle_offset = float(fit_ds.idle_offset.values) * 1e-3  # Convert mV to V
-                sweet_spot_freq = float(fit_ds.sweet_spot_frequency.values) * 1e-9  # Convert Hz to GHz
-                flux_min = float(fit_ds.flux_min.values) * 1e-3  # Convert mV to V
+                idle_offset = float(fit_ds["idle_offset"].values) * PlotConstants.MV_PER_V / 1000  # Convert mV to V
+                sweet_spot_freq = float(fit_ds["sweet_spot_frequency"].values) * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
+                flux_min = float(fit_ds["flux_min"].values) * PlotConstants.MV_PER_V / 1000  # Convert mV to V
             
             # Get actual frequency and flux ranges from the raw dataset, following original pattern
             # Extract frequency array and compute freq_vals like original code does from RAW dataset
@@ -840,17 +839,17 @@ class PlotlyEngine(BaseRenderingEngine):
                 # If no raw dataset provided, we can't get the frequency range
                 return
                 
-            ds_raw_transposed = ds_raw.transpose("qubit", "detuning", "flux_bias")
-            freq_coord_name = "full_freq" if "full_freq" in ds_raw_transposed else "freq_full"
+            ds_raw_transposed = ds_raw.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.FLUX_BIAS)
+            freq_coord_name = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds_raw_transposed else "freq_full"
             if freq_coord_name not in ds_raw_transposed:
                 return
             
             freq_array = ds_raw_transposed[freq_coord_name].values  # (n_qubits, n_freqs)
-            q_labels = list(ds_raw_transposed.qubit.values)
+            q_labels = list(ds_raw_transposed[CoordinateNames.QUBIT].values)
             q_idx = q_labels.index(qubit_id)
-            freq_vals = freq_array[q_idx] * 1e-9  # Convert Hz to GHz, like original
+            freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz, like original
             
-            flux_vals = ds_raw_transposed["flux_bias"].values  # Get actual flux range
+            flux_vals = ds_raw_transposed[CoordinateNames.FLUX_BIAS].values  # Get actual flux range
             
             # Magenta "×" at (idle_offset, sweet_spot_frequency) - exact copy of original 
             fig.add_trace(
@@ -925,7 +924,7 @@ class PlotlyEngine(BaseRenderingEngine):
         try:
             # Check if qubit is a dimension we can select by
             if 'qubit' in ds_fit.dims:
-                ds_qubit_fit = ds_fit.sel(qubit=qubit_id)
+                ds_qubit_fit = DataExtractor.extract_qubit_data(ds_fit, qubit_id, 'qubit')
             else:
                 # Dataset is already per-qubit or qubit is just a coordinate
                 ds_qubit_fit = ds_fit
@@ -939,30 +938,30 @@ class PlotlyEngine(BaseRenderingEngine):
             return
 
         try:
-            opt_amp_prefactor = float(ds_qubit_fit.opt_amp_prefactor.values)
+            opt_amp_prefactor = float(ds_qubit_fit["opt_amp_prefactor"].values)
 
             if ds_raw is None:
                 return
 
-            ds_qubit_raw = ds_raw.sel(qubit=qubit_id)
-            amp_prefactor_raw = ds_qubit_raw["amp_prefactor"].values
-            amp_mv_raw = ds_qubit_raw["full_amp"].values * 1e3
+            ds_qubit_raw = DataExtractor.extract_qubit_data(ds_raw, qubit_id)
+            amp_prefactor_raw = ds_qubit_raw[CoordinateNames.AMP_PREFACTOR].values
+            amp_mv_raw = ds_qubit_raw["full_amp"].values * PlotConstants.MV_PER_V
 
             try:
                 opt_amp_mv = (
                     float(
                         ds_qubit_raw["full_amp"]
-                        .sel(amp_prefactor=opt_amp_prefactor, method="nearest")
+                        .sel({CoordinateNames.AMP_PREFACTOR: opt_amp_prefactor}, method="nearest")
                         .values
                     )
-                    * 1e3
+                    * PlotConstants.MV_PER_V
                 )
             except (KeyError, ValueError):
                 opt_amp_mv = float(
                     amp_mv_raw[np.argmin(np.abs(amp_prefactor_raw - opt_amp_prefactor))]
                 )
 
-            nb_of_pulses = ds_raw["nb_of_pulses"].values
+            nb_of_pulses = ds_raw[CoordinateNames.NB_OF_PULSES].values
             pulse_min, pulse_max = nb_of_pulses.min(), nb_of_pulses.max()
 
             fig.add_trace(
@@ -991,7 +990,7 @@ class PlotlyEngine(BaseRenderingEngine):
     ) -> None:
         """Add generic trace to figure."""
         
-        custom_data = self.utils.build_custom_data(ds, trace_config.custom_data_sources)
+        custom_data = self._build_custom_data(ds, trace_config.custom_data_sources)
         
         trace_props = {
             "name": trace_config.name,
@@ -1120,7 +1119,7 @@ class PlotlyEngine(BaseRenderingEngine):
             return
         
         # Special handling for power rabi dual axis (mV vs prefactor)
-        if self.experiment_detector.detect_experiment_type(ds) == "power_rabi" and dual_config.top_axis_source == "amp_prefactor":
+        if self.experiment_detector.detect_experiment_type(ds) == ExperimentTypes.POWER_RABI and dual_config.top_axis_source == CoordinateNames.AMP_PREFACTOR:
             self._add_power_rabi_dual_axis(fig, ds, dual_config, row, col, n_cols)
             return
         
@@ -1201,8 +1200,8 @@ class PlotlyEngine(BaseRenderingEngine):
         """Add power rabi specific dual axis that synchronizes mV and prefactor scales."""
         
         # Get amplitude data (exactly like original)
-        amp_mV = ds['amp_mV'].values if 'amp_mV' in ds else ds['full_amp'].values * 1e3
-        amp_prefactor = ds['amp_prefactor'].values
+        amp_mV = ds[CoordinateNames.AMP_MV].values if CoordinateNames.AMP_MV in ds else ds['full_amp'].values * PlotConstants.MV_PER_V
+        amp_prefactor = ds[CoordinateNames.AMP_PREFACTOR].values
         
         subplot_index = (row - 1) * n_cols + col
         main_xaxis_name = f"x{subplot_index}"

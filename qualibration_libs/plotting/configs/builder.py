@@ -20,6 +20,9 @@ from .visual_standards import (
     AxisLabels, Colors, LineStyles,
     get_raw_data_style, get_fit_line_style, get_heatmap_style
 )
+from .constants import (
+    CoordinateNames, ExperimentTypes, PlotConstants, PlotModes, ColorScales
+)
 
 
 class PlotConfigurationBuilder:
@@ -195,8 +198,8 @@ class PlotConfigurationBuilder:
         y_source: str,
         name: str = "Fit",
         style_override: Optional[Dict[str, Any]] = None,
-        condition_source: str = "outcome",
-        condition_value: Any = "successful"
+        condition_source: str = CoordinateNames.OUTCOME,
+        condition_value: Any = CoordinateNames.SUCCESSFUL
     ) -> 'PlotConfigurationBuilder':
         """Add a fit trace with standard fit styling.
         
@@ -226,8 +229,8 @@ class PlotConfigurationBuilder:
         name: str = "Heatmap",
         colorbar_title: str = "|IQ|",
         colorscale: str = Colors.HEATMAP_COLORSCALE,
-        zmin_percentile: float = 2.0,
-        zmax_percentile: float = 98.0
+        zmin_percentile: float = PlotConstants.DEFAULT_MIN_PERCENTILE,
+        zmax_percentile: float = PlotConstants.DEFAULT_MAX_PERCENTILE
     ) -> 'PlotConfigurationBuilder':
         """Add a heatmap trace with standard styling.
         
@@ -274,8 +277,8 @@ class PlotConfigurationBuilder:
         self,
         x_source: str,
         y_source: str,
-        condition_source: str = "outcome",
-        condition_value: Any = "successful",
+        condition_source: str = CoordinateNames.OUTCOME,
+        condition_value: Any = CoordinateNames.SUCCESSFUL,
         marker_style: Optional[Dict[str, Any]] = None
     ) -> 'PlotConfigurationBuilder':
         """Add an optimal point marker overlay.
@@ -302,8 +305,8 @@ class PlotConfigurationBuilder:
     def add_vertical_line(
         self,
         position_source: str,
-        condition_source: str = "outcome",
-        condition_value: Any = "successful",
+        condition_source: str = CoordinateNames.OUTCOME,
+        condition_value: Any = CoordinateNames.SUCCESSFUL,
         line_style: Optional[Dict[str, Any]] = None
     ) -> 'PlotConfigurationBuilder':
         """Add a vertical line overlay.
@@ -329,8 +332,8 @@ class PlotConfigurationBuilder:
     def add_horizontal_line(
         self,
         position_source: str,
-        condition_source: str = "outcome",
-        condition_value: Any = "successful",
+        condition_source: str = CoordinateNames.OUTCOME,
+        condition_value: Any = CoordinateNames.SUCCESSFUL,
         line_style: Optional[Dict[str, Any]] = None
     ) -> 'PlotConfigurationBuilder':
         """Add a horizontal line overlay.
@@ -392,9 +395,9 @@ class PlotConfigurationBuilder:
         
         # Determine plot family based on experiment type
         heatmap_experiments = [
-            "flux_spectroscopy", "amplitude_spectroscopy", 
-            "power_rabi_2d", "resonator_spectroscopy_vs_flux",
-            "resonator_spectroscopy_vs_amplitude"
+            ExperimentTypes.FLUX_SPECTROSCOPY.value, ExperimentTypes.AMPLITUDE_SPECTROSCOPY.value, 
+            "power_rabi_2d", ExperimentTypes.RESONATOR_SPECTROSCOPY_VS_FLUX.value,
+            ExperimentTypes.RESONATOR_SPECTROSCOPY_VS_AMPLITUDE.value
         ]
         
         if experiment_type in heatmap_experiments:
@@ -429,12 +432,12 @@ class PlotConfigurationBuilder:
             Self for chaining
         """
         axis_map = {
-            "resonator_spectroscopy": (AxisLabels.RF_FREQUENCY_GHZ, AxisLabels.IQ_AMPLITUDE_MV),
-            "power_rabi": (AxisLabels.PULSE_AMPLITUDE_MV, AxisLabels.I_MV),
-            "flux_spectroscopy": (AxisLabels.FLUX_BIAS_V, AxisLabels.RF_FREQUENCY_GHZ),
-            "amplitude_spectroscopy": (AxisLabels.DETUNING_MHZ, AxisLabels.POWER_DBM),
-            "ramsey": (AxisLabels.IDLE_TIME_NS, AxisLabels.STATE),
-            "t1": (AxisLabels.WAIT_TIME_NS, AxisLabels.STATE),
+            ExperimentTypes.RESONATOR_SPECTROSCOPY.value: (AxisLabels.RF_FREQUENCY_GHZ, AxisLabels.IQ_AMPLITUDE_MV),
+            ExperimentTypes.POWER_RABI.value: (AxisLabels.PULSE_AMPLITUDE_MV, AxisLabels.I_MV),
+            ExperimentTypes.FLUX_SPECTROSCOPY.value: (AxisLabels.FLUX_BIAS_V, AxisLabels.RF_FREQUENCY_GHZ),
+            ExperimentTypes.AMPLITUDE_SPECTROSCOPY.value: (AxisLabels.DETUNING_MHZ, AxisLabels.POWER_DBM),
+            ExperimentTypes.RAMSEY.value: (AxisLabels.IDLE_TIME_NS, AxisLabels.STATE),
+            ExperimentTypes.T1.value: (AxisLabels.WAIT_TIME_NS, AxisLabels.STATE),
         }
         
         if experiment_type in axis_map:

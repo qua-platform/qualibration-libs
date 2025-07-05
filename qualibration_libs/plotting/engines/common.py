@@ -14,6 +14,7 @@ from quam_builder.architecture.superconducting.qubit import AnyTransmon
 from ..configs import (ColorbarConfig, Colors, HeatmapTraceConfig,
                        LineOverlayConfig, MarkerOverlayConfig, OverlayConfig,
                        TraceConfig)
+from ..configs.constants import CoordinateNames, PlotConstants
 from ..grids import QubitGrid
 
 
@@ -21,7 +22,7 @@ class PlotlyEngineUtils:
     """Utility functions for Plotly rendering engine."""
     
     @staticmethod
-    def calculate_robust_zlimits(z_data: np.ndarray, zmin_percentile: float = 2.0, zmax_percentile: float = 98.0) -> Tuple[float, float]:
+    def calculate_robust_zlimits(z_data: np.ndarray, zmin_percentile: float = PlotConstants.DEFAULT_MIN_PERCENTILE, zmax_percentile: float = PlotConstants.DEFAULT_MAX_PERCENTILE) -> Tuple[float, float]:
         """Calculate robust z-axis limits using percentiles."""
         flat_data = z_data.flatten()
         valid_data = flat_data[~np.isnan(flat_data)]
@@ -126,11 +127,11 @@ class OverlayRenderer:
     def _normalize_fit_dataset(ds_fit: xr.Dataset, qubit_id: str) -> xr.Dataset:
         """Normalize fit dataset to single-qubit format for overlay rendering."""
         # Check if dataset has qubit as a dimension (not just coordinate)
-        if 'qubit' in ds_fit.dims:
+        if CoordinateNames.QUBIT in ds_fit.dims:
             # Dataset still has qubit dimension - need to select
-            if qubit_id not in ds_fit.coords.get('qubit', []):
+            if qubit_id not in ds_fit.coords.get(CoordinateNames.QUBIT, []):
                 raise ValueError(f"Qubit {qubit_id} not found in dataset")
-            return ds_fit.sel(qubit=qubit_id)
+            return ds_fit.sel(**{CoordinateNames.QUBIT: qubit_id})
         else:
             # Dataset is already a single-qubit slice - use directly
             return ds_fit

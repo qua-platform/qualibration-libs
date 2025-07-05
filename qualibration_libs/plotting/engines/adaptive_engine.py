@@ -17,6 +17,7 @@ from ..configs import (
     PlotConfig, SpectroscopyConfig, HeatmapConfig, AdaptiveConfig,
     DimensionalityDetector, get_adaptive_config, describe_adaptive_selection
 )
+from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes
 from .plotly_engine import PlotlyEngine
 from .matplotlib_engine import MatplotlibEngine
 from .data_validators import DataValidator
@@ -180,7 +181,7 @@ class AdaptiveEngine:
             "experiment_type": experiment_type,
             "selection_description": selection_info,
             "config_type": type(config).__name__,
-            "plot_family": getattr(config, 'plot_family', 'unknown'),
+            "plot_family": getattr(config, 'plot_family', ExperimentTypes.UNKNOWN.value),
             "data_characteristics": data_info,
             "dimensionality": self._detect_dimensionality(ds_raw, experiment_type),
             "measurement_type": self._detect_measurement_type(ds_raw, experiment_type),
@@ -193,17 +194,17 @@ class AdaptiveEngine:
             "dimensions": dict(ds_raw.dims),
             "data_variables": list(ds_raw.data_vars.keys()),
             "coordinates": list(ds_raw.coords.keys()),
-            "total_data_points": ds_raw.sizes.get('qubit', 1) * np.prod([
-                size for dim, size in ds_raw.dims.items() if dim != 'qubit'
+            "total_data_points": ds_raw.sizes.get(CoordinateNames.QUBIT, 1) * np.prod([
+                size for dim, size in ds_raw.dims.items() if dim != CoordinateNames.QUBIT
             ]),
         }
         
         # Experiment-specific analysis
-        if experiment_type == "power_rabi":
+        if experiment_type == ExperimentTypes.POWER_RABI:
             characteristics.update({
-                "has_pulse_dimension": "nb_of_pulses" in ds_raw.dims,
-                "pulse_levels": ds_raw.sizes.get("nb_of_pulses", 1),
-                "amplitude_levels": ds_raw.sizes.get("amp_prefactor", 0),
+                "has_pulse_dimension": CoordinateNames.NB_OF_PULSES in ds_raw.dims,
+                "pulse_levels": ds_raw.sizes.get(CoordinateNames.NB_OF_PULSES, 1),
+                "amplitude_levels": ds_raw.sizes.get(CoordinateNames.AMP_PREFACTOR, 0),
             })
         
         return characteristics
@@ -211,11 +212,11 @@ class AdaptiveEngine:
     def _detect_dimensionality(self, ds_raw: xr.Dataset, experiment_type: str) -> str:
         """Detect plot dimensionality for debugging."""
         
-        if experiment_type == "power_rabi":
+        if experiment_type == ExperimentTypes.POWER_RABI:
             return DimensionalityDetector.detect_power_rabi_dimensionality(ds_raw)
         
         # For other experiments, analyze number of sweep dimensions
-        sweep_dims = [dim for dim in ds_raw.dims if dim != 'qubit']
+        sweep_dims = [dim for dim in ds_raw.dims if dim != CoordinateNames.QUBIT]
         
         if len(sweep_dims) <= 1:
             return "1D"
@@ -225,24 +226,24 @@ class AdaptiveEngine:
     def _detect_measurement_type(self, ds_raw: xr.Dataset, experiment_type: str) -> str:
         """Detect measurement type for debugging."""
         
-        if experiment_type == "power_rabi":
+        if experiment_type == ExperimentTypes.POWER_RABI:
             # Check for state vs IQ measurement
-            state_vars = [var for var in ds_raw.data_vars if var.startswith('state')]
-            i_vars = [var for var in ds_raw.data_vars if var.startswith('I')]
-            q_vars = [var for var in ds_raw.data_vars if var.startswith('Q')]
+            state_vars = [var for var in ds_raw.data_vars if var.startswith(CoordinateNames.STATE)]
+            i_vars = [var for var in ds_raw.data_vars if var.startswith(CoordinateNames.I)]
+            q_vars = [var for var in ds_raw.data_vars if var.startswith(CoordinateNames.Q)]
             
             if state_vars:
                 return "state_discrimination"
             elif i_vars and q_vars:
                 return "iq_measurement"
             else:
-                return "unknown"
+                return ExperimentTypes.UNKNOWN.value
         
         # For resonator spectroscopy experiments
         if "resonator" in experiment_type:
             return "iq_measurement"
         
-        return "unknown"
+        return ExperimentTypes.UNKNOWN.value
 
 
 # ===== CONVENIENCE FUNCTIONS =====

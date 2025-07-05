@@ -27,6 +27,15 @@ from .base import (
     create_dual_axis
 )
 
+# Constants
+from .constants import (
+    CoordinateNames,
+    ExperimentTypes,
+    PlotConstants,
+    PlotModes,
+    ColorScales
+)
+
 # Visual standards
 from .visual_standards import (
     Colors,

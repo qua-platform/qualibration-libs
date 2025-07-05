@@ -8,6 +8,8 @@ from typing import Dict, List, Optional, Callable, Any
 import xarray as xr
 from abc import ABC, abstractmethod
 
+from qualibration_libs.plotting.configs.constants import CoordinateNames, ExperimentTypes
+
 
 class ExperimentDetector:
     """Main detector that uses a chain of detectors to identify experiment types."""
@@ -38,7 +40,7 @@ class ExperimentDetector:
             if detector.matches(ds_raw):
                 return detector.experiment_type
         
-        return "unknown"
+        return ExperimentTypes.UNKNOWN.value
     
     def get_experiment_properties(self, ds_raw: xr.Dataset) -> Dict[str, Any]:
         """Get detailed properties about the detected experiment.
@@ -60,7 +62,7 @@ class ExperimentDetector:
                 return detector.get_properties(ds_raw)
         
         return {
-            "type": "unknown",
+            "type": ExperimentTypes.UNKNOWN.value,
             "dimensions": self._count_dimensions(ds_raw),
             "sweep_params": [],
             "has_fit_data": False
@@ -69,7 +71,7 @@ class ExperimentDetector:
     def _count_dimensions(self, ds_raw: xr.Dataset) -> int:
         """Count the number of sweep dimensions in the dataset."""
         # Exclude 'qubit' dimension as it's not a sweep parameter
-        sweep_dims = [dim for dim in ds_raw.dims if dim != 'qubit']
+        sweep_dims = [dim for dim in ds_raw.dims if dim != CoordinateNames.QUBIT]
         return len(sweep_dims)
     
     def register_detector(self, detector: 'BaseExperimentDetector'):
@@ -122,12 +124,12 @@ class BaseExperimentDetector(ABC):
     
     def _count_dimensions(self, ds_raw: xr.Dataset) -> int:
         """Count the number of sweep dimensions."""
-        sweep_dims = [dim for dim in ds_raw.dims if dim != 'qubit']
+        sweep_dims = [dim for dim in ds_raw.dims if dim != CoordinateNames.QUBIT]
         return len(sweep_dims)
     
     def _get_sweep_params(self, ds_raw: xr.Dataset) -> List[str]:
         """Get list of sweep parameter names."""
-        return [dim for dim in ds_raw.dims if dim != 'qubit']
+        return [dim for dim in ds_raw.dims if dim != CoordinateNames.QUBIT]
 
 
 class PowerRabiDetector(BaseExperimentDetector):
@@ -135,11 +137,11 @@ class PowerRabiDetector(BaseExperimentDetector):
     
     @property
     def experiment_type(self) -> str:
-        return "power_rabi"
+        return ExperimentTypes.POWER_RABI.value
     
     def matches(self, ds_raw: xr.Dataset) -> bool:
         """Power Rabi experiments have amplitude and pulse-related coordinates."""
-        power_rabi_indicators = ["amp_prefactor", "full_amp", "nb_of_pulses"]
+        power_rabi_indicators = [CoordinateNames.AMP_PREFACTOR, "full_amp", CoordinateNames.NB_OF_PULSES]
         
         return all(
             coord in ds_raw.coords or coord in ds_raw.dims 
@@ -151,7 +153,7 @@ class PowerRabiDetector(BaseExperimentDetector):
         props = super().get_properties(ds_raw)
         
         # Check if it's 1D or 2D Power Rabi
-        if "nb_of_pulses" in ds_raw.dims and len(ds_raw.dims["nb_of_pulses"]) > 1:
+        if CoordinateNames.NB_OF_PULSES in ds_raw.dims and len(ds_raw.dims[CoordinateNames.NB_OF_PULSES]) > 1:
             props["subtype"] = "2D_power_rabi"
             props["dimensions"] = 2
         else:
@@ -166,12 +168,12 @@ class FluxSpectroscopyDetector(BaseExperimentDetector):
     
     @property
     def experiment_type(self) -> str:
-        return "flux_spectroscopy"
+        return ExperimentTypes.FLUX_SPECTROSCOPY.value
     
     def matches(self, ds_raw: xr.Dataset) -> bool:
         """Flux spectroscopy has flux coordinates but no power coordinates."""
-        flux_indicators = ["flux_bias", "attenuated_current", "current"]
-        power_indicators = ["power", "power_dbm"]
+        flux_indicators = [CoordinateNames.FLUX_BIAS, CoordinateNames.ATTENUATED_CURRENT, CoordinateNames.CURRENT]
+        power_indicators = [CoordinateNames.POWER, CoordinateNames.POWER_DBM]
         
         has_flux = any(coord in ds_raw.coords for coord in flux_indicators)
         has_power = any(coord in ds_raw.coords for coord in power_indicators)
@@ -184,7 +186,7 @@ class FluxSpectroscopyDetector(BaseExperimentDetector):
         props = super().get_properties(ds_raw)
         
         # Determine if it's resonator or qubit spectroscopy
-        if "detuning" in ds_raw.coords or "detuning" in ds_raw.dims:
+        if CoordinateNames.DETUNING in ds_raw.coords or CoordinateNames.DETUNING in ds_raw.dims:
             props["subtype"] = "resonator_flux_spectroscopy"
         else:
             props["subtype"] = "qubit_flux_spectroscopy"
@@ -197,12 +199,12 @@ class AmplitudeSpectroscopyDetector(BaseExperimentDetector):
     
     @property
     def experiment_type(self) -> str:
-        return "amplitude_spectroscopy"
+        return ExperimentTypes.AMPLITUDE_SPECTROSCOPY.value
     
     def matches(self, ds_raw: xr.Dataset) -> bool:
         """Amplitude spectroscopy has power coordinates and frequency coordinates."""
-        power_indicators = ["power", "power_dbm", "amplitude"]
-        freq_indicators = ["detuning", "frequency", "freq"]
+        power_indicators = [CoordinateNames.POWER, CoordinateNames.POWER_DBM, CoordinateNames.AMPLITUDE]
+        freq_indicators = [CoordinateNames.DETUNING, CoordinateNames.FREQUENCY, "freq"]
         
         has_power = any(coord in ds_raw.coords for coord in power_indicators)
         has_freq = any(coord in ds_raw.coords for coord in freq_indicators)
@@ -216,14 +218,14 @@ class ResonatorSpectroscopyDetector(BaseExperimentDetector):
     
     @property
     def experiment_type(self) -> str:
-        return "resonator_spectroscopy"
+        return ExperimentTypes.RESONATOR_SPECTROSCOPY.value
     
     def matches(self, ds_raw: xr.Dataset) -> bool:
         """Basic resonator spectroscopy has detuning but no other sweep parameters."""
-        has_detuning = "detuning" in ds_raw.coords or "detuning" in ds_raw.dims
+        has_detuning = CoordinateNames.DETUNING in ds_raw.coords or CoordinateNames.DETUNING in ds_raw.dims
         
         # Check it's not a 2D spectroscopy
-        other_sweep_params = ["flux_bias", "power", "amplitude", "drive_frequency"]
+        other_sweep_params = [CoordinateNames.FLUX_BIAS, CoordinateNames.POWER, CoordinateNames.AMPLITUDE, "drive_frequency"]
         has_other_sweeps = any(param in ds_raw.coords for param in other_sweep_params)
         
         return has_detuning and not has_other_sweeps
@@ -240,7 +242,7 @@ class TwoToneSpectroscopyDetector(BaseExperimentDetector):
     
     @property
     def experiment_type(self) -> str:
-        return "two_tone_spectroscopy"
+        return ExperimentTypes.TWO_TONE_SPECTROSCOPY.value
     
     def matches(self, ds_raw: xr.Dataset) -> bool:
         """Two-tone has both readout and drive frequency parameters."""
@@ -258,7 +260,7 @@ class RamseyDetector(BaseExperimentDetector):
     
     @property
     def experiment_type(self) -> str:
-        return "ramsey"
+        return ExperimentTypes.RAMSEY.value
     
     def matches(self, ds_raw: xr.Dataset) -> bool:
         """Ramsey experiments have idle time parameter."""
@@ -268,7 +270,7 @@ class RamseyDetector(BaseExperimentDetector):
         has_time_param = any(coord in ds_raw.coords for coord in ramsey_indicators)
         
         # Also check for phase-related data that's common in Ramsey
-        has_phase = "phase" in ds_raw.data_vars
+        has_phase = CoordinateNames.PHASE in ds_raw.data_vars
         
         return has_time_param and has_phase
 
@@ -278,7 +280,7 @@ class T1Detector(BaseExperimentDetector):
     
     @property  
     def experiment_type(self) -> str:
-        return "t1"
+        return ExperimentTypes.T1.value
     
     def matches(self, ds_raw: xr.Dataset) -> bool:
         """T1 experiments have wait/delay time but no phase data."""
@@ -287,6 +289,6 @@ class T1Detector(BaseExperimentDetector):
         has_time = any(coord in ds_raw.coords for coord in time_indicators)
         
         # T1 doesn't have phase data (unlike Ramsey)
-        has_phase = "phase" in ds_raw.data_vars
+        has_phase = CoordinateNames.PHASE in ds_raw.data_vars
         
         return has_time and not has_phase
