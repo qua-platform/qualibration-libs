@@ -24,6 +24,7 @@ class CoordinateNames:
     FREQ_GHZ: Final[str] = "freq_GHz"
     FULL_FREQ: Final[str] = "full_freq"
     FULL_FREQ_GHZ: Final[str] = "full_freq_GHz"
+    FREQ_FULL: Final[str] = "freq_full"  # Alternative name for full_freq
     FREQUENCY: Final[str] = "frequency"
     
     # Power/amplitude-related
@@ -110,6 +111,12 @@ class PlotConstants:
     DEFAULT_LINE_WIDTH: Final[int] = 2
     FIT_LINE_WIDTH: Final[int] = 3
     OVERLAY_LINE_WIDTH: Final[int] = 2
+    
+    # Matplotlib tight_layout parameters
+    TIGHT_LAYOUT_RECT_LEFT: Final[float] = 0
+    TIGHT_LAYOUT_RECT_BOTTOM: Final[float] = 0.03
+    TIGHT_LAYOUT_RECT_RIGHT: Final[float] = 1
+    TIGHT_LAYOUT_RECT_TOP: Final[float] = 0.95
 
 
 class PlotModes:

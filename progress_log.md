@@ -192,6 +192,18 @@ Last Updated: 2025-01-04 20:28:00
   - ✅ Follows Strategy pattern for flexible overlay rendering
   - ✅ Maintains backward compatibility with existing overlay methods
 
+**What this solves:**
+The current implementation has overlay rendering logic scattered across multiple methods in both engines:
+- PlotlyEngine has: `_add_overlays`, `_add_overlays_multi_qubit`, `_add_overlays_flux_spectroscopy`, `_add_overlays_power_rabi`
+- MatplotlibEngine has: `_add_overlays`, `_add_overlays_flux_spectroscopy_matplotlib`
+
+Each method contains similar logic for checking conditions, extracting positions, and rendering lines/markers.
+The abstraction provides a unified way to handle overlays, reducing duplication and making it easier
+to add new overlay types or experiment-specific overlays.
+
+**Note:** The abstraction was created but NOT integrated into the existing engines to maintain stability.
+Integration would be a separate task requiring careful testing.
+
 ### 6c.9 Create subplot manager
 - **Status:** ⏳ SKIPPED
 - **Reason:** GridManager already provides sufficient subplot management functionality
@@ -432,3 +444,32 @@ All critical refactoring tasks have been successfully completed:
 - Run regression tests after each modification
 - Compare outputs with baseline results
 - Using parallel processing where safe to improve efficiency
+
+---
+
+## Phase 7: Code Cleanup & Debt Reduction
+Started: 2025-07-05 09:45:00
+
+### Objective
+Address the gap between promised refactoring and actual implementation. Remove dead code, eliminate code smells, and reduce codebase size by 20-25%.
+
+### 7.1 Remove Dead Overlay Abstraction
+- **Status:** ✅ COMPLETED
+- **Started:** 2025-07-05 09:45:00
+- **Completed:** 2025-07-05 09:48:00
+- **Details:**
+  - Identified overlays.py and overlay_backends.py as completely unused
+  - These were created in Phase 6c.8 but never integrated into engines
+  - ✅ Deleted overlays.py (507 lines)
+  - ✅ Deleted overlay_backends.py (305 lines)
+  - **Total removed: 812 lines of dead code!**
+
+### 7.2 Replace Hardcoded Values
+- **Status:** ✅ COMPLETED
+- **Started:** 2025-07-05 09:49:00
+- **Completed:** 2025-07-05 09:54:00
+- **Details:**
+  - ✅ Fixed matplotlib tight_layout magic numbers (0.03, 0.95) → PlotConstants
+  - ✅ Replaced hardcoded coordinate strings ("power", "detuning", "qubit") → CoordinateNames
+  - ✅ Added mv_to_v() to UnitConverter and replaced hardcoded / 1000 conversions
+  - ✅ Added FREQ_FULL constant to CoordinateNames

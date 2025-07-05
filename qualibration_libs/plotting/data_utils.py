@@ -173,6 +173,18 @@ class UnitConverter:
         return voltage_v * PlotConstants.MV_PER_V
     
     @staticmethod
+    def mv_to_v(voltage_mv: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+        """Convert voltage from mV to V.
+        
+        Args:
+            voltage_mv: Voltage in mV
+            
+        Returns:
+            Voltage in V
+        """
+        return voltage_mv / PlotConstants.MV_PER_V
+    
+    @staticmethod
     def linear_to_dbm(
         power_linear: Union[float, np.ndarray],
         impedance: float = 50.0

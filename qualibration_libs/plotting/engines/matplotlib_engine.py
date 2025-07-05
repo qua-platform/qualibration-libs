@@ -94,7 +94,12 @@ class MatplotlibEngine(BaseRenderingEngine):
         # Add combined legend
         self._add_combined_legend(grid)
         
-        grid.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        grid.fig.tight_layout(rect=[
+            PlotConstants.TIGHT_LAYOUT_RECT_LEFT,
+            PlotConstants.TIGHT_LAYOUT_RECT_BOTTOM,
+            PlotConstants.TIGHT_LAYOUT_RECT_RIGHT,
+            PlotConstants.TIGHT_LAYOUT_RECT_TOP
+        ])
         return grid.fig
     
     def _setup_figure_grid(self, ds_raw: xr.Dataset, qubits: List[AnyTransmon], title: str) -> QubitGrid:
@@ -195,7 +200,12 @@ class MatplotlibEngine(BaseRenderingEngine):
             ax.set_ylabel(config.layout.y_axis_title)
             ax.set_title(f"{CoordinateNames.QUBIT.capitalize()} {qubit_id}")
         
-        grid.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        grid.fig.tight_layout(rect=[
+            PlotConstants.TIGHT_LAYOUT_RECT_LEFT,
+            PlotConstants.TIGHT_LAYOUT_RECT_BOTTOM,
+            PlotConstants.TIGHT_LAYOUT_RECT_RIGHT,
+            PlotConstants.TIGHT_LAYOUT_RECT_TOP
+        ])
         return grid.fig
     
     def _create_generic_figure(
@@ -223,7 +233,12 @@ class MatplotlibEngine(BaseRenderingEngine):
         # Add combined legend
         self._add_combined_legend_generic(grid)
         
-        grid.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        grid.fig.tight_layout(rect=[
+            PlotConstants.TIGHT_LAYOUT_RECT_LEFT,
+            PlotConstants.TIGHT_LAYOUT_RECT_BOTTOM,
+            PlotConstants.TIGHT_LAYOUT_RECT_RIGHT,
+            PlotConstants.TIGHT_LAYOUT_RECT_TOP
+        ])
         return grid.fig
     
     def _plot_generic_subplot(

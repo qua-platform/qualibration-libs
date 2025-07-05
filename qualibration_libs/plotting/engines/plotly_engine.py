@@ -28,7 +28,7 @@ from .experiment_detector import ExperimentDetector
 from ..exceptions import (
     DataSourceError, QubitError, OverlayError, ConfigurationError
 )
-from ..data_utils import DataExtractor, DataValidator as DataValidatorUtils, RobustStatistics, ArrayManipulator, extract_trace_data
+from ..data_utils import DataExtractor, DataValidator as DataValidatorUtils, RobustStatistics, ArrayManipulator, extract_trace_data, UnitConverter
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +305,7 @@ class PlotlyEngine(BaseRenderingEngine):
         
         for trace_config in traces:
             # For fit traces, ensure the fit was successful before plotting
-            if is_fit and ("outcome" not in ds.coords or ds.outcome != "successful"):
+            if is_fit and (CoordinateNames.OUTCOME not in ds.coords or ds.outcome != CoordinateNames.SUCCESSFUL):
                 continue
 
             if not self._validate_trace_sources(ds, trace_config):
@@ -428,13 +428,13 @@ class PlotlyEngine(BaseRenderingEngine):
         
         # EXACTLY REPLICATE the original plotting.py logic
         # 1) Transpose ds_raw so that its dims become (qubit, detuning, power)
-        ds2 = ds_full.transpose("qubit", "detuning", "power")
+        ds2 = ds_full.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.POWER)
         
         # 2) Pull out the raw arrays exactly like original
         if CoordinateNames.FULL_FREQ in ds2:
             freq_array = ds2[CoordinateNames.FULL_FREQ].values  # (n_qubits, n_freqs)
-        elif "freq_full" in ds2:
-            freq_array = ds2["freq_full"].values
+        elif CoordinateNames.FREQ_FULL in ds2:
+            freq_array = ds2[CoordinateNames.FREQ_FULL].values
         else:
             return
             
@@ -443,17 +443,17 @@ class PlotlyEngine(BaseRenderingEngine):
         IQ_array = ds2[CoordinateNames.IQ_ABS_NORM].values  # (n_qubits, n_freqs, n_powers)
         
         # Pick the power axis:
-        if "power" in ds2.coords:
-            power_array = ds2["power"].values  # (n_powers,) in dBm
-        elif "power_dbm" in ds2.coords:
-            power_array = ds2["power_dbm"].values
+        if CoordinateNames.POWER in ds2.coords:
+            power_array = ds2[CoordinateNames.POWER].values  # (n_powers,) in dBm
+        elif CoordinateNames.POWER_DBM in ds2.coords:
+            power_array = ds2[CoordinateNames.POWER_DBM].values
         else:
             return
             
         # Detuning axis (Hz):
-        if "detuning" not in ds2.coords:
+        if CoordinateNames.DETUNING not in ds2.coords:
             return
-        detuning_array = ds2["detuning"].values  # (n_freqs,) in Hz
+        detuning_array = ds2[CoordinateNames.DETUNING].values  # (n_freqs,) in Hz
         
         n_qubits, n_freqs, n_powers = IQ_array.shape
         
@@ -550,7 +550,7 @@ class PlotlyEngine(BaseRenderingEngine):
             return
         
         # Get the data arrays
-        amp_mV = ds['full_amp'].values * PlotConstants.MV_PER_V  # MV_PER_V
+        amp_mV = ds[CoordinateNames.FULL_AMP].values * PlotConstants.MV_PER_V  # MV_PER_V
         amp_prefactor = ds[CoordinateNames.AMP_PREFACTOR].values
         nb_of_pulses = ds[CoordinateNames.NB_OF_PULSES].values
         z_data = ds[data].values
@@ -602,8 +602,8 @@ class PlotlyEngine(BaseRenderingEngine):
         # 2) Pull out the raw arrays exactly like original
         if CoordinateNames.FULL_FREQ in ds2:
             freq_array = ds2[CoordinateNames.FULL_FREQ].values  # (n_qubits, n_freqs)
-        elif "freq_full" in ds2:
-            freq_array = ds2["freq_full"].values
+        elif CoordinateNames.FREQ_FULL in ds2:
+            freq_array = ds2[CoordinateNames.FREQ_FULL].values
         else:
             return
             
@@ -622,9 +622,9 @@ class PlotlyEngine(BaseRenderingEngine):
         current_array = ds2[CoordinateNames.ATTENUATED_CURRENT].values  # (n_flux,) in A
             
         # Detuning axis (Hz):
-        if "detuning" not in ds2.coords:
+        if CoordinateNames.DETUNING not in ds2.coords:
             return
-        detuning_array = ds2["detuning"].values  # (n_freqs,) in Hz
+        detuning_array = ds2[CoordinateNames.DETUNING].values  # (n_freqs,) in Hz
         
         n_qubits, n_freqs, n_flux = IQ_array.shape
         
@@ -767,7 +767,7 @@ class PlotlyEngine(BaseRenderingEngine):
             
             # Get current axis data for frequency range
             ds2 = ds_fit.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.POWER)
-            freq_coord_name = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds2 else "freq_full"
+            freq_coord_name = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds2 else CoordinateNames.FREQ_FULL
             if freq_coord_name in ds2:
                 freq_array = ds2[freq_coord_name].values
                 q_labels = list(ds2[CoordinateNames.QUBIT].values)
@@ -828,9 +828,9 @@ class PlotlyEngine(BaseRenderingEngine):
                 sweet_spot_freq = float(fit_ds.fit_results["sweet_spot_frequency"].values) * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
             else:
                 # Fallback: direct access (for different fit dataset structure)
-                idle_offset = float(fit_ds["idle_offset"].values) * PlotConstants.MV_PER_V / 1000  # Convert mV to V
+                idle_offset = UnitConverter.mv_to_v(float(fit_ds["idle_offset"].values) * PlotConstants.MV_PER_V)  # Convert mV to V
                 sweet_spot_freq = float(fit_ds["sweet_spot_frequency"].values) * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
-                flux_min = float(fit_ds["flux_min"].values) * PlotConstants.MV_PER_V / 1000  # Convert mV to V
+                flux_min = UnitConverter.mv_to_v(float(fit_ds["flux_min"].values) * PlotConstants.MV_PER_V)  # Convert mV to V
             
             # Get actual frequency and flux ranges from the raw dataset, following original pattern
             # Extract frequency array and compute freq_vals like original code does from RAW dataset
@@ -840,7 +840,7 @@ class PlotlyEngine(BaseRenderingEngine):
                 return
                 
             ds_raw_transposed = ds_raw.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.FLUX_BIAS)
-            freq_coord_name = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds_raw_transposed else "freq_full"
+            freq_coord_name = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds_raw_transposed else CoordinateNames.FREQ_FULL
             if freq_coord_name not in ds_raw_transposed:
                 return
             
@@ -923,18 +923,18 @@ class PlotlyEngine(BaseRenderingEngine):
 
         try:
             # Check if qubit is a dimension we can select by
-            if 'qubit' in ds_fit.dims:
-                ds_qubit_fit = DataExtractor.extract_qubit_data(ds_fit, qubit_id, 'qubit')
+            if CoordinateNames.QUBIT in ds_fit.dims:
+                ds_qubit_fit = DataExtractor.extract_qubit_data(ds_fit, qubit_id, CoordinateNames.QUBIT)
             else:
                 # Dataset is already per-qubit or qubit is just a coordinate
                 ds_qubit_fit = ds_fit
         except (KeyError, ValueError):
             return
 
-        if "outcome" not in ds_qubit_fit.coords:
+        if CoordinateNames.OUTCOME not in ds_qubit_fit.coords:
             return
             
-        if ds_qubit_fit.outcome != "successful":
+        if ds_qubit_fit.outcome != CoordinateNames.SUCCESSFUL:
             return
 
         try:
@@ -945,12 +945,12 @@ class PlotlyEngine(BaseRenderingEngine):
 
             ds_qubit_raw = DataExtractor.extract_qubit_data(ds_raw, qubit_id)
             amp_prefactor_raw = ds_qubit_raw[CoordinateNames.AMP_PREFACTOR].values
-            amp_mv_raw = ds_qubit_raw["full_amp"].values * PlotConstants.MV_PER_V
+            amp_mv_raw = ds_qubit_raw[CoordinateNames.FULL_AMP].values * PlotConstants.MV_PER_V
 
             try:
                 opt_amp_mv = (
                     float(
-                        ds_qubit_raw["full_amp"]
+                        ds_qubit_raw[CoordinateNames.FULL_AMP]
                         .sel({CoordinateNames.AMP_PREFACTOR: opt_amp_prefactor}, method="nearest")
                         .values
                     )
@@ -1200,7 +1200,7 @@ class PlotlyEngine(BaseRenderingEngine):
         """Add power rabi specific dual axis that synchronizes mV and prefactor scales."""
         
         # Get amplitude data (exactly like original)
-        amp_mV = ds[CoordinateNames.AMP_MV].values if CoordinateNames.AMP_MV in ds else ds['full_amp'].values * PlotConstants.MV_PER_V
+        amp_mV = ds[CoordinateNames.AMP_MV].values if CoordinateNames.AMP_MV in ds else ds[CoordinateNames.FULL_AMP].values * PlotConstants.MV_PER_V
         amp_prefactor = ds[CoordinateNames.AMP_PREFACTOR].values
         
         subplot_index = (row - 1) * n_cols + col
