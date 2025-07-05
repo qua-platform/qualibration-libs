@@ -80,6 +80,21 @@ from .adaptive import (
     describe_adaptive_selection
 )
 
+# Fluent configuration builder
+from .builder import (
+    PlotConfigurationBuilder,
+    quick_spectroscopy_config,
+    quick_heatmap_config
+)
+
+# Configuration templates
+from .templates import (
+    ConfigurationTemplates,
+    get_template,
+    customize_template,
+    TemplateSets
+)
+
 __all__ = [
     # Base classes
     "TraceConfig",
@@ -144,4 +159,15 @@ __all__ = [
     "create_resonator_spectroscopy_adaptive",
     "get_adaptive_config",
     "describe_adaptive_selection",
+    
+    # Fluent configuration builder
+    "PlotConfigurationBuilder",
+    "quick_spectroscopy_config",
+    "quick_heatmap_config",
+    
+    # Configuration templates
+    "ConfigurationTemplates",
+    "get_template",
+    "customize_template",
+    "TemplateSets",
 ]

@@ -6,6 +6,7 @@ plot types and ensures visual compatibility with the Plotly engine outputs.
 """
 
 from typing import List, Optional, Union
+import logging
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,52 +19,53 @@ from ..configs import (Colors, HeatmapConfig, HeatmapTraceConfig,
                        PlotConfig, SpectroscopyConfig, TraceConfig,
                        get_standard_matplotlib_size)
 from ..grids import QubitGrid, grid_iter
+from .base_engine import BaseRenderingEngine
 from .common import GridManager, MatplotlibEngineUtils, OverlayRenderer
 from .data_validators import DataValidator
+from .experiment_detector import ExperimentDetector
+from ..exceptions import (
+    DataSourceError, QubitError, OverlayError, ConfigurationError
+)
+
+logger = logging.getLogger(__name__)
 
 
-class MatplotlibEngine:
-    """Enhanced Matplotlib rendering engine with specialized plot type support."""
+class MatplotlibEngine(BaseRenderingEngine):
+    """Enhanced Matplotlib rendering engine with specialized plot type support.
     
-    def __init__(self):
+    This engine provides specialized Matplotlib rendering capabilities for quantum
+    calibration experiments, with support for spectroscopy, heatmap, and generic
+    plot types while maintaining visual compatibility with Plotly outputs.
+    
+    Attributes:
+        utils: Utilities for Matplotlib-specific operations
+        overlay_renderer: Renderer for overlay elements
+        grid_manager: Manager for subplot grid layouts
+        data_validator: Validator for data integrity
+        experiment_detector: Detector for experiment types
+    """
+    
+    def __init__(self) -> None:
+        """Initialize the Matplotlib rendering engine.
+        
+        Sets up all necessary components including utilities, overlay renderer,
+        grid manager, data validator, and experiment detector.
+        """
+        super().__init__()
         self.utils = MatplotlibEngineUtils()
         self.overlay_renderer = OverlayRenderer()
         self.grid_manager = GridManager()
         self.data_validator = DataValidator()
+        self.experiment_detector = ExperimentDetector()
     
-    def create_figure(
-        self,
-        ds_raw: xr.Dataset,
-        qubits: List[AnyTransmon],
-        plot_configs: List[PlotConfig],
-        ds_fit: Optional[xr.Dataset] = None,
-    ) -> MatplotlibFigure:
-        """
-        Create a Matplotlib figure using standard configuration.
+    def _create_empty_figure(self) -> MatplotlibFigure:
+        """Create an empty figure when no configs provided.
         
-        Args:
-            ds_raw: Raw experimental dataset
-            qubits: List of qubits to plot
-            plot_configs: List of plot configurations
-            ds_fit: Optional fitted dataset
-            
         Returns:
-            Matplotlib figure object
+            MatplotlibFigure: An empty matplotlib figure with default subplot
         """
-        if not plot_configs:
-            fig, _ = plt.subplots()
-            return fig
-        
-        config = plot_configs[0]  # Use first config for now
-        
-        # Route to specialized handlers based on config type
-        if isinstance(config, SpectroscopyConfig):
-            return self.create_spectroscopy_figure(ds_raw, qubits, config, ds_fit)
-        elif isinstance(config, HeatmapConfig):
-            return self.create_heatmap_figure(ds_raw, qubits, config, ds_fit)
-        else:
-            # Generic fallback
-            return self._create_generic_figure(ds_raw, qubits, config, ds_fit)
+        fig, _ = plt.subplots()
+        return fig
     
     def create_spectroscopy_figure(
         self,
@@ -100,7 +102,7 @@ class MatplotlibEngine:
             
             # Add dual axis if configured
             if config.dual_axis and config.dual_axis.enabled:
-                self._add_dual_axis_matplotlib(ax, ds_qubit_raw, config.dual_axis)
+                self._add_dual_axis(ax, ds_qubit_raw, config.dual_axis)
         
         # Add legend by collecting handles and labels from all subplots
         all_handles = []
@@ -146,10 +148,11 @@ class MatplotlibEngine:
             # Add overlays if fit data available
             if ds_qubit_fit is not None and config.overlays:
                 # Route to appropriate overlay handler based on experiment type
-                if self._is_flux_spectroscopy(ds_raw):
+                experiment_type = self.experiment_detector.detect_experiment_type(ds_raw)
+                if experiment_type == "flux_spectroscopy":
                     self._add_overlays_flux_spectroscopy_matplotlib(ax, ds_qubit_fit, qubit_id, config.overlays, ds_raw)
                 else:
-                    self._add_overlays_matplotlib(ax, ds_qubit_fit, qubit_id, config.overlays)
+                    self._add_overlays(ax, ds_qubit_fit, qubit_id, config.overlays)
             
             # Set labels and title
             ax.set_xlabel(config.layout.x_axis_title)
@@ -216,13 +219,13 @@ class MatplotlibEngine:
     
     def _add_spectroscopy_traces(
         self,
-        ax,
+        ax: plt.Axes,
         ds: xr.Dataset,
         traces: List[TraceConfig],
         subplot_index: int,
         legend_entries_created: set,
         is_fit: bool = False
-    ):
+    ) -> None:
         """Add spectroscopy-specific traces to axis."""
         
         for trace_config in traces:
@@ -267,11 +270,11 @@ class MatplotlibEngine:
     
     def _add_heatmap_trace(
         self,
-        ax,
+        ax: plt.Axes,
         ds: xr.Dataset,
         trace_config: HeatmapTraceConfig,
         subplot_index: int
-    ):
+    ) -> None:
         """Add heatmap trace to axis."""
         
         if not self._validate_trace_sources(ds, trace_config):
@@ -294,17 +297,17 @@ class MatplotlibEngine:
                 im.set_clim(zmin, zmax)
                 
         except Exception as e:
-            print(f"Warning: Failed to plot heatmap for {trace_config.name}: {e}")
+            logger.warning(f"Failed to plot heatmap for {trace_config.name}: {e}")
     
     def _add_generic_trace(
         self,
-        ax,
+        ax: plt.Axes,
         ds: xr.Dataset,
         trace_config: TraceConfig,
         subplot_index: int,
         legend_entries_created: set,
         is_fit: bool = False
-    ):
+    ) -> None:
         """Add generic trace to axis."""
         
         if not self._validate_trace_sources(ds, trace_config):
@@ -347,13 +350,13 @@ class MatplotlibEngine:
                     label=label
                 )
     
-    def _add_overlays_matplotlib(
+    def _add_overlays(
         self,
-        ax,
+        ax: plt.Axes,
         ds_fit: xr.Dataset,
         qubit_id: str,
         overlays: List[Union[LineOverlayConfig, MarkerOverlayConfig]]
-    ):
+    ) -> None:
         """Add overlay traces to matplotlib axis."""
         
         for overlay in overlays:
@@ -367,11 +370,11 @@ class MatplotlibEngine:
     
     def _add_line_overlay_matplotlib(
         self,
-        ax,
+        ax: plt.Axes,
         ds_fit: xr.Dataset,
         qubit_id: str,
         overlay: LineOverlayConfig
-    ):
+    ) -> None:
         """Add line overlay to matplotlib axis."""
         
         position = self.overlay_renderer.get_overlay_position(ds_fit, overlay.position_source, qubit_id)
@@ -401,11 +404,11 @@ class MatplotlibEngine:
     
     def _add_marker_overlay_matplotlib(
         self,
-        ax,
+        ax: plt.Axes,
         ds_fit: xr.Dataset,
         qubit_id: str,
         overlay: MarkerOverlayConfig
-    ):
+    ) -> None:
         """Add marker overlay to matplotlib axis."""
         
         x_pos = self.overlay_renderer.get_overlay_position(ds_fit, overlay.x_source, qubit_id)
@@ -439,7 +442,7 @@ class MatplotlibEngine:
             linestyle='None'
         )
     
-    def _add_dual_axis_matplotlib(self, ax, ds: xr.Dataset, dual_config):
+    def _add_dual_axis(self, ax: plt.Axes, ds: xr.Dataset, dual_config) -> None:
         """Add dual axis (top x-axis) to matplotlib axis."""
         
         if dual_config.top_axis_source not in ds:
@@ -499,33 +502,9 @@ class MatplotlibEngine:
             ax_top.grid(False)  # Disable grid on secondary axis
             
         except Exception as e:
-            print(f"Warning: Could not create twin axis plot using assign_coords approach: {e}")
+            logger.warning(f"Could not create twin axis plot using assign_coords approach: {e}")
             # Don't fallback, just skip the dual axis if it fails
     
-    def _check_trace_visibility(self, ds: xr.Dataset, trace_config: TraceConfig, qubit_id: str) -> bool:
-        """Check if a trace should be visible based on conditions."""
-        if not trace_config.visible:
-            return False
-        
-        if trace_config.condition_source and trace_config.condition_source in ds:
-            condition_value = ds[trace_config.condition_source].values
-            # Handle scalar and array conditions
-            if np.isscalar(condition_value):
-                return condition_value == trace_config.condition_value
-            else:
-                # For array conditions, check if any values match
-                return np.any(condition_value == trace_config.condition_value)
-        
-        return True
-    
-    def _validate_trace_sources(self, ds: xr.Dataset, trace_config: TraceConfig) -> bool:
-        """Validate that all required data sources exist in dataset."""
-        required_sources = [trace_config.x_source, trace_config.y_source]
-        
-        if isinstance(trace_config, HeatmapTraceConfig) and trace_config.z_source:
-            required_sources.append(trace_config.z_source)
-        
-        return all(source in ds for source in required_sources)
     
     def _translate_plotly_colorscale(self, plotly_colorscale: str) -> str:
         """Translate Plotly colorscale to matplotlib colormap."""
@@ -541,48 +520,15 @@ class MatplotlibEngine:
         }
         return colorscale_map.get(plotly_colorscale, "viridis")
     
-    def _calculate_robust_zlimits(self, z_data: np.ndarray, zmin_percentile: float = 2.0, zmax_percentile: float = 98.0):
-        """Calculate robust z-axis limits using percentiles."""
-        flat_data = z_data.flatten()
-        valid_data = flat_data[~np.isnan(flat_data)]
-        
-        if len(valid_data) == 0:
-            return 0.0, 1.0
-        
-        zmin = float(np.percentile(valid_data, zmin_percentile))
-        zmax = float(np.percentile(valid_data, zmax_percentile))
-        
-        # Ensure zmin < zmax
-        if zmin >= zmax:
-            zmin = float(np.min(valid_data))
-            zmax = float(np.max(valid_data))
-            
-        return zmin, zmax
-    
-    def _is_flux_spectroscopy(self, ds_raw: xr.Dataset) -> bool:
-        """Detect if dataset is for flux spectroscopy experiment."""
-        # Check for characteristic flux spectroscopy coordinates
-        flux_indicators = ["flux_bias", "attenuated_current"]
-        power_indicators = ["power", "power_dbm"]
-        
-        has_flux = any(coord in ds_raw.coords for coord in flux_indicators)
-        has_power = any(coord in ds_raw.coords for coord in power_indicators)
-        
-        # Flux spectroscopy has flux_bias but no power coordinates
-        return has_flux and not has_power
-    
-    def _is_fit_successful(self, ds_fit: xr.Dataset) -> bool:
-        """Check if fit was successful - matches original plotting.py logic."""
-        return hasattr(ds_fit, "outcome") and getattr(ds_fit.outcome, "values", None) == "successful"
     
     def _add_overlays_flux_spectroscopy_matplotlib(
         self,
-        ax,
+        ax: plt.Axes,
         ds_qubit_fit: xr.Dataset,
         qubit_id: str,
         overlays: List,
         ds_raw: xr.Dataset
-    ):
+    ) -> None:
         """Add flux spectroscopy overlays to matplotlib axis (EXACT copy of original logic)."""
         
         # Check if fit was successful (exact same check as original)
@@ -635,5 +581,5 @@ class MatplotlibEngine:
                 ax.plot(idle_offset, sweet_spot_frequency, marker="*", color="#FF00FF", markersize=18, linestyle="None")
                 
         except (KeyError, ValueError, AttributeError) as e:
-            print(f"Warning: Could not add flux spectroscopy overlays to matplotlib for {qubit_id}: {e}")
+            logger.warning(f"Could not add flux spectroscopy overlays to matplotlib for {qubit_id}: {e}")
             return

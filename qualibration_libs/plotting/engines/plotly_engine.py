@@ -7,6 +7,7 @@ dual-axis configurations.
 """
 
 from typing import Any, Dict, List, Optional, Union
+import logging
 
 import numpy as np
 import plotly.graph_objects as go
@@ -21,49 +22,53 @@ from ..configs import (DualAxisConfig, FigureDimensions, HeatmapConfig,
 from ..grids import QubitGrid
 from .common import GridManager, OverlayRenderer, PlotlyEngineUtils
 from .data_validators import DataValidator
+from .base_engine import BaseRenderingEngine
+from .experiment_detector import ExperimentDetector
+from ..exceptions import (
+    DataSourceError, QubitError, OverlayError, ConfigurationError
+)
+
+logger = logging.getLogger(__name__)
 
 
-class PlotlyEngine:
-    """Enhanced Plotly rendering engine with specialized plot type support."""
+class PlotlyEngine(BaseRenderingEngine):
+    """Enhanced Plotly rendering engine with specialized plot type support.
     
-    def __init__(self):
+    This engine provides specialized Plotly rendering capabilities for creating
+    complex scientific plots including spectroscopy plots, heatmaps with overlays,
+    and dual-axis configurations. It extends the base rendering engine with
+    Plotly-specific implementations.
+    
+    Attributes:
+        utils: Utility functions for Plotly-specific operations
+        overlay_renderer: Handles rendering of overlay elements on plots
+        grid_manager: Manages grid layouts for multi-qubit visualizations
+        data_validator: Validates data compatibility with plot configurations
+        experiment_detector: Detects experiment types from datasets
+    """
+    
+    def __init__(self) -> None:
+        """Initialize the Plotly rendering engine.
+        
+        Sets up the engine with necessary utilities and managers for rendering
+        complex scientific plots using Plotly.
+        """
+        super().__init__()
         self.utils = PlotlyEngineUtils()
         self.overlay_renderer = OverlayRenderer()
         self.grid_manager = GridManager()
         self.data_validator = DataValidator()
+        self.experiment_detector = ExperimentDetector()
     
-    def create_figure(
-        self,
-        ds_raw: xr.Dataset,
-        qubits: List[AnyTransmon],
-        plot_configs: List[PlotConfig],
-        ds_fit: Optional[xr.Dataset] = None,
-    ) -> go.Figure:
-        """
-        Create a Plotly figure using standard configuration.
+    def _create_empty_figure(self) -> go.Figure:
+        """Create an empty figure when no configs provided.
         
-        Args:
-            ds_raw: Raw experimental dataset
-            qubits: List of qubits to plot
-            plot_configs: List of plot configurations
-            ds_fit: Optional fitted dataset
-            
         Returns:
-            Plotly figure object
+            go.Figure: An empty Plotly figure with standard styling applied.
         """
-        if not plot_configs:
-            return go.Figure()
-        
-        config = plot_configs[0]  # Use first config for now
-        
-        # Route to specialized handlers based on config type
-        if isinstance(config, SpectroscopyConfig):
-            return self.create_spectroscopy_figure(ds_raw, qubits, config, ds_fit)
-        elif isinstance(config, HeatmapConfig):
-            return self.create_heatmap_figure(ds_raw, qubits, config, ds_fit)
-        else:
-            # Generic fallback
-            return self._create_generic_figure(ds_raw, qubits, config, ds_fit)
+        fig = go.Figure()
+        fig.update_layout(**get_standard_plotly_style())
+        return fig
     
     def create_spectroscopy_figure(
         self,
@@ -72,7 +77,17 @@ class PlotlyEngine:
         config: SpectroscopyConfig,
         ds_fit: Optional[xr.Dataset] = None,
     ) -> go.Figure:
-        """Create specialized figure for 1D spectroscopy plots."""
+        """Create specialized figure for 1D spectroscopy plots.
+        
+        Args:
+            ds_raw: Raw dataset containing spectroscopy measurements
+            qubits: List of qubit objects to plot
+            config: Configuration for spectroscopy plot styling
+            ds_fit: Optional fit dataset containing analysis results
+            
+        Returns:
+            go.Figure: Plotly figure with spectroscopy plots for each qubit
+        """
         
         grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=False)
         
@@ -126,7 +141,17 @@ class PlotlyEngine:
         config: HeatmapConfig,
         ds_fit: Optional[xr.Dataset] = None,
     ) -> go.Figure:
-        """Create specialized figure for 2D heatmap plots."""
+        """Create specialized figure for 2D heatmap plots.
+        
+        Args:
+            ds_raw: Raw dataset containing 2D measurement data
+            qubits: List of qubit objects to plot
+            config: Configuration for heatmap plot styling
+            ds_fit: Optional fit dataset containing analysis results and overlays
+            
+        Returns:
+            go.Figure: Plotly figure with heatmap plots for each qubit
+        """
         
         grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=False)
         
@@ -158,9 +183,9 @@ class PlotlyEngine:
                     # For 2D heatmaps, route to specialized handlers
                     if hasattr(config, 'traces') and len(config.traces) > 0 and config.traces[0].plot_type == "heatmap":
                         # Detect experiment type to choose correct handler
-                        if self._is_flux_spectroscopy(ds_raw):
+                        if self.experiment_detector.detect_experiment_type(ds_raw) == "flux_spectroscopy":
                             self._add_heatmap_trace_flux_spectroscopy(fig, ds_raw, trace_config, row, col, qubit_id, i)
-                        elif self._is_power_rabi(ds_raw):
+                        elif self.experiment_detector.detect_experiment_type(ds_raw) == "power_rabi":
                             self._add_heatmap_trace_power_rabi(fig, ds_qubit_raw, trace_config, row, col)
                         else:
                             # Default to amplitude/power spectroscopy (02b)
@@ -174,9 +199,9 @@ class PlotlyEngine:
                 # For multi-qubit heatmaps, handle overlays specially
                 if hasattr(config, 'traces') and len(config.traces) > 0 and config.traces[0].plot_type == "heatmap":
                     # Route overlays to correct experiment type
-                    if self._is_flux_spectroscopy(ds_raw):
+                    if self.experiment_detector.detect_experiment_type(ds_raw) == "flux_spectroscopy":
                         self._add_overlays_flux_spectroscopy(fig, ds_fit, qubit_id, config.overlays, row, col, ds_raw)
-                    elif self._is_power_rabi(ds_raw):
+                    elif self.experiment_detector.detect_experiment_type(ds_raw) == "power_rabi":
                         self._add_overlays_power_rabi(fig, ds_qubit_fit, qubit_id, config.overlays, row, col, ds_raw)
                     else:
                         # Default to amplitude/power spectroscopy (02b)
@@ -207,25 +232,6 @@ class PlotlyEngine:
         fig.update_layout(**layout_settings)
         return fig
     
-    def _is_flux_spectroscopy(self, ds_raw: xr.Dataset) -> bool:
-        """Detect if dataset is for flux spectroscopy experiment."""
-        # Check for characteristic flux spectroscopy coordinates
-        flux_indicators = ["flux_bias", "attenuated_current"]
-        power_indicators = ["power", "power_dbm"]
-        
-        has_flux = any(coord in ds_raw.coords for coord in flux_indicators)
-        has_power = any(coord in ds_raw.coords for coord in power_indicators)
-        
-        # Flux spectroscopy has flux_bias but no power coordinates
-        return has_flux and not has_power
-    
-    def _is_power_rabi(self, ds_raw: xr.Dataset) -> bool:
-        """Detect if dataset is for power rabi experiment."""
-        # Check for characteristic power rabi coordinates
-        power_rabi_indicators = ["amp_prefactor", "full_amp", "nb_of_pulses"]
-        
-        # Power rabi has amp_prefactor and nb_of_pulses
-        return all(coord in ds_raw.coords or coord in ds_raw.dims for coord in power_rabi_indicators)
     
     def _create_generic_figure(
         self,
@@ -234,7 +240,17 @@ class PlotlyEngine:
         config: PlotConfig,
         ds_fit: Optional[xr.Dataset] = None,
     ) -> go.Figure:
-        """Create generic figure for basic plot configurations."""
+        """Create generic figure for basic plot configurations.
+        
+        Args:
+            ds_raw: Raw dataset containing measurement data
+            qubits: List of qubit objects to plot
+            config: Generic plot configuration
+            ds_fit: Optional fit dataset containing analysis results
+            
+        Returns:
+            go.Figure: Plotly figure with plots for each qubit
+        """
         
         grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=False)
         
@@ -285,7 +301,7 @@ class PlotlyEngine:
         col: int,
         subplot_index: int,
         is_fit: bool = False
-    ):
+    ) -> None:
         """Add spectroscopy-specific traces to figure."""
         
         for trace_config in traces:
@@ -329,7 +345,7 @@ class PlotlyEngine:
         trace_config: HeatmapTraceConfig,
         row: int,
         col: int
-    ):
+    ) -> None:
         """Add heatmap trace to figure."""
         
         if not self.utils.validate_trace_sources(ds, trace_config):
@@ -407,7 +423,7 @@ class PlotlyEngine:
         col: int,
         qubit_id: str,
         qubit_index: int
-    ):
+    ) -> None:
         """Add heatmap trace using EXACT original logic."""
         
         # EXACTLY REPLICATE the original plotting.py logic
@@ -525,7 +541,7 @@ class PlotlyEngine:
         trace_config: HeatmapTraceConfig,
         row: int,
         col: int
-    ):
+    ) -> None:
         """Add heatmap trace for power rabi using EXACT original logic."""
         
         # EXACTLY REPLICATE the original plotting.py logic for power rabi 2D
@@ -579,7 +595,7 @@ class PlotlyEngine:
         col: int,
         qubit_id: str,
         qubit_index: int
-    ):
+    ) -> None:
         """Add heatmap trace for flux spectroscopy using EXACT original logic."""
         
         # EXACTLY REPLICATE the original 02c plotting.py logic
@@ -707,7 +723,7 @@ class PlotlyEngine:
         overlays: List,
         row: int,
         col: int
-    ):
+    ) -> None:
         """Add overlays for multi-qubit heatmap using original logic."""
         
         # Get fit data for this qubit like original code
@@ -778,7 +794,7 @@ class PlotlyEngine:
                 )
                 
         except (KeyError, ValueError, IndexError) as e:
-            print(f"Warning: Could not add overlays for {qubit_id}: {e}")
+            logger.warning(f"Could not add overlays for {qubit_id}: {e}")
             return
     
     def _add_overlays_flux_spectroscopy(
@@ -790,7 +806,7 @@ class PlotlyEngine:
         row: int,
         col: int,
         ds_raw: xr.Dataset = None
-    ):
+    ) -> None:
         """Add overlays for flux spectroscopy using original logic."""
         
         # Get fit data for this qubit like original code
@@ -891,7 +907,7 @@ class PlotlyEngine:
             )
                 
         except (KeyError, ValueError, IndexError) as e:
-            print(f"Warning: Could not add flux spectroscopy overlays for {qubit_id}: {e}")
+            logger.warning(f"Could not add flux spectroscopy overlays for {qubit_id}: {e}")
             return
 
     def _add_overlays_power_rabi(
@@ -903,7 +919,7 @@ class PlotlyEngine:
         row: int,
         col: int,
         ds_raw: xr.Dataset = None,
-    ):
+    ) -> None:
         """Add overlays for power rabi experiment using logic from the original plotting script."""
 
         try:
@@ -963,7 +979,7 @@ class PlotlyEngine:
             )
 
         except (KeyError, ValueError, IndexError) as e:
-            print(f"Warning: Could not add power rabi overlays for {qubit_id}: {e}")
+            logger.warning(f"Could not add power rabi overlays for {qubit_id}: {e}")
     def _add_generic_trace(
         self,
         fig: go.Figure,
@@ -972,7 +988,7 @@ class PlotlyEngine:
         row: int,
         col: int,
         subplot_index: int
-    ):
+    ) -> None:
         """Add generic trace to figure."""
         
         custom_data = self.utils.build_custom_data(ds, trace_config.custom_data_sources)
@@ -1008,7 +1024,7 @@ class PlotlyEngine:
         overlays: List[Union[LineOverlayConfig, MarkerOverlayConfig]],
         row: int,
         col: int
-    ):
+    ) -> None:
         """Add overlay traces to figure."""
         
         for overlay in overlays:
@@ -1028,7 +1044,7 @@ class PlotlyEngine:
         overlay: LineOverlayConfig,
         row: int,
         col: int
-    ):
+    ) -> None:
         """Add line overlay to figure."""
         
         position = self.overlay_renderer.get_overlay_position(ds_qubit_fit, overlay.position_source, qubit_id)
@@ -1067,7 +1083,7 @@ class PlotlyEngine:
         overlay: MarkerOverlayConfig,
         row: int,
         col: int
-    ):
+    ) -> None:
         """Add marker overlay to figure."""
         
         x_pos = self.overlay_renderer.get_overlay_position(ds_qubit_fit, overlay.x_source, qubit_id)
@@ -1097,14 +1113,14 @@ class PlotlyEngine:
         row: int,
         col: int,
         n_cols: int
-    ):
+    ) -> None:
         """Add dual axis (top x-axis) to subplot."""
         
         if dual_config.top_axis_source not in ds:
             return
         
         # Special handling for power rabi dual axis (mV vs prefactor)
-        if self._is_power_rabi(ds) and dual_config.top_axis_source == "amp_prefactor":
+        if self.experiment_detector.detect_experiment_type(ds) == "power_rabi" and dual_config.top_axis_source == "amp_prefactor":
             self._add_power_rabi_dual_axis(fig, ds, dual_config, row, col, n_cols)
             return
         
@@ -1146,7 +1162,7 @@ class PlotlyEngine:
         heatmap_info: List[tuple],
         n_cols: int,
         trace_configs: List[HeatmapTraceConfig]
-    ):
+    ) -> None:
         """Position colorbars for heatmap subplots."""
         
         if not trace_configs or not trace_configs[0].colorbar:
@@ -1181,7 +1197,7 @@ class PlotlyEngine:
         row: int,
         col: int,
         n_cols: int
-    ):
+    ) -> None:
         """Add power rabi specific dual axis that synchronizes mV and prefactor scales."""
         
         # Get amplitude data (exactly like original)
