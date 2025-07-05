@@ -21,7 +21,6 @@ from ..grids import QubitGrid, grid_iter
 from .base_engine import BaseRenderingEngine
 from .common import GridManager, MatplotlibEngineUtils, OverlayRenderer
 from .data_validators import DataValidator
-from .experiment_detector import ExperimentDetector
 from ..exceptions import (
     PlottingError
 )
@@ -56,7 +55,7 @@ class MatplotlibEngine(BaseRenderingEngine):
         self.overlay_renderer = OverlayRenderer()
         self.grid_manager = GridManager()
         self.data_validator = DataValidator()
-        self.experiment_detector = ExperimentDetector()
+        # Use experiment_detector from base class - no need to create a duplicate
     
     def _create_empty_figure(self) -> MatplotlibFigure:
         """Create an empty figure when no configs provided.

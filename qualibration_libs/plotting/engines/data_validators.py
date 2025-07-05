@@ -267,7 +267,7 @@ class DataValidator:
             var_info[var_name] = {
                 "dtype": str(var_data.dtype),
                 "shape": var_data.shape,
-                "has_nan": bool(np.isnan(var_data.values).any()) if var_data.dtype.kind == 'f' else False,
+                "has_nan": self._check_for_nans_simple(var_data.values) if var_data.dtype.kind == 'f' else False,
                 "range": self._get_value_range(var_data.values) if var_data.dtype.kind in ['f', 'i'] else None,
             }
         
@@ -276,14 +276,22 @@ class DataValidator:
         return summary
     
     def _get_value_range(self, values: np.ndarray) -> Optional[Tuple[float, float]]:
-        """Get value range for numeric data."""
+        """Get value range for numeric data using centralized utilities."""
         try:
-            finite_values = values[np.isfinite(values)]
-            if len(finite_values) > 0:
-                return float(np.min(finite_values)), float(np.max(finite_values))
+            from ..data_utils import RobustStatistics
+            return RobustStatistics.calculate_data_bounds(values, padding_fraction=0.0)
         except:
             pass
         return None
+    
+    def _check_for_nans_simple(self, values: np.ndarray) -> bool:
+        """Simple NaN check using centralized utilities."""
+        try:
+            from ..data_utils import DataValidator as DataUtilsValidator
+            nan_info = DataUtilsValidator.check_for_nans(values, raise_on_all_nan=False)
+            return nan_info['has_nans']
+        except:
+            return bool(np.isnan(values).any()) if values.dtype.kind == 'f' else False
 
 
 # ===== CONVENIENCE FUNCTIONS =====

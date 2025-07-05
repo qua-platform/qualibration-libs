@@ -23,6 +23,7 @@ from ..exceptions import (
     ConfigurationError, DataSourceError, EngineError, QubitError
 )
 from ..data_utils import RobustStatistics, DataExtractor, ArrayManipulator
+from .experiment_detector import ExperimentDetector
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class BaseRenderingEngine(ABC):
         self.data_validator = DataValidator()
         self.grid_manager = GridManager()
         self.overlay_renderer = OverlayRenderer()
+        self.experiment_detector = ExperimentDetector()
         # Engine-specific utils should be initialized in subclasses
         
     def create_figure(
@@ -128,13 +130,7 @@ class BaseRenderingEngine(ABC):
         Returns:
             True if this is a flux spectroscopy experiment
         """
-        flux_indicators = [CoordinateNames.FLUX_BIAS, CoordinateNames.ATTENUATED_CURRENT]
-        power_indicators = [CoordinateNames.POWER, CoordinateNames.POWER_DBM]
-        
-        has_flux = any(coord in ds_raw.coords for coord in flux_indicators)
-        has_power = any(coord in ds_raw.coords for coord in power_indicators)
-        
-        return has_flux and not has_power
+        return self.experiment_detector.detect_experiment_type(ds_raw) == ExperimentTypes.FLUX_SPECTROSCOPY.value
     
     def _is_power_rabi(self, ds_raw: xr.Dataset) -> bool:
         """Detect if dataset is for power rabi experiment.
@@ -147,12 +143,7 @@ class BaseRenderingEngine(ABC):
         Returns:
             True if this is a power rabi experiment
         """
-        power_rabi_indicators = [CoordinateNames.AMP_PREFACTOR, CoordinateNames.FULL_AMP, CoordinateNames.NB_OF_PULSES]
-        
-        return all(
-            coord in ds_raw.coords or coord in ds_raw.dims 
-            for coord in power_rabi_indicators
-        )
+        return self.experiment_detector.detect_experiment_type(ds_raw) == ExperimentTypes.POWER_RABI.value
     
     def _is_fit_successful(self, ds_fit: Optional[xr.Dataset]) -> bool:
         """Check if fit was successful.
@@ -574,12 +565,7 @@ class BaseRenderingEngine(ABC):
         Returns:
             String identifier for experiment type
         """
-        if self._is_power_rabi(ds_raw):
-            return ExperimentTypes.POWER_RABI.value
-        elif self._is_flux_spectroscopy(ds_raw):
-            return ExperimentTypes.FLUX_SPECTROSCOPY.value
-        else:
-            return ExperimentTypes.UNKNOWN.value
+        return self.experiment_detector.detect_experiment_type(ds_raw)
     
     # ==================== Grid and Layout Methods ====================
     
@@ -852,12 +838,14 @@ class BaseRenderingEngine(ABC):
                     q_labels = list(ds_transposed[CoordinateNames.QUBIT].values)
                     q_idx = q_labels.index(qubit_id)
                     freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ
-                    return (float(freq_vals.min()), float(freq_vals.max()))
+                    freq_range = RobustStatistics.calculate_data_bounds(freq_vals, padding_fraction=0.0)
+                    return freq_range
             else:
                 # Single qubit dataset
                 if CoordinateNames.FREQUENCY in ds_raw:
                     freq_vals = ds_raw[CoordinateNames.FREQUENCY].values * PlotConstants.GHZ_PER_HZ
-                    return (float(freq_vals.min()), float(freq_vals.max()))
+                    freq_range = RobustStatistics.calculate_data_bounds(freq_vals, padding_fraction=0.0)
+                    return freq_range
                     
         except (KeyError, ValueError, IndexError) as e:
             logger.warning(f"Could not extract frequency range: {e}")

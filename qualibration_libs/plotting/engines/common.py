@@ -16,7 +16,7 @@ from ..configs import (ColorbarConfig, Colors, HeatmapTraceConfig,
                        TraceConfig)
 from ..configs.constants import CoordinateNames, PlotConstants
 from ..grids import QubitGrid
-from ..data_utils import DataExtractor
+from ..data_utils import DataExtractor, RobustStatistics
 
 
 class PlotlyEngineUtils:
@@ -25,21 +25,12 @@ class PlotlyEngineUtils:
     @staticmethod
     def calculate_robust_zlimits(z_data: np.ndarray, zmin_percentile: float = PlotConstants.DEFAULT_MIN_PERCENTILE, zmax_percentile: float = PlotConstants.DEFAULT_MAX_PERCENTILE) -> Tuple[float, float]:
         """Calculate robust z-axis limits using percentiles."""
-        flat_data = z_data.flatten()
-        valid_data = flat_data[~np.isnan(flat_data)]
-        
-        if len(valid_data) == 0:
-            return 0.0, 1.0
-        
-        zmin = float(np.percentile(valid_data, zmin_percentile))
-        zmax = float(np.percentile(valid_data, zmax_percentile))
-        
-        # Ensure zmin < zmax
-        if zmin >= zmax:
-            zmin = float(np.min(valid_data))
-            zmax = float(np.max(valid_data))
-            
-        return zmin, zmax
+        return RobustStatistics.calculate_percentile_limits(
+            z_data, 
+            min_percentile=zmin_percentile, 
+            max_percentile=zmax_percentile,
+            fallback_range=(0.0, 1.0)
+        )
     
     @staticmethod
     def build_custom_data(ds: xr.Dataset, custom_data_sources: List[str]) -> Optional[np.ndarray]:

@@ -22,11 +22,10 @@ from ..configs import (DualAxisConfig, HeatmapConfig,
 from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes, ColorScales
 from .common import GridManager, OverlayRenderer, PlotlyEngineUtils
 from .base_engine import BaseRenderingEngine
-from .experiment_detector import ExperimentDetector
 from ..exceptions import (
     PlottingError
 )
-from ..data_utils import DataExtractor, DataValidator, ArrayManipulator, UnitConverter
+from ..data_utils import DataExtractor, DataValidator, ArrayManipulator, UnitConverter, RobustStatistics
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +57,7 @@ class PlotlyEngine(BaseRenderingEngine):
         self.overlay_renderer = OverlayRenderer()
         self.grid_manager = GridManager()
         self.data_validator = DataValidator()
-        self.experiment_detector = ExperimentDetector()
+        # Use experiment_detector from base class - no need to create a duplicate
     
     def _create_empty_figure(self) -> go.Figure:
         """Create an empty figure when no configs provided.
@@ -693,16 +692,31 @@ class PlotlyEngine(BaseRenderingEngine):
         Returns:
             Properly shaped z data array
         """
-        if z_data.ndim == 2:
-            # For 2D heatmaps, ensure z_data is shaped correctly
-            z_data = z_data.T
-            if z_data.shape[0] != len(y_data):
+        # Validate dimensionality using centralized utilities
+        try:
+            if z_data.ndim == 2:
+                # Validate 2D array shape
+                DataValidator.validate_array_shape(z_data, expected_ndim=2, name="z_data")
+                # For 2D heatmaps, ensure z_data is shaped correctly
                 z_data = z_data.T
-            nan_info = DataValidator.check_for_nans(z_data, raise_on_all_nan=False)
-            if nan_info['all_nans']:
-                z_data = np.zeros_like(z_data)
-        elif z_data.ndim == 1:
-            z_data = z_data[np.newaxis, :]
+                if z_data.shape[0] != len(y_data):
+                    z_data = z_data.T
+                # Check for NaN values using centralized utility
+                nan_info = DataValidator.check_for_nans(z_data, raise_on_all_nan=False)
+                if nan_info['all_nans']:
+                    z_data = np.zeros_like(z_data)
+            elif z_data.ndim == 1:
+                # Validate 1D array and reshape
+                DataValidator.validate_array_shape(z_data, expected_ndim=1, name="z_data")
+                z_data = z_data[np.newaxis, :]
+            else:
+                # Use validator for proper error handling
+                DataValidator.validate_array_shape(z_data, expected_ndim=2, name="z_data")
+        except Exception as e:
+            # Log and re-raise with context
+            logger.warning(f"Error preparing heatmap z data: {e}")
+            raise
+            
         return z_data
     
     def _prepare_heatmap_custom_data(
@@ -724,14 +738,25 @@ class PlotlyEngine(BaseRenderingEngine):
             Properly shaped custom data array or None
         """
         custom_data = self._build_custom_data(ds, trace_config.custom_data_sources)
-        if custom_data is not None and z_data.ndim == 2:
-            # For 2D heatmaps, custom data needs to be tiled to match heatmap shape
-            if len(custom_data.shape) == 2 and custom_data.shape[1] == 1:
-                # Remove extra dimension first: (150, 1) -> (150,)
-                custom_data = custom_data.squeeze()
-            if custom_data.shape[0] == x_data.shape[0]:  # matches frequency dimension
-                # Tile to (n_powers, n_freqs) like the original det2d
-                custom_data = ArrayManipulator.tile_for_hover_data(custom_data, z_data.shape, axis=0)
+        if custom_data is not None:
+            # Validate z_data is 2D before processing
+            try:
+                DataValidator.validate_array_shape(z_data, expected_ndim=2, name="z_data for custom data")
+                
+                # For 2D heatmaps, custom data needs to be tiled to match heatmap shape
+                if custom_data.ndim == 2 and custom_data.shape[1] == 1:
+                    # Remove extra dimension first: (150, 1) -> (150,)
+                    custom_data = custom_data.squeeze()
+                    
+                # Validate custom_data dimensions and shape compatibility
+                DataValidator.validate_array_shape(custom_data, expected_ndim=1, name="custom_data")
+                if custom_data.shape[0] == x_data.shape[0]:
+                    # Tile to (n_powers, n_freqs) like the original det2d
+                    custom_data = ArrayManipulator.tile_for_hover_data(custom_data, z_data.shape, axis=0)
+            except Exception as e:
+                logger.warning(f"Could not prepare custom data for heatmap: {e}")
+                return None
+                
         return custom_data
     
     def _create_heatmap_colorbar_config(
@@ -871,13 +896,15 @@ class PlotlyEngine(BaseRenderingEngine):
             col=col
         )
         
-        # Set axis ranges
+        # Set axis ranges using robust statistics
+        freq_range = RobustStatistics.calculate_data_bounds(freq_vals, padding_fraction=0.0)
+        power_range = RobustStatistics.calculate_data_bounds(power_vals, padding_fraction=0.0)
         fig.update_xaxes(
-            range=[freq_vals.min(), freq_vals.max()],
+            range=list(freq_range),
             row=row, col=col
         )
         fig.update_yaxes(
-            range=[power_vals.min(), power_vals.max()],
+            range=list(power_range),
             row=row, col=col
         )
     
@@ -958,13 +985,8 @@ class PlotlyEngine(BaseRenderingEngine):
         current2d = ArrayManipulator.tile_for_hover_data(current_vals, (n_freqs, n_flux), axis=0)
         customdata = ArrayManipulator.stack_custom_data([det2d, current2d], axis=-1)
         
-        # Calculate z-limits
-        finite_values = DataValidator.get_finite_values(z_mat)
-        if len(finite_values) > 0:
-            zmin = float(np.min(finite_values))
-            zmax = float(np.max(finite_values))
-        else:
-            zmin, zmax = 0.0, 1.0
+        # Calculate z-limits using robust statistics
+        zmin, zmax = RobustStatistics.calculate_data_bounds(z_mat, padding_fraction=0.0)
         
         # Create heatmap trace
         fig.add_trace(
@@ -1001,13 +1023,15 @@ class PlotlyEngine(BaseRenderingEngine):
             col=col
         )
         
-        # Set axis ranges
+        # Set axis ranges using robust statistics
+        flux_range = RobustStatistics.calculate_data_bounds(flux_vals, padding_fraction=0.0)
+        freq_range = RobustStatistics.calculate_data_bounds(freq_vals, padding_fraction=0.0)
         fig.update_xaxes(
-            range=[flux_vals.min(), flux_vals.max()],
+            range=list(flux_range),
             row=row, col=col
         )
         fig.update_yaxes(
-            range=[freq_vals.min(), freq_vals.max()],
+            range=list(freq_range),
             row=row, col=col
         )
 
@@ -1238,9 +1262,9 @@ class PlotlyEngine(BaseRenderingEngine):
                     amp_mv_raw[np.argmin(np.abs(amp_prefactor_raw - params['opt_amp_prefactor']))]
                 )
 
-            # Get pulse number range
+            # Get pulse number range using robust statistics
             nb_of_pulses = ds_raw[CoordinateNames.NB_OF_PULSES].values
-            pulse_min, pulse_max = nb_of_pulses.min(), nb_of_pulses.max()
+            pulse_min, pulse_max = RobustStatistics.calculate_data_bounds(nb_of_pulses, padding_fraction=0.0)
 
             # Add red dashed vertical line at optimal amplitude
             fig.add_trace(
@@ -1421,7 +1445,7 @@ class PlotlyEngine(BaseRenderingEngine):
                 tickmode="array",
                 tickvals=list(top_axis_data),
                 ticktext=tick_text,
-                range=[float(np.min(top_axis_data)), float(np.max(top_axis_data))]
+                range=list(RobustStatistics.calculate_data_bounds(top_axis_data, padding_fraction=0.0))
             )
         else:
             axis_config = dict(
@@ -1489,7 +1513,7 @@ class PlotlyEngine(BaseRenderingEngine):
             tickmode="array",
             tickvals=list(amp_mV),  # Use mV positions for tick placement
             ticktext=[f"{v:.2f}" for v in amp_prefactor],  # Show prefactor values
-            range=[float(np.min(amp_mV)), float(np.max(amp_mV))]  # Match main axis range
+            range=list(RobustStatistics.calculate_data_bounds(amp_mV, padding_fraction=0.0))  # Match main axis range
         )
         
         fig.layout[top_xaxis_name] = axis_config
