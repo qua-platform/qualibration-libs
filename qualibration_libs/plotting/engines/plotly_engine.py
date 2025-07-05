@@ -21,13 +21,12 @@ from ..configs import (DualAxisConfig, HeatmapConfig,
                        TraceConfig, get_standard_plotly_style)
 from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes, ColorScales
 from .common import GridManager, OverlayRenderer, PlotlyEngineUtils
-from .data_validators import DataValidator
 from .base_engine import BaseRenderingEngine
 from .experiment_detector import ExperimentDetector
 from ..exceptions import (
     PlottingError
 )
-from ..data_utils import DataExtractor, DataValidator as DataValidatorUtils, ArrayManipulator, UnitConverter
+from ..data_utils import DataExtractor, DataValidator, ArrayManipulator, UnitConverter
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +79,11 @@ class PlotlyEngine(BaseRenderingEngine):
     ) -> go.Figure:
         """Create specialized figure for 1D spectroscopy plots.
         
+        This method orchestrates the creation of spectroscopy figures by:
+        1. Creating the subplot structure based on the number of qubits
+        2. Populating each subplot with raw and fit data traces
+        3. Applying the configured layout settings
+        
         Args:
             ds_raw: Raw dataset containing spectroscopy measurements
             qubits: List of qubit objects to plot
@@ -90,7 +94,31 @@ class PlotlyEngine(BaseRenderingEngine):
             go.Figure: Plotly figure with spectroscopy plots for each qubit
         """
         
-        # Use base class methods for grid creation
+        # Create subplot figure
+        fig = self._create_spectroscopy_subplots(ds_raw, qubits)
+        
+        # Add traces for each qubit
+        self._populate_spectroscopy_subplots(fig, ds_raw, qubits, config, ds_fit)
+        
+        # Apply layout settings
+        self._apply_spectroscopy_layout(fig, config, len(qubits))
+        
+        return fig
+    
+    def _create_spectroscopy_subplots(
+        self,
+        ds_raw: xr.Dataset,
+        qubits: List[AnyTransmon]
+    ) -> go.Figure:
+        """Create subplot structure for spectroscopy figure.
+        
+        Args:
+            ds_raw: Raw dataset for grid layout
+            qubits: List of qubits for subplot arrangement
+            
+        Returns:
+            Plotly figure with subplot structure
+        """
         grid = self._create_grid_layout(ds_raw, qubits, create_figure=False)
         spacing = self._get_subplot_spacing("standard")
         titles = self._generate_subplot_titles(grid)
@@ -103,31 +131,118 @@ class PlotlyEngine(BaseRenderingEngine):
             vertical_spacing=spacing["vertical"],
         )
         
-        # Add traces for each qubit
+        # Store grid info for later use
+        fig._grid_info = grid
+        
+        return fig
+    
+    def _populate_spectroscopy_subplots(
+        self,
+        fig: go.Figure,
+        ds_raw: xr.Dataset,
+        qubits: List[AnyTransmon],
+        config: SpectroscopyConfig,
+        ds_fit: Optional[xr.Dataset]
+    ) -> None:
+        """Populate each subplot with spectroscopy traces.
+        
+        Args:
+            fig: Figure with subplot structure
+            ds_raw: Raw measurement dataset
+            qubits: List of qubits
+            config: Spectroscopy configuration
+            ds_fit: Optional fit dataset
+        """
+        grid = fig._grid_info
+        
         for i, ((grid_row, grid_col), name_dict) in enumerate(grid.plotly_grid_iter()):
             row = grid_row + 1
             col = grid_col + 1
             qubit_id = list(name_dict.values())[0]
             
-            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
-            
-            # Add raw data traces
-            self._add_spectroscopy_traces(fig, ds_qubit_raw, config.traces, row, col, i)
-            
-            # Add fit traces
-            if ds_qubit_fit is not None:
-                self._add_spectroscopy_traces(fig, ds_qubit_fit, config.fit_traces, row, col, i, is_fit=True)
-            
-            # Update axes
-            fig.update_xaxes(title_text=config.layout.x_axis_title, row=row, col=col)
-            fig.update_yaxes(title_text=config.layout.y_axis_title, row=row, col=col)
-            
-            # Add dual axis if configured
-            if config.dual_axis and config.dual_axis.enabled:
-                self._add_dual_axis(fig, ds_qubit_raw, config.dual_axis, row, col, grid.n_cols)
+            # Process single qubit subplot
+            self._add_spectroscopy_subplot_content(
+                fig, ds_raw, ds_fit, qubit_id, config, row, col, i, grid.n_cols
+            )
+    
+    def _add_spectroscopy_subplot_content(
+        self,
+        fig: go.Figure,
+        ds_raw: xr.Dataset,
+        ds_fit: Optional[xr.Dataset],
+        qubit_id: str,
+        config: SpectroscopyConfig,
+        row: int,
+        col: int,
+        subplot_index: int,
+        n_cols: int
+    ) -> None:
+        """Add content to a single spectroscopy subplot.
         
-        # Apply layout settings using base class dimensions
+        Args:
+            fig: Plotly figure
+            ds_raw: Raw dataset
+            ds_fit: Optional fit dataset
+            qubit_id: ID of the qubit being plotted
+            config: Spectroscopy configuration
+            row: Subplot row position
+            col: Subplot column position
+            subplot_index: Index of current subplot
+            n_cols: Total number of columns in grid
+        """
+        # Extract datasets for this qubit
+        ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
+        
+        # Add raw data traces
+        self._add_spectroscopy_traces(fig, ds_qubit_raw, config.traces, row, col, subplot_index)
+        
+        # Add fit traces if available
+        if ds_qubit_fit is not None:
+            self._add_spectroscopy_traces(
+                fig, ds_qubit_fit, config.fit_traces, row, col, subplot_index, is_fit=True
+            )
+        
+        # Update axes
+        self._update_spectroscopy_axes(fig, config, row, col)
+        
+        # Add dual axis if configured
+        if config.dual_axis and config.dual_axis.enabled:
+            self._add_dual_axis(fig, ds_qubit_raw, config.dual_axis, row, col, n_cols)
+    
+    def _update_spectroscopy_axes(
+        self,
+        fig: go.Figure,
+        config: SpectroscopyConfig,
+        row: int,
+        col: int
+    ) -> None:
+        """Update axes labels for spectroscopy subplot.
+        
+        Args:
+            fig: Plotly figure
+            config: Spectroscopy configuration with axis titles
+            row: Subplot row
+            col: Subplot column
+        """
+        fig.update_xaxes(title_text=config.layout.x_axis_title, row=row, col=col)
+        fig.update_yaxes(title_text=config.layout.y_axis_title, row=row, col=col)
+    
+    def _apply_spectroscopy_layout(
+        self,
+        fig: go.Figure,
+        config: SpectroscopyConfig,
+        n_qubits: int
+    ) -> None:
+        """Apply layout settings to spectroscopy figure.
+        
+        Args:
+            fig: Plotly figure
+            config: Spectroscopy configuration with layout settings
+            n_qubits: Number of qubits (for dimension calculation)
+        """
+        grid = fig._grid_info
         dimensions = self._calculate_figure_dimensions(grid.n_rows, grid.n_cols, "standard")
+        
         layout_settings = get_standard_plotly_style()
         layout_settings.update({
             "title_text": config.layout.title,
@@ -136,7 +251,9 @@ class PlotlyEngine(BaseRenderingEngine):
         })
         
         fig.update_layout(**layout_settings)
-        return fig
+        
+        # Clean up temporary grid info
+        delattr(fig, '_grid_info')
     
     def create_heatmap_figure(
         self,
@@ -249,6 +366,11 @@ class PlotlyEngine(BaseRenderingEngine):
     ) -> go.Figure:
         """Create generic figure for basic plot configurations.
         
+        This method orchestrates the creation of generic figures by:
+        1. Creating the subplot structure based on the number of qubits
+        2. Populating each subplot with configured traces
+        3. Applying the configured layout settings
+        
         Args:
             ds_raw: Raw dataset containing measurement data
             qubits: List of qubit objects to plot
@@ -259,7 +381,31 @@ class PlotlyEngine(BaseRenderingEngine):
             go.Figure: Plotly figure with plots for each qubit
         """
         
-        # Use base class methods for grid creation
+        # Create subplot figure
+        fig = self._create_generic_subplots(ds_raw, qubits)
+        
+        # Add traces for each qubit
+        self._populate_generic_subplots(fig, ds_raw, qubits, config, ds_fit)
+        
+        # Apply layout settings
+        self._apply_generic_layout(fig, config)
+        
+        return fig
+    
+    def _create_generic_subplots(
+        self,
+        ds_raw: xr.Dataset,
+        qubits: List[AnyTransmon]
+    ) -> go.Figure:
+        """Create subplot structure for generic figure.
+        
+        Args:
+            ds_raw: Raw dataset for grid layout
+            qubits: List of qubits for subplot arrangement
+            
+        Returns:
+            Plotly figure with subplot structure
+        """
         grid = self._create_grid_layout(ds_raw, qubits, create_figure=False)
         spacing = self._get_subplot_spacing("standard")
         titles = self._generate_subplot_titles(grid)
@@ -272,34 +418,150 @@ class PlotlyEngine(BaseRenderingEngine):
             vertical_spacing=spacing["vertical"],
         )
         
-        # Add traces for each qubit
+        # Store grid info for later use
+        fig._grid_info = grid
+        
+        return fig
+    
+    def _populate_generic_subplots(
+        self,
+        fig: go.Figure,
+        ds_raw: xr.Dataset,
+        qubits: List[AnyTransmon],
+        config: PlotConfig,
+        ds_fit: Optional[xr.Dataset]
+    ) -> None:
+        """Populate each subplot with generic traces.
+        
+        Args:
+            fig: Figure with subplot structure
+            ds_raw: Raw measurement dataset
+            qubits: List of qubits
+            config: Plot configuration
+            ds_fit: Optional fit dataset
+        """
+        grid = fig._grid_info
+        
         for i, ((grid_row, grid_col), name_dict) in enumerate(grid.plotly_grid_iter()):
             row = grid_row + 1
             col = grid_col + 1
             qubit_id = list(name_dict.values())[0]
             
-            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
-            
-            # Add traces based on type
-            for trace_config in config.traces + config.fit_traces:
-                if not self._check_trace_visibility(ds_qubit_raw, trace_config, qubit_id):
-                    continue
-                
-                is_fit_trace = trace_config in config.fit_traces
-                ds_source = ds_qubit_fit if is_fit_trace else ds_qubit_raw
-                
-                if ds_source is None or not self._validate_trace_sources(ds_source, trace_config):
-                    continue
-                
-                self._add_generic_trace(fig, ds_source, trace_config, row, col, i)
-            
-            # Update axes
-            fig.update_xaxes(title_text=config.layout.x_axis_title, row=row, col=col)
-            fig.update_yaxes(title_text=config.layout.y_axis_title, row=row, col=col)
+            # Process single qubit subplot
+            self._add_generic_subplot_content(
+                fig, ds_raw, ds_fit, qubit_id, config, row, col, i
+            )
+    
+    def _add_generic_subplot_content(
+        self,
+        fig: go.Figure,
+        ds_raw: xr.Dataset,
+        ds_fit: Optional[xr.Dataset],
+        qubit_id: str,
+        config: PlotConfig,
+        row: int,
+        col: int,
+        subplot_index: int
+    ) -> None:
+        """Add content to a single generic subplot.
         
-        # Apply layout settings
-        fig.update_layout(**get_standard_plotly_style(), title_text=config.layout.title)
-        return fig
+        Args:
+            fig: Plotly figure
+            ds_raw: Raw dataset
+            ds_fit: Optional fit dataset
+            qubit_id: ID of the qubit being plotted
+            config: Plot configuration
+            row: Subplot row position
+            col: Subplot column position
+            subplot_index: Index of current subplot
+        """
+        # Extract datasets for this qubit
+        ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
+        
+        # Process all traces (raw and fit)
+        self._add_generic_traces_to_subplot(
+            fig, ds_qubit_raw, ds_qubit_fit, config, row, col, subplot_index, qubit_id
+        )
+        
+        # Update axes
+        self._update_generic_axes(fig, config, row, col)
+    
+    def _add_generic_traces_to_subplot(
+        self,
+        fig: go.Figure,
+        ds_qubit_raw: xr.Dataset,
+        ds_qubit_fit: Optional[xr.Dataset],
+        config: PlotConfig,
+        row: int,
+        col: int,
+        subplot_index: int,
+        qubit_id: str
+    ) -> None:
+        """Add all configured traces to a generic subplot.
+        
+        Args:
+            fig: Plotly figure
+            ds_qubit_raw: Raw dataset for this qubit
+            ds_qubit_fit: Optional fit dataset for this qubit
+            config: Plot configuration with trace definitions
+            row: Subplot row
+            col: Subplot column
+            subplot_index: Index of current subplot
+            qubit_id: ID of the current qubit
+        """
+        # Process both raw and fit traces
+        for trace_config in config.traces + config.fit_traces:
+            if not self._check_trace_visibility(ds_qubit_raw, trace_config, qubit_id):
+                continue
+            
+            # Determine data source
+            is_fit_trace = trace_config in config.fit_traces
+            ds_source = ds_qubit_fit if is_fit_trace else ds_qubit_raw
+            
+            # Validate and add trace
+            if ds_source is None or not self._validate_trace_sources(ds_source, trace_config):
+                continue
+            
+            self._add_generic_trace(fig, ds_source, trace_config, row, col, subplot_index)
+    
+    def _update_generic_axes(
+        self,
+        fig: go.Figure,
+        config: PlotConfig,
+        row: int,
+        col: int
+    ) -> None:
+        """Update axes labels for generic subplot.
+        
+        Args:
+            fig: Plotly figure
+            config: Plot configuration with axis titles
+            row: Subplot row
+            col: Subplot column
+        """
+        fig.update_xaxes(title_text=config.layout.x_axis_title, row=row, col=col)
+        fig.update_yaxes(title_text=config.layout.y_axis_title, row=row, col=col)
+    
+    def _apply_generic_layout(
+        self,
+        fig: go.Figure,
+        config: PlotConfig
+    ) -> None:
+        """Apply layout settings to generic figure.
+        
+        Args:
+            fig: Plotly figure
+            config: Plot configuration with layout settings
+        """
+        layout_settings = get_standard_plotly_style()
+        layout_settings.update({
+            "title_text": config.layout.title
+        })
+        
+        fig.update_layout(**layout_settings)
+        
+        # Clean up temporary grid info
+        delattr(fig, '_grid_info')
     
     def _add_spectroscopy_traces(
         self,
@@ -355,35 +617,112 @@ class PlotlyEngine(BaseRenderingEngine):
         row: int,
         col: int
     ) -> None:
-        """Add heatmap trace to figure."""
+        """Add heatmap trace to figure.
+        
+        This method orchestrates the creation of a heatmap trace by:
+        1. Validating data sources
+        2. Extracting and preparing heatmap data
+        3. Calculating color scale limits
+        4. Preparing hover information
+        5. Creating and adding the heatmap to the figure
+        
+        Args:
+            fig: Plotly figure to add trace to
+            ds: Dataset containing the heatmap data
+            trace_config: Configuration for the heatmap trace
+            row: Subplot row position
+            col: Subplot column position
+        """
         
         if not self._validate_trace_sources(ds, trace_config):
             return
         
         # Get data arrays
-        x_data = ds[trace_config.x_source].values
-        y_data = ds[trace_config.y_source].values
-        z_data = ds[trace_config.z_source].values
+        x_data, y_data, z_data = self._extract_heatmap_data(ds, trace_config)
         
-        # Ensure proper shape for heatmap - handle 2D heatmaps properly
-        if z_data.ndim == 2:
-            # For 2D heatmaps, we need to ensure z_data is shaped correctly
-            # The original 02b code transposes and reshapes as needed
-            z_data = z_data.T
-            if z_data.shape[0] != len(y_data):
-                z_data = z_data.T
-            nan_info = DataValidatorUtils.check_for_nans(z_data, raise_on_all_nan=False)
-            if nan_info['all_nans']:
-                z_data = np.zeros_like(z_data)
-        elif z_data.ndim == 1:
-            z_data = z_data[np.newaxis, :]
+        # Ensure proper shape for heatmap
+        z_data = self._prepare_heatmap_z_data(z_data, y_data)
         
         # Calculate robust z-limits
         zmin, zmax = self._calculate_robust_zlimits(
             z_data, trace_config.zmin_percentile, trace_config.zmax_percentile
         )
         
-        # Build custom data - for 2D heatmaps need to reshape to match z_data
+        # Build custom data for hover
+        custom_data = self._prepare_heatmap_custom_data(ds, trace_config, z_data, x_data)
+        
+        # Create colorbar configuration
+        colorbar_config = self._create_heatmap_colorbar_config(trace_config)
+        
+        # Create and add heatmap trace
+        self._create_and_add_heatmap(
+            fig, x_data, y_data, z_data, custom_data,
+            trace_config, zmin, zmax, colorbar_config, row, col
+        )
+    
+    def _extract_heatmap_data(
+        self, 
+        ds: xr.Dataset, 
+        trace_config: HeatmapTraceConfig
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Extract x, y, and z data arrays from dataset.
+        
+        Args:
+            ds: Dataset containing the data
+            trace_config: Configuration specifying data sources
+            
+        Returns:
+            Tuple of (x_data, y_data, z_data) arrays
+        """
+        x_data = ds[trace_config.x_source].values
+        y_data = ds[trace_config.y_source].values
+        z_data = ds[trace_config.z_source].values
+        return x_data, y_data, z_data
+    
+    def _prepare_heatmap_z_data(
+        self, 
+        z_data: np.ndarray, 
+        y_data: np.ndarray
+    ) -> np.ndarray:
+        """Prepare z data for heatmap by ensuring proper shape.
+        
+        Args:
+            z_data: The z-axis data array
+            y_data: The y-axis data array for shape validation
+            
+        Returns:
+            Properly shaped z data array
+        """
+        if z_data.ndim == 2:
+            # For 2D heatmaps, ensure z_data is shaped correctly
+            z_data = z_data.T
+            if z_data.shape[0] != len(y_data):
+                z_data = z_data.T
+            nan_info = DataValidator.check_for_nans(z_data, raise_on_all_nan=False)
+            if nan_info['all_nans']:
+                z_data = np.zeros_like(z_data)
+        elif z_data.ndim == 1:
+            z_data = z_data[np.newaxis, :]
+        return z_data
+    
+    def _prepare_heatmap_custom_data(
+        self,
+        ds: xr.Dataset,
+        trace_config: HeatmapTraceConfig,
+        z_data: np.ndarray,
+        x_data: np.ndarray
+    ) -> Optional[np.ndarray]:
+        """Prepare custom data for heatmap hover information.
+        
+        Args:
+            ds: Dataset containing the data
+            trace_config: Configuration with custom data sources
+            z_data: The z-axis data array for shape matching
+            x_data: The x-axis data array for dimension checking
+            
+        Returns:
+            Properly shaped custom data array or None
+        """
         custom_data = self._build_custom_data(ds, trace_config.custom_data_sources)
         if custom_data is not None and z_data.ndim == 2:
             # For 2D heatmaps, custom data needs to be tiled to match heatmap shape
@@ -393,9 +732,61 @@ class PlotlyEngine(BaseRenderingEngine):
             if custom_data.shape[0] == x_data.shape[0]:  # matches frequency dimension
                 # Tile to (n_powers, n_freqs) like the original det2d
                 custom_data = ArrayManipulator.tile_for_hover_data(custom_data, z_data.shape, axis=0)
+        return custom_data
+    
+    def _create_heatmap_colorbar_config(
+        self, 
+        trace_config: HeatmapTraceConfig
+    ) -> dict:
+        """Create colorbar configuration for heatmap.
         
-        # Create heatmap trace
+        Args:
+            trace_config: Heatmap trace configuration
+            
+        Returns:
+            Dictionary with colorbar settings
+        """
+        return dict(
+            x=1.0,  # placeholder like original
+            y=0.5,
+            len=1.0,
+            thickness=trace_config.colorbar.thickness if trace_config.colorbar else 14,
+            xanchor="left",
+            yanchor="middle",
+            ticks="outside",
+            ticklabelposition="outside",
+            title=trace_config.colorbar.title if trace_config.colorbar else "|IQ|",
+        )
+    
+    def _create_and_add_heatmap(
+        self,
+        fig: go.Figure,
+        x_data: np.ndarray,
+        y_data: np.ndarray,
+        z_data: np.ndarray,
+        custom_data: Optional[np.ndarray],
+        trace_config: HeatmapTraceConfig,
+        zmin: float,
+        zmax: float,
+        colorbar_config: dict,
+        row: int,
+        col: int
+    ) -> None:
+        """Create and add heatmap trace to figure.
         
+        Args:
+            fig: Plotly figure to add trace to
+            x_data: X-axis data
+            y_data: Y-axis data
+            z_data: Z-axis data (heatmap values)
+            custom_data: Custom data for hover
+            trace_config: Heatmap trace configuration
+            zmin: Minimum z value for color scale
+            zmax: Maximum z value for color scale
+            colorbar_config: Colorbar configuration dictionary
+            row: Subplot row position
+            col: Subplot column position
+        """
         fig.add_trace(
             go.Heatmap(
                 x=x_data,
@@ -406,17 +797,7 @@ class PlotlyEngine(BaseRenderingEngine):
                 zmin=zmin,
                 zmax=zmax,
                 showscale=False,  # Try original setting
-                colorbar=dict(
-                    x=1.0,  # placeholder like original
-                    y=0.5,
-                    len=1.0,
-                    thickness=trace_config.colorbar.thickness if trace_config.colorbar else 14,
-                    xanchor="left",
-                    yanchor="middle",
-                    ticks="outside",
-                    ticklabelposition="outside",
-                    title=trace_config.colorbar.title if trace_config.colorbar else "|IQ|",
-                ),
+                colorbar=colorbar_config,
                 hovertemplate=trace_config.hover_template,
                 name=trace_config.name
             ),

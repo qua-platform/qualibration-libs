@@ -18,7 +18,7 @@ from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes
 from .common import (
     GridManager, OverlayRenderer
 )
-from .data_validators import DataValidator
+from ..data_utils import DataValidator
 from ..exceptions import (
     ConfigurationError, DataSourceError, EngineError, QubitError
 )
