@@ -78,37 +78,76 @@ class MatplotlibEngine(BaseRenderingEngine):
     ) -> MatplotlibFigure:
         """Create specialized figure for 1D spectroscopy plots."""
         
-        grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=True)
-        grid.fig.set_size_inches(*get_standard_matplotlib_size())
-        grid.fig.suptitle(config.layout.title)
+        # Setup figure
+        grid = self._setup_figure_grid(ds_raw, qubits, config.layout.title)
         
         # Track which legend entries have been created
         legend_entries_created = set()
         
+        # Plot data for each qubit
         for i, (ax, name_dict) in enumerate(grid_iter(grid)):
             qubit_id = list(name_dict.values())[0]
-            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
-            
-            # Plot raw data traces
-            self._add_spectroscopy_traces(ax, ds_qubit_raw, config.traces, i, legend_entries_created)
-            
-            # Plot fit traces - only if fit was successful
-            if ds_qubit_fit is not None and DataUtilsValidator.validate_fit_success(ds_qubit_fit):
-                self._add_spectroscopy_traces(ax, ds_qubit_fit, config.fit_traces, i, legend_entries_created, is_fit=True)
-            
-            # Set labels and title
-            ax.set_xlabel(config.layout.x_axis_title)
-            ax.set_ylabel(config.layout.y_axis_title)
-            ax.set_title(f"{CoordinateNames.QUBIT.capitalize()} {qubit_id}")
-            
-            # Add dual axis if configured
-            if config.dual_axis and config.dual_axis.enabled:
-                self._add_dual_axis(ax, ds_qubit_raw, config.dual_axis)
+            self._plot_spectroscopy_subplot(
+                ax, ds_raw, ds_fit, qubit_id, config, i, legend_entries_created
+            )
         
-        # Add legend by collecting handles and labels from all subplots
+        # Add combined legend
+        self._add_combined_legend(grid)
+        
+        grid.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        return grid.fig
+    
+    def _setup_figure_grid(self, ds_raw: xr.Dataset, qubits: List[AnyTransmon], title: str) -> QubitGrid:
+        """Set up the figure grid with standard settings."""
+        grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=True)
+        grid.fig.set_size_inches(*get_standard_matplotlib_size())
+        grid.fig.suptitle(title)
+        return grid
+    
+    def _plot_spectroscopy_subplot(
+        self,
+        ax: plt.Axes,
+        ds_raw: xr.Dataset,
+        ds_fit: Optional[xr.Dataset],
+        qubit_id: str,
+        config: SpectroscopyConfig,
+        subplot_index: int,
+        legend_entries_created: set
+    ) -> None:
+        """Plot spectroscopy data for a single subplot."""
+        # Extract datasets for this qubit
+        ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
+        
+        # Plot raw data traces
+        self._add_spectroscopy_traces(ax, ds_qubit_raw, config.traces, subplot_index, legend_entries_created)
+        
+        # Plot fit traces if available and successful
+        if self._should_plot_fit_traces(ds_qubit_fit):
+            self._add_spectroscopy_traces(ax, ds_qubit_fit, config.fit_traces, subplot_index, legend_entries_created, is_fit=True)
+        
+        # Configure axis labels and title
+        self._configure_subplot_axes(ax, config.layout, qubit_id)
+        
+        # Add dual axis if configured
+        if config.dual_axis and config.dual_axis.enabled:
+            self._add_dual_axis(ax, ds_qubit_raw, config.dual_axis)
+    
+    def _should_plot_fit_traces(self, ds_qubit_fit: Optional[xr.Dataset]) -> bool:
+        """Check if fit traces should be plotted."""
+        return ds_qubit_fit is not None and DataUtilsValidator.validate_fit_success(ds_qubit_fit)
+    
+    def _configure_subplot_axes(self, ax: plt.Axes, layout: any, qubit_id: str) -> None:
+        """Configure axis labels and title for a subplot."""
+        ax.set_xlabel(layout.x_axis_title)
+        ax.set_ylabel(layout.y_axis_title)
+        ax.set_title(f"{CoordinateNames.QUBIT.capitalize()} {qubit_id}")
+    
+    def _add_combined_legend(self, grid: QubitGrid) -> None:
+        """Add combined legend from all subplots."""
         all_handles = []
         all_labels = []
-        # grid.axes is a list of lists (2D structure), need to flatten it
+        
+        # Collect unique legend entries from all subplots
         for axis_row in grid.axes:
             for ax in axis_row:
                 handles, labels = ax.get_legend_handles_labels()
@@ -119,9 +158,6 @@ class MatplotlibEngine(BaseRenderingEngine):
         
         if all_handles:
             grid.fig.legend(all_handles, all_labels, loc='upper right')
-        
-        grid.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-        return grid.fig
     
     def create_heatmap_figure(
         self,
@@ -171,37 +207,81 @@ class MatplotlibEngine(BaseRenderingEngine):
     ) -> MatplotlibFigure:
         """Create generic figure for basic plot configurations."""
         
-        grid = self.grid_manager.create_grid(ds_raw, qubits, create_figure=True)
-        grid.fig.set_size_inches(*get_standard_matplotlib_size())
-        grid.fig.suptitle(config.layout.title)
+        # Setup figure
+        grid = self._setup_figure_grid(ds_raw, qubits, config.layout.title)
         
         # Track which legend entries have been created
         legend_entries_created = set()
         
+        # Plot data for each qubit
         for i, (ax, name_dict) in enumerate(grid_iter(grid)):
             qubit_id = list(name_dict.values())[0]
-            ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
-            
-            # Plot raw traces
-            for trace_config in config.traces:
-                if self._check_trace_visibility(ds_qubit_raw, trace_config, qubit_id):
-                    self._add_generic_trace(ax, ds_qubit_raw, trace_config, i, legend_entries_created)
-            
-            # Plot fit traces - only if fit was successful
-            if ds_qubit_fit is not None and DataUtilsValidator.validate_fit_success(ds_qubit_fit):
-                for trace_config in config.fit_traces:
-                    if self._check_trace_visibility(ds_qubit_fit, trace_config, qubit_id):
-                        self._add_generic_trace(ax, ds_qubit_fit, trace_config, i, legend_entries_created, is_fit=True)
-            
-            # Set labels and title
-            ax.set_xlabel(config.layout.x_axis_title)
-            ax.set_ylabel(config.layout.y_axis_title)
-            ax.set_title(f"{CoordinateNames.QUBIT.capitalize()} {qubit_id}")
+            self._plot_generic_subplot(
+                ax, ds_raw, ds_fit, qubit_id, config, i, legend_entries_created
+            )
         
-        # Add legend by collecting handles and labels from all subplots
+        # Add combined legend
+        self._add_combined_legend_generic(grid)
+        
+        grid.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        return grid.fig
+    
+    def _plot_generic_subplot(
+        self,
+        ax: plt.Axes,
+        ds_raw: xr.Dataset,
+        ds_fit: Optional[xr.Dataset],
+        qubit_id: str,
+        config: PlotConfig,
+        subplot_index: int,
+        legend_entries_created: set
+    ) -> None:
+        """Plot generic data for a single subplot."""
+        # Extract datasets for this qubit
+        ds_qubit_raw, ds_qubit_fit = self._extract_qubit_datasets(ds_raw, ds_fit, qubit_id)
+        
+        # Plot raw traces
+        self._plot_raw_traces(ax, ds_qubit_raw, config.traces, subplot_index, legend_entries_created)
+        
+        # Plot fit traces if available and successful
+        if self._should_plot_fit_traces(ds_qubit_fit):
+            self._plot_fit_traces(ax, ds_qubit_fit, config.fit_traces, subplot_index, legend_entries_created)
+        
+        # Configure axis labels and title
+        self._configure_subplot_axes(ax, config.layout, qubit_id)
+    
+    def _plot_raw_traces(
+        self,
+        ax: plt.Axes,
+        ds: xr.Dataset,
+        traces: List[TraceConfig],
+        subplot_index: int,
+        legend_entries_created: set
+    ) -> None:
+        """Plot raw data traces on the axis."""
+        for trace_config in traces:
+            if self._check_trace_visibility(ds, trace_config, None):
+                self._add_generic_trace(ax, ds, trace_config, subplot_index, legend_entries_created)
+    
+    def _plot_fit_traces(
+        self,
+        ax: plt.Axes,
+        ds: xr.Dataset,
+        traces: List[TraceConfig],
+        subplot_index: int,
+        legend_entries_created: set
+    ) -> None:
+        """Plot fit traces on the axis."""
+        for trace_config in traces:
+            if self._check_trace_visibility(ds, trace_config, None):
+                self._add_generic_trace(ax, ds, trace_config, subplot_index, legend_entries_created, is_fit=True)
+    
+    def _add_combined_legend_generic(self, grid: QubitGrid) -> None:
+        """Add combined legend from all subplots (without location specification)."""
         all_handles = []
         all_labels = []
-        # grid.axes is a list of lists (2D structure), need to flatten it
+        
+        # Collect unique legend entries from all subplots
         for axis_row in grid.axes:
             for ax in axis_row:
                 handles, labels = ax.get_legend_handles_labels()
@@ -212,9 +292,6 @@ class MatplotlibEngine(BaseRenderingEngine):
         
         if all_handles:
             grid.fig.legend(all_handles, all_labels)
-        
-        grid.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-        return grid.fig
     
     def _add_spectroscopy_traces(
         self,
@@ -442,65 +519,103 @@ class MatplotlibEngine(BaseRenderingEngine):
     def _add_dual_axis(self, ax: plt.Axes, ds: xr.Dataset, dual_config) -> None:
         """Add dual axis (top x-axis) to matplotlib axis."""
         
-        if dual_config.top_axis_source not in ds:
+        if not self._validate_dual_axis_source(ds, dual_config):
             return
         
-        # Create twin axis (exactly like original: ax2 = ax.twiny())
+        # Create twin axis
         ax_top = ax.twiny()
         
-        # Use EXACT same approach as original plotting.py:
-        # ds.assign_coords(amp_mV=ds.amp_prefactor).loc[qubit][data].plot(ax=ax2, x="amp_mV", alpha=RAW_DATA_ALPHA)
+        # Get coordinate and data variable
+        main_x_coord = self._get_main_coordinate(ds)
+        data_var = self._get_data_variable(ds)
         
-        # Find the main x-coordinate that was used for the main plot
-        main_x_coord = None
+        if main_x_coord is None or data_var is None:
+            return
+        
+        # Create and plot dual axis
+        self._create_dual_axis_plot(ax_top, ds, dual_config, main_x_coord, data_var)
+    
+    def _validate_dual_axis_source(self, ds: xr.Dataset, dual_config) -> bool:
+        """Validate that the dual axis source exists in the dataset."""
+        return dual_config.top_axis_source in ds
+    
+    def _get_main_coordinate(self, ds: xr.Dataset) -> Optional[str]:
+        """Find the main x-coordinate that was used for the main plot."""
         if CoordinateNames.AMP_MV in ds.coords:
-            main_x_coord = CoordinateNames.AMP_MV
+            return CoordinateNames.AMP_MV
         elif CoordinateNames.FREQUENCY in ds.coords:
-            main_x_coord = CoordinateNames.FREQUENCY
-        
-        if main_x_coord is None:
-            return
-        
-        # Find the data variable that was plotted
-        data_var = None
+            return CoordinateNames.FREQUENCY
+        return None
+    
+    def _get_data_variable(self, ds: xr.Dataset) -> Optional[str]:
+        """Find the data variable that was plotted."""
         if CoordinateNames.I in ds.data_vars:
-            data_var = CoordinateNames.I
+            return CoordinateNames.I
         elif CoordinateNames.STATE in ds.data_vars:
-            data_var = CoordinateNames.STATE
-        
-        if data_var is None:
-            return
-        
+            return CoordinateNames.STATE
+        return None
+    
+    def _create_dual_axis_plot(
+        self,
+        ax_top: plt.Axes,
+        ds: xr.Dataset,
+        dual_config,
+        main_x_coord: str,
+        data_var: str
+    ) -> None:
+        """Create the dual axis plot."""
         try:
+            # Create dataset with reassigned coordinates
             ds_twin = ds.assign_coords({main_x_coord: ds[dual_config.top_axis_source]})
             
-            # Plot on twin axis with alpha=0 to make it invisible (just for axis scaling)
-            if CoordinateNames.NB_OF_PULSES in ds.dims and ds.sizes.get(CoordinateNames.NB_OF_PULSES, 1) > 1:
-                                     # 2D case - plot heatmap
-                     ds_twin[data_var].plot(
-                         ax=ax_top,
-                         x=main_x_coord,
-                         y=CoordinateNames.NB_OF_PULSES,
-                         add_colorbar=False,
-                         alpha=0,  # Make invisible, just for axis scaling
-                         add_labels=False  # Suppress automatic title generation
-                     )
+            # Plot based on dimensionality
+            if self._is_2d_plot(ds):
+                self._plot_2d_dual_axis(ax_top, ds_twin, data_var, main_x_coord)
             else:
-                                     # 1D case - plot line
-                     ds_twin[data_var].plot(
-                         ax=ax_top,
-                         x=main_x_coord,
-                         alpha=0,  # Make invisible, just for axis scaling
-                         add_labels=False  # Suppress automatic title generation
-                     )
+                self._plot_1d_dual_axis(ax_top, ds_twin, data_var, main_x_coord)
             
-            # Set the axis title
-            ax_top.set_xlabel(dual_config.top_axis_title)
-            ax_top.grid(False)  # Disable grid on secondary axis
+            # Configure the dual axis
+            self._configure_dual_axis(ax_top, dual_config)
             
         except Exception as e:
             logger.warning(f"Could not create twin axis plot using assign_coords approach: {e}")
-            # Don't fallback, just skip the dual axis if it fails
+    
+    def _is_2d_plot(self, ds: xr.Dataset) -> bool:
+        """Check if this is a 2D plot based on number of pulses dimension."""
+        return (CoordinateNames.NB_OF_PULSES in ds.dims and 
+                ds.sizes.get(CoordinateNames.NB_OF_PULSES, 1) > 1)
+    
+    def _plot_2d_dual_axis(
+        self,
+        ax_top: plt.Axes,
+        ds_twin: xr.Dataset,
+        data_var: str,
+        main_x_coord: str
+    ) -> None:
+        """Plot 2D heatmap on dual axis."""
+        # Use pcolormesh for 2D plotting to avoid add_labels issue
+        x_data = ds_twin[main_x_coord].values
+        y_data = ds_twin[CoordinateNames.NB_OF_PULSES].values
+        z_data = ds_twin[data_var].values
+        ax_top.pcolormesh(x_data, y_data, z_data, alpha=0)  # Make invisible, just for axis scaling
+    
+    def _plot_1d_dual_axis(
+        self,
+        ax_top: plt.Axes,
+        ds_twin: xr.Dataset,
+        data_var: str,
+        main_x_coord: str
+    ) -> None:
+        """Plot 1D line on dual axis."""
+        # Extract data values for manual plotting to avoid add_labels issue
+        x_data = ds_twin[main_x_coord].values
+        y_data = ds_twin[data_var].values
+        ax_top.plot(x_data, y_data, alpha=0)  # Make invisible, just for axis scaling
+    
+    def _configure_dual_axis(self, ax_top: plt.Axes, dual_config) -> None:
+        """Configure the dual axis properties."""
+        ax_top.set_xlabel(dual_config.top_axis_title)
+        ax_top.grid(False)  # Disable grid on secondary axis
     
     
     def _add_overlays_flux_spectroscopy_matplotlib(
@@ -513,55 +628,76 @@ class MatplotlibEngine(BaseRenderingEngine):
     ) -> None:
         """Add flux spectroscopy overlays to matplotlib axis (EXACT copy of original logic)."""
         
-        # Check if fit was successful (exact same check as original)
-        if not (hasattr(ds_qubit_fit, CoordinateNames.OUTCOME) and getattr(ds_qubit_fit, CoordinateNames.OUTCOME).values == CoordinateNames.SUCCESSFUL):
+        if not self._validate_flux_fit_success(ds_qubit_fit):
             return
             
         try:
-            # Extract values exactly like original matplotlib code in plotting.py
-            if hasattr(ds_qubit_fit, 'fit_results'):
-                # Use fit_results like original code  
-                idle_offset = ds_qubit_fit.fit_results.idle_offset
-                flux_min = ds_qubit_fit.fit_results.flux_min
-                sweet_spot_frequency = ds_qubit_fit.fit_results.sweet_spot_frequency.values * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
-                
-                # Red dashed vertical line at idle_offset (EXACT copy of original)
-                ax.axvline(
-                    idle_offset,
-                    linestyle="dashed",      # IDLE_OFFSET_LINESTYLE from original
-                    linewidth=2.5,           # IDLE_OFFSET_LINEWIDTH from original  
-                    color="#FF0000",         # IDLE_OFFSET_COLOR from original
-                    label="idle offset",
-                )
-                
-                # Purple dashed vertical line at flux_min (EXACT copy of original)
-                ax.axvline(
-                    flux_min,
-                    linestyle="dashed",      # IDLE_OFFSET_LINESTYLE from original
-                    linewidth=2.5,           # IDLE_OFFSET_LINEWIDTH from original
-                    color="#800080",         # MIN_OFFSET_COLOR from original
-                    label="min offset",
-                )
-                
-                # Magenta star marker at sweet spot (EXACT copy of original)
-                ax.plot(
-                    idle_offset.values,
-                    sweet_spot_frequency,
-                    marker="*",              # SWEET_SPOT_MARKER from original
-                    color="#FF00FF",         # SWEET_SPOT_COLOR from original  
-                    markersize=18,           # SWEET_SPOT_MARKERSIZE from original
-                    linestyle="None",
-                )
-            else:
-                # Fallback for different fit dataset structure
-                idle_offset = ds_qubit_fit.idle_offset.values * 1e-3  # Convert mV to V
-                flux_min = ds_qubit_fit.flux_min.values * 1e-3  # Convert mV to V
-                sweet_spot_frequency = ds_qubit_fit.sweet_spot_frequency.values * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
-                
-                ax.axvline(idle_offset, linestyle="dashed", linewidth=2.5, color="#FF0000")
-                ax.axvline(flux_min, linestyle="dashed", linewidth=2.5, color="#800080")
-                ax.plot(idle_offset, sweet_spot_frequency, marker="*", color="#FF00FF", markersize=18, linestyle="None")
+            # Extract flux spectroscopy parameters
+            flux_params = self._extract_flux_parameters(ds_qubit_fit)
+            if flux_params is None:
+                return
+            
+            # Add overlay lines and markers
+            self._add_flux_overlay_lines(ax, flux_params)
+            self._add_flux_overlay_markers(ax, flux_params)
                 
         except (KeyError, ValueError, AttributeError) as e:
             logger.warning(f"Could not add flux spectroscopy overlays to matplotlib for {qubit_id}: {e}")
             return
+    
+    def _validate_flux_fit_success(self, ds_qubit_fit: xr.Dataset) -> bool:
+        """Check if flux spectroscopy fit was successful."""
+        return (hasattr(ds_qubit_fit, CoordinateNames.OUTCOME) and 
+                getattr(ds_qubit_fit, CoordinateNames.OUTCOME).values == CoordinateNames.SUCCESSFUL)
+    
+    def _extract_flux_parameters(self, ds_qubit_fit: xr.Dataset) -> Optional[dict]:
+        """Extract flux spectroscopy parameters from fit dataset."""
+        if hasattr(ds_qubit_fit, 'fit_results'):
+            return {
+                'idle_offset': ds_qubit_fit.fit_results.idle_offset,
+                'flux_min': ds_qubit_fit.fit_results.flux_min,
+                'sweet_spot_frequency': ds_qubit_fit.fit_results.sweet_spot_frequency.values * PlotConstants.GHZ_PER_HZ
+            }
+        else:
+            # Fallback for different fit dataset structure
+            return {
+                'idle_offset': ds_qubit_fit.idle_offset.values * 1e-3,  # Convert mV to V
+                'flux_min': ds_qubit_fit.flux_min.values * 1e-3,  # Convert mV to V
+                'sweet_spot_frequency': ds_qubit_fit.sweet_spot_frequency.values * PlotConstants.GHZ_PER_HZ
+            }
+    
+    def _add_flux_overlay_lines(self, ax: plt.Axes, flux_params: dict) -> None:
+        """Add vertical lines for flux spectroscopy overlays."""
+        # Red dashed vertical line at idle_offset
+        ax.axvline(
+            flux_params['idle_offset'],
+            linestyle="dashed",
+            linewidth=2.5,
+            color="#FF0000",
+            label="idle offset",
+        )
+        
+        # Purple dashed vertical line at flux_min
+        ax.axvline(
+            flux_params['flux_min'],
+            linestyle="dashed",
+            linewidth=2.5,
+            color="#800080",
+            label="min offset",
+        )
+    
+    def _add_flux_overlay_markers(self, ax: plt.Axes, flux_params: dict) -> None:
+        """Add marker for sweet spot in flux spectroscopy."""
+        # Magenta star marker at sweet spot
+        idle_offset_value = (flux_params['idle_offset'].values 
+                            if hasattr(flux_params['idle_offset'], 'values') 
+                            else flux_params['idle_offset'])
+        
+        ax.plot(
+            idle_offset_value,
+            flux_params['sweet_spot_frequency'],
+            marker="*",
+            color="#FF00FF",
+            markersize=18,
+            linestyle="None",
+        )
