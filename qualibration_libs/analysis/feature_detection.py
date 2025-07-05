@@ -8,18 +8,12 @@ from scipy.signal import find_peaks, peak_widths, savgol_filter
 from scipy.sparse.linalg import spsolve
 from scipy.stats import skew
 
+from .parameters import analysis_config_manager
+
 __all__ = ["peaks_dips"]
 
-# Constants for signal processing parameters
-BASELINE_WINDOW_SIZE = 51
-SMOOTH_WINDOW_SIZE = 21
-POLYORDER = 3
-NOISE_PROMINENCE_FACTOR = 3
-PEAK_DISTANCE = 10
-PEAK_WIDTH = 3
-MIN_SKEW_WINDOW_SIZE = 3
-MIN_WINDOW_RADIUS = 5
-NOISE_FLOOR = 1e-12
+# Access signal processing parameters from the config object
+sp_params = analysis_config_manager.get("common_signal_processing")
 
 
 def _preprocess_signal_for_peak_detection(arr: np.ndarray) -> Dict[str, np.ndarray]:
@@ -45,14 +39,18 @@ def _preprocess_signal_for_peak_detection(arr: np.ndarray) -> Dict[str, np.ndarr
         - 'baseline_corrected': Signal with baseline removed
     """
     # Baseline correction (ALS)
-    baseline_window = _get_savgol_window_length(len(arr), BASELINE_WINDOW_SIZE, POLYORDER)
-    baseline = (savgol_filter(arr, window_length=baseline_window, polyorder=POLYORDER) 
+    baseline_window = _get_savgol_window_length(
+        len(arr), sp_params.baseline_window_size.value, sp_params.polyorder.value
+    )
+    baseline = (savgol_filter(arr, window_length=baseline_window, polyorder=sp_params.polyorder.value) 
                 if baseline_window > 0 else arr)
     arr_bc = arr - baseline
     
     # Smoothing
-    smooth_window = _get_savgol_window_length(len(arr_bc), SMOOTH_WINDOW_SIZE, POLYORDER)
-    smoothed = (savgol_filter(arr_bc, window_length=smooth_window, polyorder=POLYORDER) 
+    smooth_window = _get_savgol_window_length(
+        len(arr_bc), sp_params.smooth_window_size.value, sp_params.polyorder.value
+    )
+    smoothed = (savgol_filter(arr_bc, window_length=smooth_window, polyorder=sp_params.polyorder.value) 
                 if smooth_window > 0 else arr_bc)
     
     # Noise estimation from residual
@@ -85,8 +83,8 @@ def _detect_peaks_with_consistent_parameters(signal: np.ndarray, prominence: flo
     return find_peaks(
         signal,
         prominence=prominence,
-        distance=PEAK_DISTANCE,
-        width=PEAK_WIDTH
+        distance=sp_params.peak_distance.value,
+        width=sp_params.peak_width.value
     )
 
 
@@ -187,7 +185,7 @@ def peaks_dips(
         processed = _preprocess_signal_for_peak_detection(arr)
         peaks, _ = _detect_peaks_with_consistent_parameters(
             processed['smoothed'], 
-            NOISE_PROMINENCE_FACTOR * processed['noise']
+            sp_params.noise_prominence_factor.value * processed['noise']
         )
         return np.array([len(peaks)])
 
@@ -196,7 +194,7 @@ def peaks_dips(
         processed = _preprocess_signal_for_peak_detection(arr)
         peaks, _ = _detect_peaks_with_consistent_parameters(
             processed['smoothed'], 
-            NOISE_PROMINENCE_FACTOR * processed['noise']
+            sp_params.noise_prominence_factor.value * processed['noise']
         )
         
         if len(peaks) == 0:
@@ -206,7 +204,7 @@ def peaks_dips(
         # Main peak: largest amplitude change (height)
         main_idx = np.argmax(np.abs(heights))
         main_height = np.abs(heights[main_idx])
-        snr = main_height / (processed['noise'] if processed['noise'] > 0 else NOISE_FLOOR)
+        snr = main_height / (processed['noise'] if processed['noise'] > 0 else sp_params.noise_floor.value)
         return np.array([snr])
 
     def _main_peak_asymmetry_skew(arr: np.ndarray, prominence: float) -> np.ndarray:
@@ -214,7 +212,7 @@ def peaks_dips(
         processed = _preprocess_signal_for_peak_detection(arr)
         peaks, _ = _detect_peaks_with_consistent_parameters(
             processed['smoothed'], 
-            NOISE_PROMINENCE_FACTOR * processed['noise']
+            sp_params.noise_prominence_factor.value * processed['noise']
         )
         
         if len(peaks) == 0:
@@ -231,11 +229,11 @@ def peaks_dips(
         asymmetry_ratio = right_width / left_width if left_width > 0 else np.nan
         
         # Skewness: window around peak (±width)
-        window_radius = int(max(left_width, right_width, MIN_WINDOW_RADIUS))
+        window_radius = int(max(left_width, right_width, sp_params.min_window_radius.value))
         start = max(0, int(main_peak - window_radius))
         end = min(len(processed['smoothed']), int(main_peak + window_radius + 1))
         window = processed['smoothed'][start:end]
-        skewness = skew(window) if len(window) > MIN_SKEW_WINDOW_SIZE else np.nan
+        skewness = skew(window) if len(window) > sp_params.min_skew_window_size.value else np.nan
         return np.array([asymmetry_ratio, skewness])
 
     def _opx_bandwidth_artifact(
