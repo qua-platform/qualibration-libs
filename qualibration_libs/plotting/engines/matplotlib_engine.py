@@ -642,76 +642,66 @@ class MatplotlibEngine(BaseRenderingEngine):
     ) -> None:
         """Add flux spectroscopy overlays to matplotlib axis (EXACT copy of original logic)."""
         
-        if not self._validate_flux_fit_success(ds_qubit_fit):
+        # Use base class validation method
+        if not self._validate_overlay_fit(ds_qubit_fit, qubit_id):
             return
             
-        try:
-            # Extract flux spectroscopy parameters
-            flux_params = self._extract_flux_parameters(ds_qubit_fit)
-            if flux_params is None:
-                return
+        # Extract parameters using base class method
+        parameter_map = {
+            'idle_offset': 'idle_offset',
+            'flux_min': 'flux_min',
+            'sweet_spot_frequency': 'sweet_spot_frequency'
+        }
+        unit_conversions = {
+            'sweet_spot_frequency': PlotConstants.GHZ_PER_HZ,  # Convert Hz to GHz
+            'idle_offset': 1e-3,  # Convert mV to V
+            'flux_min': 1e-3  # Convert mV to V
+        }
+        
+        params = self._extract_overlay_parameters(ds_qubit_fit, parameter_map, unit_conversions)
+        
+        if not all(key in params for key in ['idle_offset', 'flux_min', 'sweet_spot_frequency']):
+            logger.warning(f"Missing required parameters for flux spectroscopy overlays in qubit {qubit_id}")
+            return
             
-            # Add overlay lines and markers
-            self._add_flux_overlay_lines(ax, flux_params)
-            self._add_flux_overlay_markers(ax, flux_params)
+        # Get frequency range using base class method
+        freq_range = self._get_frequency_range(ds_raw, qubit_id)
+        if freq_range is None:
+            logger.warning(f"Could not get frequency range for flux spectroscopy overlays")
+            return
+            
+        freq_min, freq_max = freq_range
+        
+        try:
+            
+            # Red dashed vertical line at idle_offset
+            ax.axvline(
+                params['idle_offset'],
+                linestyle="dashed",
+                linewidth=2.5,
+                color="#FF0000",
+                label="idle offset",
+            )
+            
+            # Purple dashed vertical line at flux_min
+            ax.axvline(
+                params['flux_min'],
+                linestyle="dashed",
+                linewidth=2.5,
+                color="#800080",
+                label="min offset",
+            )
+            
+            # Magenta star marker at sweet spot
+            ax.plot(
+                params['idle_offset'],
+                params['sweet_spot_frequency'],
+                marker="*",
+                color="#FF00FF",
+                markersize=18,
+                linestyle="None",
+            )
                 
         except (KeyError, ValueError, AttributeError) as e:
             logger.warning(f"Could not add flux spectroscopy overlays to matplotlib for {qubit_id}: {e}")
             return
-    
-    def _validate_flux_fit_success(self, ds_qubit_fit: xr.Dataset) -> bool:
-        """Check if flux spectroscopy fit was successful."""
-        return (hasattr(ds_qubit_fit, CoordinateNames.OUTCOME) and 
-                getattr(ds_qubit_fit, CoordinateNames.OUTCOME).values == CoordinateNames.SUCCESSFUL)
-    
-    def _extract_flux_parameters(self, ds_qubit_fit: xr.Dataset) -> Optional[dict]:
-        """Extract flux spectroscopy parameters from fit dataset."""
-        if hasattr(ds_qubit_fit, 'fit_results'):
-            return {
-                'idle_offset': ds_qubit_fit.fit_results.idle_offset,
-                'flux_min': ds_qubit_fit.fit_results.flux_min,
-                'sweet_spot_frequency': ds_qubit_fit.fit_results.sweet_spot_frequency.values * PlotConstants.GHZ_PER_HZ
-            }
-        else:
-            # Fallback for different fit dataset structure
-            return {
-                'idle_offset': ds_qubit_fit.idle_offset.values * 1e-3,  # Convert mV to V
-                'flux_min': ds_qubit_fit.flux_min.values * 1e-3,  # Convert mV to V
-                'sweet_spot_frequency': ds_qubit_fit.sweet_spot_frequency.values * PlotConstants.GHZ_PER_HZ
-            }
-    
-    def _add_flux_overlay_lines(self, ax: plt.Axes, flux_params: dict) -> None:
-        """Add vertical lines for flux spectroscopy overlays."""
-        # Red dashed vertical line at idle_offset
-        ax.axvline(
-            flux_params['idle_offset'],
-            linestyle="dashed",
-            linewidth=2.5,
-            color="#FF0000",
-            label="idle offset",
-        )
-        
-        # Purple dashed vertical line at flux_min
-        ax.axvline(
-            flux_params['flux_min'],
-            linestyle="dashed",
-            linewidth=2.5,
-            color="#800080",
-            label="min offset",
-        )
-    
-    def _add_flux_overlay_markers(self, ax: plt.Axes, flux_params: dict) -> None:
-        """Add marker for sweet spot in flux spectroscopy."""
-        # Magenta star marker at sweet spot
-        idle_offset_value = (flux_params['idle_offset'].values 
-                            if hasattr(flux_params['idle_offset'], 'values') 
-                            else flux_params['idle_offset'])
-        
-        ax.plot(
-            idle_offset_value,
-            flux_params['sweet_spot_frequency'],
-            marker="*",
-            color="#FF00FF",
-            markersize=18,
-            linestyle="None",
-        )

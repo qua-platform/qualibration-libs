@@ -5,7 +5,7 @@ It contains shared functionality like experiment detection, data validation, and
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any, Tuple, Dict
 import logging
 import numpy as np
 import xarray as xr
@@ -602,3 +602,123 @@ class BaseRenderingEngine(ABC):
             return False
             
         return True
+    
+    def _validate_overlay_fit(self, ds_fit: Optional[xr.Dataset], qubit_id: str) -> bool:
+        """Validate fit dataset for overlay rendering.
+        
+        Args:
+            ds_fit: Fit dataset to validate
+            qubit_id: Qubit identifier for logging
+            
+        Returns:
+            True if fit is valid and successful, False otherwise
+        """
+        if ds_fit is None:
+            return False
+        
+        # Extract qubit-specific data if needed
+        try:
+            if CoordinateNames.QUBIT in ds_fit.dims:
+                from ..data_utils import DataExtractor
+                ds_fit = DataExtractor.extract_qubit_data(ds_fit, qubit_id)
+        except (KeyError, ValueError) as e:
+            logger.warning(f"Could not extract data for qubit {qubit_id}: {e}")
+            return False
+        
+        # Check fit success
+        if CoordinateNames.OUTCOME not in ds_fit.coords:
+            return False
+            
+        return ds_fit[CoordinateNames.OUTCOME] == CoordinateNames.SUCCESSFUL
+    
+    def _extract_overlay_parameters(
+        self, 
+        ds_fit: xr.Dataset, 
+        parameter_map: Dict[str, str],
+        unit_conversions: Optional[Dict[str, float]] = None
+    ) -> Dict[str, float]:
+        """Extract and convert overlay parameters from fit dataset.
+        
+        Args:
+            ds_fit: Fit dataset containing parameters
+            parameter_map: Mapping of output keys to dataset variable names
+            unit_conversions: Optional unit conversion factors for each parameter
+            
+        Returns:
+            Dictionary of extracted and converted parameters
+        """
+        params = {}
+        unit_conversions = unit_conversions or {}
+        
+        for key, source in parameter_map.items():
+            try:
+                # Try fit_results first, then direct access
+                if hasattr(ds_fit, 'fit_results') and source in ds_fit.fit_results:
+                    val = ds_fit.fit_results[source].values
+                elif source in ds_fit:
+                    val = ds_fit[source].values
+                else:
+                    logger.warning(f"Parameter {source} not found in fit dataset")
+                    continue
+                
+                # Handle scalar or array values
+                if np.isscalar(val):
+                    value = float(val)
+                elif val.size == 1:
+                    value = float(val.item())
+                else:
+                    # For arrays, take the first value or mean as appropriate
+                    # This handles cases where parameters might vary across dimensions
+                    value = float(val.flat[0])
+                    logger.debug(f"Parameter {source} is an array, using first value: {value}")
+                
+                # Apply unit conversion if specified
+                if key in unit_conversions:
+                    value *= unit_conversions[key]
+                    
+                params[key] = value
+                
+            except (KeyError, ValueError, TypeError) as e:
+                logger.warning(f"Error extracting {key}: {e}")
+                
+        return params
+    
+    def _get_frequency_range(
+        self, 
+        ds_raw: xr.Dataset, 
+        qubit_id: str
+    ) -> Optional[Tuple[float, float]]:
+        """Get frequency range from raw dataset for overlay positioning.
+        
+        Args:
+            ds_raw: Raw dataset containing frequency data
+            qubit_id: Qubit identifier
+            
+        Returns:
+            Tuple of (min_freq, max_freq) in GHz, or None if not found
+        """
+        if ds_raw is None:
+            return None
+            
+        try:
+            # Handle multi-qubit datasets
+            if CoordinateNames.QUBIT in ds_raw.dims:
+                ds_transposed = ds_raw.transpose(CoordinateNames.QUBIT, ...)
+                freq_coord = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds_transposed else CoordinateNames.FREQ_FULL
+                
+                if freq_coord in ds_transposed:
+                    freq_array = ds_transposed[freq_coord].values
+                    q_labels = list(ds_transposed[CoordinateNames.QUBIT].values)
+                    q_idx = q_labels.index(qubit_id)
+                    freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ
+                    return (float(freq_vals.min()), float(freq_vals.max()))
+            else:
+                # Single qubit dataset
+                if CoordinateNames.FREQUENCY in ds_raw:
+                    freq_vals = ds_raw[CoordinateNames.FREQUENCY].values * PlotConstants.GHZ_PER_HZ
+                    return (float(freq_vals.min()), float(freq_vals.max()))
+                    
+        except (KeyError, ValueError, IndexError) as e:
+            logger.warning(f"Could not extract frequency range: {e}")
+            
+        return None

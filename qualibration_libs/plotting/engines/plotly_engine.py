@@ -724,29 +724,33 @@ class PlotlyEngine(BaseRenderingEngine):
     ) -> None:
         """Add overlays for multi-qubit heatmap using original logic."""
         
-        # Get fit data for this qubit like original code
-        try:
-            fit_ds = DataExtractor.extract_qubit_data(ds_fit, qubit_id)
-        except (KeyError, ValueError):
+        # Use base class validation method
+        if not self._validate_overlay_fit(ds_fit, qubit_id):
             return
             
-        # Check if fit was successful (like original: outcome == "successful")
-        if CoordinateNames.OUTCOME not in fit_ds.coords or fit_ds[CoordinateNames.OUTCOME] != CoordinateNames.SUCCESSFUL:
+        # Extract parameters using base class method
+        parameter_map = {
+            'res_freq_ghz': 'res_freq',
+            'optimal_power': 'optimal_power'
+        }
+        unit_conversions = {
+            'res_freq_ghz': PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
+        }
+        
+        params = self._extract_overlay_parameters(ds_fit, parameter_map, unit_conversions)
+        
+        if 'res_freq_ghz' not in params or 'optimal_power' not in params:
+            logger.warning(f"Missing required parameters for overlays in qubit {qubit_id}")
             return
             
-        # Extract values like original code
         try:
-            # Red dashed vertical line at resonator frequency
-            res_freq_hz = float(fit_ds["res_freq"].values)
-            res_freq_ghz = res_freq_hz * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
-            
             # Get power range for vertical line (from -50 to -25 dBm)
             power_min, power_max = -50.0, -25.0
             
-            # Add red dashed vertical line  
+            # Add red dashed vertical line at resonator frequency
             fig.add_trace(
                 go.Scatter(
-                    x=[res_freq_ghz, res_freq_ghz],
+                    x=[params['res_freq_ghz'], params['res_freq_ghz']],
                     y=[power_min, power_max],
                     mode="lines",
                     line=dict(
@@ -761,9 +765,6 @@ class PlotlyEngine(BaseRenderingEngine):
                 col=col,
             )
             
-            # Magenta horizontal line at optimal power
-            optimal_power = float(fit_ds["optimal_power"].values)
-            
             # Get current axis data for frequency range
             ds2 = ds_fit.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.POWER)
             freq_coord_name = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds2 else CoordinateNames.FREQ_FULL
@@ -774,11 +775,11 @@ class PlotlyEngine(BaseRenderingEngine):
                 freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ  # Convert to GHz
                 freq_min, freq_max = freq_vals.min(), freq_vals.max()
                 
-                # Add magenta horizontal line
+                # Add magenta horizontal line at optimal power
                 fig.add_trace(
                     go.Scatter(
                         x=[freq_min, freq_max],
-                        y=[optimal_power, optimal_power],
+                        y=[params['optimal_power'], params['optimal_power']],
                         mode="lines",
                         line=dict(
                             color="#FF00FF",  # Magenta
@@ -807,54 +808,40 @@ class PlotlyEngine(BaseRenderingEngine):
     ) -> None:
         """Add overlays for flux spectroscopy using original logic."""
         
-        # Get fit data for this qubit like original code
-        try:
-            fit_ds = DataExtractor.extract_qubit_data(ds_fit, qubit_id)
-        except (KeyError, ValueError):
+        # Use base class validation method
+        if not self._validate_overlay_fit(ds_fit, qubit_id):
             return
             
-        # Check if fit was successful (like original: outcome == "successful")
-        if CoordinateNames.OUTCOME not in fit_ds.coords or fit_ds[CoordinateNames.OUTCOME] != CoordinateNames.SUCCESSFUL:
+        # Extract parameters using base class method
+        parameter_map = {
+            'idle_offset': 'idle_offset',
+            'flux_min': 'flux_min',
+            'sweet_spot_freq_ghz': 'sweet_spot_frequency'
+        }
+        unit_conversions = {
+            'sweet_spot_freq_ghz': PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
+        }
+        
+        params = self._extract_overlay_parameters(ds_fit, parameter_map, unit_conversions)
+        
+        if not all(key in params for key in ['idle_offset', 'flux_min', 'sweet_spot_freq_ghz']):
+            logger.warning(f"Missing required parameters for flux spectroscopy overlays in qubit {qubit_id}")
             return
             
-        # Extract values like original code - following exact same pattern as original plotting.py
+        # Get frequency range using base class method
+        freq_range = self._get_frequency_range(ds_raw, qubit_id)
+        if freq_range is None:
+            logger.warning(f"Could not get frequency range for flux spectroscopy overlays")
+            return
+            
+        freq_min, freq_max = freq_range
+        
         try:
-            # The fit dataset structure uses fit_results just like the original
-            if hasattr(fit_ds, 'fit_results'):
-                # Extract from fit_results like original code
-                idle_offset = float(fit_ds.fit_results["idle_offset"].values)
-                flux_min = float(fit_ds.fit_results["flux_min"].values)
-                sweet_spot_freq = float(fit_ds.fit_results["sweet_spot_frequency"].values) * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
-            else:
-                # Fallback: direct access (for different fit dataset structure)
-                idle_offset = UnitConverter.mv_to_v(float(fit_ds["idle_offset"].values) * PlotConstants.MV_PER_V)  # Convert mV to V
-                sweet_spot_freq = float(fit_ds["sweet_spot_frequency"].values) * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz
-                flux_min = UnitConverter.mv_to_v(float(fit_ds["flux_min"].values) * PlotConstants.MV_PER_V)  # Convert mV to V
-            
-            # Get actual frequency and flux ranges from the raw dataset, following original pattern
-            # Extract frequency array and compute freq_vals like original code does from RAW dataset
-            # We need to use ds_raw because ds_fit doesn't have the detuning dimension
-            if ds_raw is None:
-                # If no raw dataset provided, we can't get the frequency range
-                return
-                
-            ds_raw_transposed = ds_raw.transpose(CoordinateNames.QUBIT, CoordinateNames.DETUNING, CoordinateNames.FLUX_BIAS)
-            freq_coord_name = CoordinateNames.FULL_FREQ if CoordinateNames.FULL_FREQ in ds_raw_transposed else CoordinateNames.FREQ_FULL
-            if freq_coord_name not in ds_raw_transposed:
-                return
-            
-            freq_array = ds_raw_transposed[freq_coord_name].values  # (n_qubits, n_freqs)
-            q_labels = list(ds_raw_transposed[CoordinateNames.QUBIT].values)
-            q_idx = q_labels.index(qubit_id)
-            freq_vals = freq_array[q_idx] * PlotConstants.GHZ_PER_HZ  # Convert Hz to GHz, like original
-            
-            flux_vals = ds_raw_transposed[CoordinateNames.FLUX_BIAS].values  # Get actual flux range
-            
             # Magenta "×" at (idle_offset, sweet_spot_frequency) - exact copy of original 
             fig.add_trace(
                 go.Scatter(
-                    x=[idle_offset],
-                    y=[sweet_spot_freq],
+                    x=[params['idle_offset']],
+                    y=[params['sweet_spot_freq_ghz']],
                     mode="markers",
                     marker=dict(
                         symbol="x",         # PLOTLY_SWEET_SPOT_MARKER_SYMBOL from original
@@ -871,8 +858,8 @@ class PlotlyEngine(BaseRenderingEngine):
             # Red dashed vertical line at idle_offset - exact copy of original code
             fig.add_trace(
                 go.Scatter(
-                    x=[idle_offset, idle_offset],
-                    y=[freq_vals.min(), freq_vals.max()],
+                    x=[params['idle_offset'], params['idle_offset']],
+                    y=[freq_min, freq_max],
                     mode="lines",
                     line=dict(
                         color="#FF0000",  # Red (IDLE_OFFSET_COLOR from original)
@@ -889,8 +876,8 @@ class PlotlyEngine(BaseRenderingEngine):
             # Purple dashed vertical line at flux_min - exact copy of original code
             fig.add_trace(
                 go.Scatter(
-                    x=[flux_min, flux_min],
-                    y=[freq_vals.min(), freq_vals.max()],
+                    x=[params['flux_min'], params['flux_min']],
+                    y=[freq_min, freq_max],
                     mode="lines",
                     line=dict(
                         color="#800080",  # Purple (MIN_OFFSET_COLOR from original)
@@ -920,49 +907,49 @@ class PlotlyEngine(BaseRenderingEngine):
     ) -> None:
         """Add overlays for power rabi experiment using logic from the original plotting script."""
 
+        # Use base class validation method
+        if not self._validate_overlay_fit(ds_fit, qubit_id):
+            return
+
+        # Extract parameters using base class method
+        parameter_map = {
+            'opt_amp_prefactor': 'opt_amp_prefactor'
+        }
+        
+        params = self._extract_overlay_parameters(ds_fit, parameter_map)
+        
+        if 'opt_amp_prefactor' not in params:
+            logger.warning(f"Missing opt_amp_prefactor for power rabi overlays in qubit {qubit_id}")
+            return
+
+        if ds_raw is None:
+            return
+
         try:
-            # Check if qubit is a dimension we can select by
-            if CoordinateNames.QUBIT in ds_fit.dims:
-                ds_qubit_fit = DataExtractor.extract_qubit_data(ds_fit, qubit_id, CoordinateNames.QUBIT)
-            else:
-                # Dataset is already per-qubit or qubit is just a coordinate
-                ds_qubit_fit = ds_fit
-        except (KeyError, ValueError):
-            return
-
-        if CoordinateNames.OUTCOME not in ds_qubit_fit.coords:
-            return
-            
-        if ds_qubit_fit.outcome != CoordinateNames.SUCCESSFUL:
-            return
-
-        try:
-            opt_amp_prefactor = float(ds_qubit_fit["opt_amp_prefactor"].values)
-
-            if ds_raw is None:
-                return
-
             ds_qubit_raw = DataExtractor.extract_qubit_data(ds_raw, qubit_id)
             amp_prefactor_raw = ds_qubit_raw[CoordinateNames.AMP_PREFACTOR].values
             amp_mv_raw = ds_qubit_raw[CoordinateNames.FULL_AMP].values * PlotConstants.MV_PER_V
 
+            # Find the amplitude (in mV) corresponding to the optimal prefactor
             try:
                 opt_amp_mv = (
                     float(
                         ds_qubit_raw[CoordinateNames.FULL_AMP]
-                        .sel({CoordinateNames.AMP_PREFACTOR: opt_amp_prefactor}, method="nearest")
+                        .sel({CoordinateNames.AMP_PREFACTOR: params['opt_amp_prefactor']}, method="nearest")
                         .values
                     )
                     * PlotConstants.MV_PER_V
                 )
             except (KeyError, ValueError):
                 opt_amp_mv = float(
-                    amp_mv_raw[np.argmin(np.abs(amp_prefactor_raw - opt_amp_prefactor))]
+                    amp_mv_raw[np.argmin(np.abs(amp_prefactor_raw - params['opt_amp_prefactor']))]
                 )
 
+            # Get pulse number range
             nb_of_pulses = ds_raw[CoordinateNames.NB_OF_PULSES].values
             pulse_min, pulse_max = nb_of_pulses.min(), nb_of_pulses.max()
 
+            # Add red dashed vertical line at optimal amplitude
             fig.add_trace(
                 go.Scatter(
                     x=[opt_amp_mv, opt_amp_mv],
@@ -978,6 +965,7 @@ class PlotlyEngine(BaseRenderingEngine):
 
         except (KeyError, ValueError, IndexError) as e:
             logger.warning(f"Could not add power rabi overlays for {qubit_id}: {e}")
+            
     def _add_generic_trace(
         self,
         fig: go.Figure,

@@ -21,9 +21,9 @@
 
 Use parallel subagents to work on distinct files at the same time.
 
-- [ ] **Merge duplicate overlay methods**
-  - [ ] Consolidate \_add_overlays variants into base class
-  - [ ] Remove engine-specific overlay implementations
+- [x] **Merge duplicate overlay methods** (✅ Completed - net reduction of ~150 lines)
+  - [x] Consolidate \_add_overlays variants into base class
+  - [x] Remove engine-specific overlay implementations
 - [ ] **Extract common data extraction patterns**
   - [ ] Use DataExtractor consistently
   - [ ] Remove manual qubit extraction code

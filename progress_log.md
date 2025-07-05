@@ -485,3 +485,28 @@ Address the gap between promised refactoring and actual implementation. Remove d
     - matplotlib_engine.py: 7 unused imports removed  
     - base_engine.py: 1 unused import removed
   - ✅ No commented-out code found
+
+### Phase 7 Summary (So Far)
+- **Total Lines Removed:** 827 lines
+  - Dead code (overlays): 812 lines
+  - Unused imports: 15 lines
+- **Code Quality Improvements:**
+  - Replaced all hardcoded values with constants
+  - Cleaned up imports
+  - No regressions - all tests passing
+- **Next Steps:** Priority 2 - Consolidate duplicate code
+
+### 7.4 Consolidate Duplicate Overlay Methods
+- **Status:** ✅ COMPLETED
+- **Started:** 2025-07-05 10:04:00
+- **Completed:** 2025-07-05 10:16:00
+- **Details:**
+  - ✅ Added common methods to base class:
+    - _validate_overlay_fit() - centralized fit validation
+    - _extract_overlay_parameters() - unified parameter extraction
+    - _get_frequency_range() - common frequency range extraction
+  - ✅ Refactored plotly_engine.py overlay methods to use base class
+  - ✅ Refactored matplotlib_engine.py overlay methods to use base class
+  - ✅ Removed 4 redundant helper methods from matplotlib_engine
+  - **Estimated lines saved: ~200+ lines**
+  - All tests passing - no regressions
