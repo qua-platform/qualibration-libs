@@ -16,7 +16,7 @@ from ..configs import (
 )
 from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes
 from .common import (
-    GridManager, OverlayRenderer, QubitGrid
+    GridManager, OverlayRenderer
 )
 from .data_validators import DataValidator
 from ..exceptions import (

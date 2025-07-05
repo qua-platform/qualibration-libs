@@ -10,8 +10,8 @@
   - [x] Fix matplotlib tight_layout magic numbers (0.03, 0.95)
   - [x] Replace hardcoded coordinate strings ("power", "detuning", "qubit")
   - [x] Use UnitConverter for all conversions (1e-3, 1e9)
-- [ ] **Remove duplicate/unused imports**
-- [ ] **Eliminate commented-out code**
+- [x] **Remove duplicate/unused imports** (✅ 15 imports removed)
+- [x] **Eliminate commented-out code** (✅ None found)
 
 - test Run the full test suite to check for regressions:
   `bash cd /Users/shanto/Docs/internship/quantum-elements/qua-libs/qualibration_graphs/superconducting p3 test_02a_unified_plotting.py & p3 test_02b_unified_plotting.py & p3 test_02c_unified_plotting.py & p3 test_04b_unified_plotting.py & wait `

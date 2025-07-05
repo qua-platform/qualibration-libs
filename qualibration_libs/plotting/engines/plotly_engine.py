@@ -20,15 +20,14 @@ from ..configs import (DualAxisConfig, FigureDimensions, HeatmapConfig,
                        MarkerOverlayConfig, PlotConfig, SpectroscopyConfig,
                        SubplotSpacing, TraceConfig, get_standard_plotly_style)
 from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes, ColorScales
-from ..grids import QubitGrid
 from .common import GridManager, OverlayRenderer, PlotlyEngineUtils
 from .data_validators import DataValidator
 from .base_engine import BaseRenderingEngine
 from .experiment_detector import ExperimentDetector
 from ..exceptions import (
-    DataSourceError, QubitError, OverlayError, ConfigurationError
+    PlottingError
 )
-from ..data_utils import DataExtractor, DataValidator as DataValidatorUtils, RobustStatistics, ArrayManipulator, extract_trace_data, UnitConverter
+from ..data_utils import DataExtractor, DataValidator as DataValidatorUtils, ArrayManipulator, UnitConverter
 
 logger = logging.getLogger(__name__)
 

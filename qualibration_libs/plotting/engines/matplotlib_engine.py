@@ -9,13 +9,12 @@ from typing import List, Optional, Union
 import logging
 
 import matplotlib.pyplot as plt
-import numpy as np
 import xarray as xr
 from matplotlib.figure import Figure as MatplotlibFigure
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 
 from ..configs import (Colors, HeatmapConfig, HeatmapTraceConfig,
-                       LineOverlayConfig, LineStyles, MarkerOverlayConfig,
+                       LineOverlayConfig, MarkerOverlayConfig,
                        PlotConfig, SpectroscopyConfig, TraceConfig,
                        get_standard_matplotlib_size)
 from ..configs.constants import CoordinateNames, PlotConstants, ExperimentTypes
@@ -25,9 +24,9 @@ from .common import GridManager, MatplotlibEngineUtils, OverlayRenderer
 from .data_validators import DataValidator
 from .experiment_detector import ExperimentDetector
 from ..exceptions import (
-    DataSourceError, QubitError, OverlayError, ConfigurationError
+    PlottingError
 )
-from ..data_utils import DataExtractor, DataValidator as DataUtilsValidator, extract_trace_data
+from ..data_utils import DataValidator as DataUtilsValidator, extract_trace_data
 
 logger = logging.getLogger(__name__)
 

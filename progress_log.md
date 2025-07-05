@@ -473,3 +473,15 @@ Address the gap between promised refactoring and actual implementation. Remove d
   - ✅ Replaced hardcoded coordinate strings ("power", "detuning", "qubit") → CoordinateNames
   - ✅ Added mv_to_v() to UnitConverter and replaced hardcoded / 1000 conversions
   - ✅ Added FREQ_FULL constant to CoordinateNames
+
+### 7.3 Remove Duplicate/Unused Imports
+- **Status:** ✅ COMPLETED
+- **Started:** 2025-07-05 09:56:00
+- **Completed:** 2025-07-05 10:01:00
+- **Details:**
+  - ✅ No duplicate imports found
+  - ✅ Removed 15 unused imports across main engine files:
+    - plotly_engine.py: 7 unused imports removed
+    - matplotlib_engine.py: 7 unused imports removed  
+    - base_engine.py: 1 unused import removed
+  - ✅ No commented-out code found
