@@ -1,5 +1,5 @@
 import re
-from typing import Iterator, List, Tuple, Union
+from typing import Iterator, List, Optional, Tuple, Union
 
 import matplotlib
 import xarray as xr
@@ -67,7 +67,7 @@ class QubitGrid:
         return re.sub("[^0-9]", "", input_string)
 
     def __init__(
-        self, ds: xr.Dataset, grid_names: Union[list[str], str] = None, size: int = 3, create_figure: bool = True
+        self, ds: xr.Dataset, grid_names: Union[list[str], str] = None, size: int = 3
     ):
         if grid_names:
             if type(grid_names) == str:
@@ -99,66 +99,124 @@ class QubitGrid:
             max(grid_col_idxs) - min_grid_col + 1,
         )
 
-        # Only create matplotlib figure if requested
-        if create_figure:
-            figure, all_axes = plt.subplots(
-                *shape, figsize=(shape[1] * size, shape[0] * size), squeeze=False
-            )
+        figure, all_axes = plt.subplots(
+            *shape, figsize=(shape[1] * size, shape[0] * size), squeeze=False
+        )
 
-            grid_axes = []
-            qubit_names = []
+        grid_axes = []
+        qubit_names = []
 
-            for row, axis_row in enumerate(all_axes):
-                for col, ax in enumerate(axis_row):
-                    grid_row = max(grid_row_idxs) - row
-                    grid_col = col + min_grid_col
-                    if (grid_col, grid_row) in grid_indices:
-                        grid_axes.append(ax)
-                        name = grid_name_mapping.get((grid_col, grid_row))
-                        if name is not None:
-                            qubit_names.append(grid_name_mapping[(grid_col, grid_row)])
-                    else:
-                        ax.axis("off")
-
-            self.fig = figure
-            self.all_axes = all_axes
-            self.axes = [grid_axes]
-            self.name_dicts = [[{ds.qubit.name: value} for value in qubit_names]]
-        else:
-            # For Plotly-only usage, set matplotlib attributes to None
-            self.fig = None
-            self.all_axes = None
-            self.axes = None
-            self.name_dicts = None
-        
-        # Add Plotly-compatible attributes
-        self.n_rows = shape[0]
-        self.n_cols = shape[1]
-        self.grid_positions = []
-        self.plotly_name_dicts = []
-        self.grid_order = []
-        
-        # Build grid order and positions for Plotly compatibility
-        for row in range(self.n_rows):
-            for col in range(self.n_cols):
+        for row, axis_row in enumerate(all_axes):
+            for col, ax in enumerate(axis_row):
                 grid_row = max(grid_row_idxs) - row
                 grid_col = col + min_grid_col
-                qubit_name = grid_name_mapping.get((grid_col, grid_row))
-                self.grid_order.append(qubit_name)
+                if (grid_col, grid_row) in grid_indices:
+                    grid_axes.append(ax)
+                    name = grid_name_mapping.get((grid_col, grid_row))
+                    if name is not None:
+                        qubit_names.append(grid_name_mapping[(grid_col, grid_row)])
+                else:
+                    ax.axis("off")
+
+        self.fig = figure
+        self.all_axes = all_axes
+        self.axes = [grid_axes]
+        self.name_dicts = [[{ds.qubit.name: value} for value in qubit_names]]
+
+
+def grid_iter(grid: xr.plot.FacetGrid) -> Tuple[matplotlib.axes.Axes, dict]:
+    """Create a generator to iterate over a facet grid.
+    For each iteration, return a tuple of (axis object, name dict of this axis).
+
+    This is useful for adding annotations and additional data to facet grid figures.
+
+    :param grid: The grid to iterate over
+    :type grid: xr.plot.FacetGrid
+    :yield: a tuple with the axis and name of the facet
+    :rtype: _type_
+    """
+    for axr, ndr in zip(grid.axes, grid.name_dicts):
+        for ax, nd in zip(axr, ndr):
+            yield ax, nd
+
+class PlotlyQubitGrid:
+    """
+    Computes grid shape and qubit ordering for Plotly subplots based on a dataset's qubit coordinates.
+
+    Unlike QubitGrid, this class does not create or manage any plotting objects or axes. Instead, it provides the necessary information (number of rows, columns, and qubit ordering) to facilitate the arrangement of subplots in Plotly figures.
+
+    The class extracts grid positions from the dataset or from provided grid names, determines the grid shape, and produces an ordered list of qubit names for subplot assignment. This is useful for generating Plotly subplots that mirror the physical or logical layout of qubits, but all actual plotting must be handled externally.
+
+    Attributes:
+        n_rows (int): Number of rows in the grid.
+        n_cols (int): Number of columns in the grid.
+        grid_order (list[str | None]): Qubit names ordered for subplot assignment (row-major, top-left to bottom-right).
+        name_dicts (list[dict]): List of dictionaries mapping the qubit coordinate name to each qubit value, for use in labeling or selection.
+
+    Example usage:
+        grid = PlotlyQubitGrid(ds)
+        for subplot_idx, name_dict in plotly_grid_iter(grid):
+            # Use subplot_idx to assign to Plotly subplot, and name_dict for data selection/labeling
+            ...
+    """
+    def __init__(self, ds: xr.Dataset, grid_names: Optional[List[str]] = None):
+        if grid_names:
+            if isinstance(grid_names, str):
+                grid_names = [grid_names]
+            grid_indices = [
+                tuple(map(int, re.findall(r"-?\d+", grid_name)))
+                for grid_name in grid_names
+            ]
+        else:
+            grid_indices = [
+                tuple(map(int, re.findall(r"-?\d+", str(ds.qubit.values[q_index]))))
+                for q_index in range(ds.qubit.size)
+            ]
+            
+        if len(grid_indices) > 1:
+            grid_name_mapping = dict(zip(grid_indices, ds.qubit.values))
+        else:
+            try:
+                grid_name_mapping = dict(zip(grid_indices, [str(ds.qubit.values[0])]))
+            except Exception:
+                grid_name_mapping = dict(zip(grid_indices, [str(ds.qubit.values)]))
                 
+        grid_row_idxs = [idx[1] for idx in grid_indices]
+        grid_col_idxs = [idx[0] for idx in grid_indices]
+        min_grid_row = min(grid_row_idxs)
+        max_grid_row = max(grid_row_idxs)
+        min_grid_col = min(grid_col_idxs)
+        n_rows = max_grid_row - min_grid_row + 1
+        n_cols = max(grid_col_idxs) - min_grid_col + 1
+        
+        # Build grid order using the same coordinate mapping logic as QubitGrid
+        # This ensures consistent layout between matplotlib and plotly versions
+        grid_order = []
+        name_dicts = []
+        grid_positions = []  # Track (row, col) for each qubit
+        
+        for row in range(n_rows):
+            for col in range(n_cols):
+                # Use the same coordinate transformation as QubitGrid:
+                # grid_row = max(grid_row_idxs) - row
+                # grid_col = col + min_grid_col
+                grid_row = max_grid_row - row
+                grid_col = col + min_grid_col
+                
+                qubit_name = grid_name_mapping.get((grid_col, grid_row))
+                grid_order.append(qubit_name)
+                
+                # Only add to name_dicts and positions if qubit exists at this position
                 if qubit_name is not None:
-                    self.plotly_name_dicts.append({ds.qubit.name: qubit_name})
-                    self.grid_positions.append((row, col))
-    
-    def plotly_grid_iter(self) -> Iterator:
-        """
-        Generator to iterate over the QubitGrid for Plotly compatibility, yielding (grid_position, name_dict) for each qubit.
-        Returns the actual grid position (row, col) rather than sequential index to preserve layout.
-        """
-        for i, name_dict in enumerate(self.plotly_name_dicts):
-            row, col = self.grid_positions[i]
-            yield (row, col), name_dict
-    
+                    name_dicts.append({ds.qubit.name: qubit_name})
+                    grid_positions.append((row, col))  # Store actual grid position (0-indexed)
+        
+        self.n_rows = n_rows
+        self.n_cols = n_cols
+        self.grid_order = grid_order
+        self.name_dicts = name_dicts
+        self.grid_positions = grid_positions  # Store grid positions for proper subplot mapping
+
     def get_subplot_titles(self, title_template: str = "Qubit {qubit}") -> List[str]:
         """
         Generate subplot titles for the full grid layout, including empty positions.
@@ -179,22 +237,15 @@ class QubitGrid:
             if qubit_name is not None:
                 titles.append(title_template.format(qubit=qubit_name))
             else:
-                titles.append("")
+                titles.append("")  # Empty title for empty grid positions
         return titles
 
 
-def grid_iter(grid: xr.plot.FacetGrid) -> Tuple[matplotlib.axes.Axes, dict]:
-    """Create a generator to iterate over a facet grid.
-    For each iteration, return a tuple of (axis object, name dict of this axis).
-
-    This is useful for adding annotations and additional data to facet grid figures.
-
-    :param grid: The grid to iterate over
-    :type grid: xr.plot.FacetGrid
-    :yield: a tuple with the axis and name of the facet
-    :rtype: _type_
+def plotly_grid_iter(grid: 'PlotlyQubitGrid') -> Iterator:
     """
-    for axr, ndr in zip(grid.axes, grid.name_dicts):
-        for ax, nd in zip(axr, ndr):
-            yield ax, nd
-
+    Generator to iterate over the PlotlyQubitGrid, yielding (grid_position, name_dict) for each qubit.
+    Returns the actual grid position (row, col) rather than sequential index to preserve layout.
+    """
+    for i, name_dict in enumerate(grid.name_dicts):
+        row, col = grid.grid_positions[i]
+        yield (row, col), name_dict

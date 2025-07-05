@@ -1,3 +1,5 @@
+from typing import Dict
+
 import numpy as np
 import qiskit_experiments.curve_analysis as ca
 import xarray as xr
@@ -407,6 +409,43 @@ def fit_oscillation(da, dim, method="qiskit_curve_analysis"):
     fit_params.attrs['method'] = method
     
     return fit_params
+
+
+def calculate_quality_metrics(
+    raw_data: np.ndarray, fitted_data: np.ndarray
+) -> Dict[str, float]:
+    """
+    Calculate fit quality metrics: RMSE, NRMSE, and R-squared.
+
+    Parameters
+    ----------
+    raw_data : np.ndarray
+        The raw measurement data.
+    fitted_data : np.ndarray
+        The data from the Lorentzian fit.
+
+    Returns
+    -------
+    Dict[str, float]
+        A dictionary containing 'rmse', 'nrmse', and 'r_squared'.
+    """
+    residuals = raw_data - fitted_data
+    rmse = np.sqrt(np.mean(residuals**2))
+
+    # NRMSE (normalized by peak-to-peak range)
+    data_range = np.ptp(raw_data)
+    nrmse = rmse / data_range if data_range > 0 else np.inf
+
+    # R-squared (coefficient of determination)
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((raw_data - np.mean(raw_data)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+    # Ensure R-squared is valid
+    if not (0 <= r_squared <= 1):
+        r_squared = 0  # Invalid fit
+
+    return {"rmse": rmse, "nrmse": nrmse, "r_squared": r_squared}
 
 
 # def _truncate_data(transmission, window):
