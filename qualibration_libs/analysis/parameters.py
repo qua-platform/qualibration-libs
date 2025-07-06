@@ -150,6 +150,7 @@ class ResonatorSpectroscopyVsFluxQualityChecks(AnalysisParameterGroup):
     flux_modulation_smooth_sigma: Parameter = Parameter(value=1.5, description="Sigma for Gaussian filter when smoothing the flux modulation curve.", used_in=["_has_insufficient_flux_modulation"])
     resonance_correction_confidence_threshold: Parameter = Parameter(value=-0.6, description="Confidence threshold below which resonator frequency is re-calculated.", used_in=["_apply_frequency_correction_if_needed"])
     resonance_correction_window: Parameter = Parameter(value=5, description="Window size around the idle flux point to check for fit confidence.", used_in=["_apply_frequency_correction_if_needed"])
+    sweet_spot_threshold_fraction: Parameter = Parameter(value=0.05, description="Threshold for sweet spot refinement. Defines the tolerance above the minimum frequency as a fraction of the total oscillation amplitude to identify the 'flat' region.", used_in=["_refine_min_offset"])
 
 class PowerRabiQualityChecks(AnalysisParameterGroup):
     """Parameters for Power Rabi analysis (04b)."""
