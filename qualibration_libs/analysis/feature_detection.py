@@ -16,7 +16,9 @@ __all__ = ["peaks_dips"]
 sp_params = analysis_config_manager.get("common_signal_processing")
 
 
-def _preprocess_signal_for_peak_detection(arr: np.ndarray) -> Dict[str, np.ndarray]:
+def _preprocess_signal_for_peak_detection(
+    arr: np.ndarray, apply_baseline_correction: bool = True
+) -> Dict[str, np.ndarray]:
     """
     Apply consistent preprocessing to signal data for peak detection.
     
@@ -39,12 +41,16 @@ def _preprocess_signal_for_peak_detection(arr: np.ndarray) -> Dict[str, np.ndarr
         - 'baseline_corrected': Signal with baseline removed
     """
     # Baseline correction (ALS)
-    baseline_window = _get_savgol_window_length(
-        len(arr), sp_params.baseline_window_size.value, sp_params.polyorder.value
-    )
-    baseline = (savgol_filter(arr, window_length=baseline_window, polyorder=sp_params.polyorder.value) 
-                if baseline_window > 0 else arr)
-    arr_bc = arr - baseline
+    if apply_baseline_correction:
+        baseline_window = _get_savgol_window_length(
+            len(arr), sp_params.baseline_window_size.value, sp_params.polyorder.value
+        )
+        baseline = (savgol_filter(arr, window_length=baseline_window, polyorder=sp_params.polyorder.value) 
+                    if baseline_window > 0 else arr)
+        arr_bc = arr - baseline
+    else:
+        baseline = np.zeros_like(arr)
+        arr_bc = arr
     
     # Smoothing
     smooth_window = _get_savgol_window_length(
@@ -180,18 +186,34 @@ def peaks_dips(
             res.append(np.nan)
         return np.array(res)
 
-    def _num_peaks(arr: np.ndarray, prominence: float) -> np.ndarray:
+    def _num_peaks(
+        arr: np.ndarray, prominence: float, use_smoothed: bool = True
+    ) -> np.ndarray:
         """Count the number of peaks in the signal using consistent preprocessing."""
-        processed = _preprocess_signal_for_peak_detection(arr)
+        processed = _preprocess_signal_for_peak_detection(
+            arr, apply_baseline_correction=False
+        )
+        signal_to_check = processed["smoothed"] if use_smoothed else arr
         peaks, _ = _detect_peaks_with_consistent_parameters(
-            processed['smoothed'], 
-            sp_params.noise_prominence_factor.value * processed['noise']
+            signal_to_check,
+            sp_params.noise_prominence_factor.value * processed["noise"],
         )
         return np.array([len(peaks)])
 
+    def _raw_num_peaks(arr: np.ndarray, prominence: float) -> np.ndarray:
+            """Count the number of peaks in the signal using consistent preprocessing."""
+            processed = _preprocess_signal_for_peak_detection(arr)
+            peaks, _ = _detect_peaks_with_consistent_parameters(
+                processed['smoothed'], 
+                sp_params.noise_prominence_factor.value * processed['noise']
+            )
+            return np.array([len(peaks)])
+
     def _main_peak_snr(arr: np.ndarray, prominence: float) -> np.ndarray:
         """Calculate signal-to-noise ratio of the main peak."""
-        processed = _preprocess_signal_for_peak_detection(arr)
+        processed = _preprocess_signal_for_peak_detection(
+            arr, apply_baseline_correction=False
+        )
         peaks, _ = _detect_peaks_with_consistent_parameters(
             processed['smoothed'], 
             sp_params.noise_prominence_factor.value * processed['noise']
@@ -209,7 +231,9 @@ def peaks_dips(
 
     def _main_peak_asymmetry_skew(arr: np.ndarray, prominence: float) -> np.ndarray:
         """Calculate asymmetry and skewness of the main peak."""
-        processed = _preprocess_signal_for_peak_detection(arr)
+        processed = _preprocess_signal_for_peak_detection(
+            arr, apply_baseline_correction=False
+        )
         peaks, _ = _detect_peaks_with_consistent_parameters(
             processed['smoothed'], 
             sp_params.noise_prominence_factor.value * processed['noise']
@@ -244,7 +268,9 @@ def peaks_dips(
         artifact_prominence_factor: float = 2.0
     ) -> np.ndarray:
         """Detect OPX bandwidth artifacts around the main dip."""
-        processed = _preprocess_signal_for_peak_detection(arr)
+        processed = _preprocess_signal_for_peak_detection(
+            arr, apply_baseline_correction=False
+        )
         
         # Find main dip (minimum)
         main_idx = np.argmin(processed['smoothed'])
@@ -307,6 +333,15 @@ def peaks_dips(
         da,
         prominence_factor * std,
         input_core_dims=[[dim], []],
+        kwargs={"use_smoothed": True},
+        output_core_dims=[[]],
+        vectorize=True,
+    )
+    raw_num_peaks = xr.apply_ufunc(
+        _raw_num_peaks,
+        da,
+        prominence_factor * std,
+        input_core_dims=[[dim], []],
         output_core_dims=[[]],
         vectorize=True,
     )
@@ -364,6 +399,7 @@ def peaks_dips(
             peak_amp.rename("amplitude"),
             base_line.rename("base_line"),
             num_peaks.rename("num_peaks"),
+            raw_num_peaks.rename("raw_num_peaks"),
             snr.rename("snr"),
             xr.DataArray(asymmetry_skew[..., 0], dims=peak_position.dims).rename("asymmetry"),
             xr.DataArray(asymmetry_skew[..., 1], dims=peak_position.dims).rename("skewness"),
