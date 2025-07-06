@@ -203,6 +203,13 @@ class S21Resonator:
     _ResonatorData = namedtuple("ResonatorData", ["freq", "signal", "phase"])
 
     def __init__(self, frequencies: NDArray, s21_complex: NDArray):
+        """Initializes the S21Resonator fitter.
+
+        Args:
+            frequencies (NDArray): The frequency points of the resonator scan.
+            s21_complex (NDArray): The complex S21 data corresponding to the
+                frequencies.
+        """
         self.frequencies = np.asarray(frequencies)
         self.s21_complex = np.asarray(s21_complex)
         self.fit_params = None
@@ -210,12 +217,19 @@ class S21Resonator:
         self.quality_metrics = None
 
     def fit(self) -> dict:
-        """
-        Performs the S21 fit and assesses its quality.
+        """Performs the S21 fit and assesses its quality.
+
+        This method executes the full fitting routine, which includes estimating
+        and removing cable delay, performing a circle fit to find the resonance
+        circle, and then fitting the phase response to extract the resonator
+        parameters. Finally, it assesses the fit quality.
 
         Returns:
-            dict: A dictionary containing the readable fitted parameters and
-                  goodness-of-fit metrics (RMSE and R-squared).
+            Optional[dict]: A dictionary containing the readable fitted parameters
+            and goodness-of-fit metrics (RMSE and R-squared). The parameters include
+            'frequency', 'fwhm', 'loaded_q', 'coupling_q', 'internal_q',
+            'phi_mismatch_rad', 'amplitude_attenuation', 'phase_shift_rad',
+            and 'cable_delay_s'. Returns None if the fitting fails.
         """
         data_to_fit = self._ResonatorData(
             freq=self.frequencies,
@@ -262,15 +276,15 @@ class S21Resonator:
             return None
             
     def assess_fit_quality(self) -> dict:
-        """
-        Calculates quantitative metrics for the goodness of fit.
+        """Calculates quantitative metrics for the goodness of fit.
 
         This method calculates the Root Mean Square Error (RMSE), R-squared,
-        and several other sophisticated metrics for the complex fit.
+        and Normalized Root Mean Square Error (NRMSE) for the complex fit.
 
         Returns:
-            dict: A dictionary containing fit quality metrics. Returns None
-                  if the fit has not been performed.
+            Optional[dict]: A dictionary containing fit quality metrics: 'rmse',
+            'r_squared', and 'nrmse'. Returns None if the fit has not been
+            performed.
         """
         if self.full_s21_model is None:
             print("Fit must be performed before assessing quality.")
@@ -300,64 +314,38 @@ class S21Resonator:
             "nrmse": nrmse,
         }
 
-    def plot(self, title_suffix: str = "", flatten_phase: bool = True):
-        """
-        Plots the raw data and the fit results.
+    def _s21_model(self, frequencies: NDArray, resonance: float, q_loaded: float, q_coupling: float, phi: float = 0.0, amplitude: float = 1.0, alpha: float = 0.0, tau: float = 0.0) -> NDArray:
+        """Complex S21 resonator model.
 
         Args:
-            title_suffix (str): Text to append to the main figure title.
-            flatten_phase (bool): If True, removes the linear slope due to cable
-                                delay from the phase plot for clearer visualization
-                                of the resonance feature.
+            frequencies (NDArray): Frequencies at which to evaluate the model.
+            resonance (float): The resonance frequency.
+            q_loaded (float): The loaded quality factor.
+            q_coupling (float): The coupling quality factor.
+            phi (float, optional): The phase mismatch. Defaults to 0.0.
+            amplitude (float, optional): The amplitude attenuation. Defaults to 1.0.
+            alpha (float, optional): The phase shift. Defaults to 0.0.
+            tau (float, optional): The cable delay in seconds. Defaults to 0.0.
+
+        Returns:
+            NDArray: The complex S21 data calculated from the model.
         """
-        if self.fit_params is None: return
-        fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-        title = "Resonator Fit Results"
-        fig.suptitle(f"{title}: {title_suffix}" if title_suffix else title, fontsize=16)
-        freq_ghz = self.frequencies * 1e-9
-        
-        # Plot 1 & 2: IQ Plane and Magnitude (unchanged)
-        axes[0].plot(np.real(self.s21_complex), np.imag(self.s21_complex), 'o', ms=3, label='Data')
-        axes[0].plot(np.real(self.full_s21_model), np.imag(self.full_s21_model), '-', lw=2, label='Fit')
-        axes[0].set_title("IQ Plane"); axes[0].set_xlabel("I [a.u.]"); axes[0].set_ylabel("Q [a.u.]")
-        axes[0].axis('equal'); axes[0].grid(True); axes[0].legend()
-
-        axes[1].plot(freq_ghz, np.abs(self.s21_complex), 'o', ms=3, label='Data')
-        axes[1].plot(freq_ghz, np.abs(self.full_s21_model), '-', lw=2, label='Fit')
-        axes[1].set_title("Magnitude Response"); axes[1].set_xlabel("Frequency [GHz]"); axes[1].set_ylabel("Magnitude [a.u.]")
-        axes[1].grid(True); axes[1].legend()
-
-        if 'rmse' in self.fit_params and 'r_squared' in self.fit_params:
-            text_str = f'$R^2 = {self.fit_params["r_squared"]:.5f}$\nRMSE = {self.fit_params["rmse"]:.3g}'
-            props = dict(boxstyle='round', facecolor='wheat', alpha=0.6)
-            axes[1].text(0.05, 0.1, text_str, transform=axes[1].transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
-
-        # Plot 3: Phase Response (with new flatten_phase option)
-        raw_phase = np.unwrap(np.angle(self.s21_complex))
-        fit_phase = np.unwrap(np.angle(self.full_s21_model))
-        plot_title = "Phase Response"
-
-        if flatten_phase and 'cable_delay_s' in self.fit_params:
-            # Calculate the phase contribution from the fitted cable delay
-            cable_delay_rad_per_hz = -2 * np.pi * self.fit_params['cable_delay_s']
-            # We subtract the slope relative to the center of the frequency sweep
-            phase_slope = cable_delay_rad_per_hz * (self.frequencies - np.mean(self.frequencies))
-            
-            # Subtract the calculated slope from both data and fit
-            raw_phase -= phase_slope
-            fit_phase -= phase_slope
-            plot_title = "Phase Response (Slope Removed)"
-
-        axes[2].plot(freq_ghz, raw_phase, 'o', ms=3, label='Data')
-        axes[2].plot(freq_ghz, fit_phase, '-', lw=2, label='Fit')
-        axes[2].set_title(plot_title); axes[2].set_xlabel("Frequency [GHz]"); axes[2].set_ylabel("Phase [rad]")
-        axes[2].grid(True); axes[2].legend()
-        
-        plt.tight_layout(rect=[0, 0, 1, 0.95]); plt.show()
-
-    def _s21_model(self, frequencies: NDArray, resonance: float, q_loaded: float, q_coupling: float, phi: float = 0.0, amplitude: float = 1.0, alpha: float = 0.0, tau: float = 0.0) -> NDArray:
         return (amplitude * np.exp(1j * alpha) * np.exp(-2 * np.pi * 1j * frequencies * tau) * (1 - ((q_loaded / (np.abs(q_coupling))) * np.exp(1j * phi)) / (1 + 2j * q_loaded * (frequencies / resonance - 1))))
     def _s21_fit_routine(self, data: _ResonatorData) -> tuple[float, list[float], list[float]]:
+        """Core S21 fitting routine.
+
+        This private method orchestrates the multi-step fitting process.
+
+        Args:
+            data (_ResonatorData): A named tuple containing frequency and complex
+                S21 data.
+
+        Returns:
+            Tuple[float, List[float], List[float]]: A tuple containing:
+                - The resonance frequency.
+                - A list of the seven model parameters.
+                - A list of errors (currently placeholders).
+        """
         f_data, z_data = data.freq, data.signal * np.exp(1j * data.phase)
         num_points = int(len(f_data) * self._DELAY_FIT_PERCENTAGE / 100)
         tau = self._cable_delay(f_data, data.phase, num_points)
@@ -371,11 +359,42 @@ class S21Resonator:
         q_coupling = q_loaded / (2 * (r_0 / amplitude)) / np.cos(phi) if np.cos(phi) != 0 else 0
         return resonance, [resonance, q_loaded, q_coupling, phi, amplitude, alpha, tau], [0.0] * 7
     def _cable_delay(self, frequencies: NDArray, phases: NDArray, num_points: int) -> float:
+        """Estimates the cable delay from the phase response.
+
+        Args:
+            frequencies (NDArray): Frequency data.
+            phases (NDArray): Unwrapped phase data.
+            num_points (int): Number of points from each end of the data to use
+                for the linear fit.
+
+        Returns:
+            float: The estimated cable delay (tau) in seconds.
+        """
         freqs, phs = np.concatenate((frequencies[:num_points], frequencies[-num_points:])), np.concatenate((phases[:num_points], phases[-num_points:]))
         return np.polyfit(freqs, phs, 1)[0] / (-2 * np.pi)
     def _remove_cable_delay(self, frequencies: NDArray, z: NDArray, tau: float) -> NDArray:
+        """Removes the estimated cable delay from the complex data.
+
+        Args:
+            frequencies (NDArray): Frequency data.
+            z (NDArray): Complex S21 data.
+            tau (float): The estimated cable delay in seconds.
+
+        Returns:
+            NDArray: The complex S21 data with the cable delay removed.
+        """
         return z * np.exp(2j * np.pi * frequencies * tau)
     def _circle_fit(self, z: NDArray) -> tuple[complex, float]:
+        """Fits the complex data to a circle in the IQ plane.
+
+        Args:
+            z (NDArray): Complex S21 data (with cable delay removed).
+
+        Returns:
+            Tuple[complex, float]: A tuple containing:
+                - The center of the fitted circle (z_c) as a complex number.
+                - The radius of the fitted circle (r_0).
+        """
         z_copy = z.copy()
         x_norm, y_norm = 0.5 * (np.max(z_copy.real) + np.min(z_copy.real)), 0.5 * (np.max(z_copy.imag) + np.min(z_copy.imag))
         z_copy -= x_norm + 1j * y_norm
@@ -391,6 +410,16 @@ class S21Resonator:
         r_0 = 1 / (2 * np.abs(a[0]) * np.sqrt(a[1]**2 + a[2]**2 - 4 * a[0] * a[3]))
         return (complex(x_c * amp_norm + x_norm, y_c * amp_norm + y_norm), r_0 * amp_norm)
     def _phase_fit(self, frequencies: NDArray, phases: NDArray) -> NDArray:
+        """Fits the phase response to extract resonance and Q factor.
+
+        Args:
+            frequencies (NDArray): Frequency data.
+            phases (NDArray): Unwrapped phase data from the circle fit.
+
+        Returns:
+            NDArray: An array containing the fitted parameters:
+                (resonance_frequency, loaded_q, phase_offset_theta).
+        """
         roll_off = 2 * np.pi if np.max(phases) - np.min(phases) > self._PHASES_THRESHOLD_PERCENTAGE / 100 * 2 * np.pi else np.max(phases) - np.min(phases)
         phases_smooth = gaussian_filter1d(phases, self._STD_DEV_GAUSSIAN_KERNEL)
         resonance_guess = frequencies[np.argmax(np.abs(np.gradient(phases_smooth)))]
@@ -408,6 +437,39 @@ class S21Resonator:
         resonance_guess, q_loaded_guess = p_final
         p_final = leastsq(res_full, [resonance_guess, q_loaded_guess, theta_guess, tau_guess])[0]
         return p_final[:-1]
-    def _phase_dist(self, phases: NDArray) -> NDArray: return np.pi - np.abs(np.pi - np.abs(phases))
-    def _phase_centered_model(self, frequencies: NDArray, resonance: float, q_loaded: float, theta: float, tau: float = 0.0) -> NDArray: return (theta - 2 * np.pi * tau * (frequencies - resonance) + 2.0 * np.arctan(2.0 * q_loaded * (1.0 - frequencies / resonance)))
-    def _periodic_boundary(self, angle: float) -> float: return (angle + np.pi) % (2 * np.pi) - np.pi
+    def _phase_dist(self, phases: NDArray) -> NDArray:
+        """Calculates the distance for periodic phase data.
+
+        This is used as the residual function in the phase fit.
+
+        Args:
+            phases (NDArray): The phase differences.
+
+        Returns:
+            NDArray: The wrapped phase distances.
+        """
+        return np.pi - np.abs(np.pi - np.abs(phases))
+    def _phase_centered_model(self, frequencies: NDArray, resonance: float, q_loaded: float, theta: float, tau: float = 0.0) -> NDArray:
+        """The model for the phase response of the resonator.
+
+        Args:
+            frequencies (NDArray): Frequency data.
+            resonance (float): The resonance frequency.
+            q_loaded (float): The loaded quality factor.
+            theta (float): The phase offset.
+            tau (float, optional): The cable delay. Defaults to 0.0.
+
+        Returns:
+            NDArray: The modeled phase response.
+        """
+        return (theta - 2 * np.pi * tau * (frequencies - resonance) + 2.0 * np.arctan(2.0 * q_loaded * (1.0 - frequencies / resonance)))
+    def _periodic_boundary(self, angle: float) -> float:
+        """Wraps an angle to the interval [-pi, pi].
+
+        Args:
+            angle (float): The input angle in radians.
+
+        Returns:
+            float: The wrapped angle in radians.
+        """
+        return (angle + np.pi) % (2 * np.pi) - np.pi
