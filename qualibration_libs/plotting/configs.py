@@ -391,6 +391,7 @@ class PlotStyling(BaseModel):
     plotly_colorbar_x_offset: float = 0.03
     plotly_colorbar_width: float = 0.02
     plotly_colorbar_height_ratio: float = 0.90
+    colorbar_config: ColorbarConfig = Field(default_factory=ColorbarConfig)
 
 
 # Configuration for the phase vs. frequency plot
