@@ -745,10 +745,8 @@ def circle_fit_s21_resonator_model(dataset: xr.Dataset):
 
         if fit_params:
             results[qubit] = fit_params
-            # print("S21 Fit successful.")
             fitters[qubit] = fitter
         else:
-            print("S21 Fit failed.")
             results[qubit] = {"fit_parameters": None}
 
     return results, fitters
