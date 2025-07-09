@@ -69,6 +69,30 @@ class QubitGrid:
     def __init__(
         self, ds: xr.Dataset, grid_names: Union[list[str], str] = None, size: int = 3, create_figure: bool = True
     ):
+        (
+            grid_indices,
+            grid_name_mapping,
+            shape,
+            min_grid_col,
+            max_grid_row,
+        ) = self._initialize_grid_layout(ds, grid_names)
+
+        self._setup_plotly_attributes(
+            ds, grid_name_mapping, shape, min_grid_col, max_grid_row
+        )
+
+        if create_figure:
+            self._setup_matplotlib_figure(
+                ds, grid_indices, grid_name_mapping, shape, min_grid_col, max_grid_row, size
+            )
+        else:
+            # For Plotly-only usage, set matplotlib attributes to None
+            self.fig = None
+            self.all_axes = None
+            self.axes = None
+            self.name_dicts = None
+
+    def _initialize_grid_layout(self, ds, grid_names):
         if grid_names:
             if type(grid_names) == str:
                 grid_names = [grid_names]
@@ -94,70 +118,68 @@ class QubitGrid:
         grid_col_idxs = [idx[0] for idx in grid_indices]
         min_grid_row = min(grid_row_idxs)
         min_grid_col = min(grid_col_idxs)
+        max_grid_row = max(grid_row_idxs)
         shape = (
-            max(grid_row_idxs) - min_grid_row + 1,
+            max_grid_row - min_grid_row + 1,
             max(grid_col_idxs) - min_grid_col + 1,
         )
+        return grid_indices, grid_name_mapping, shape, min_grid_col, max_grid_row
 
-        # Only create matplotlib figure if requested
-        if create_figure:
-            figure, all_axes = plt.subplots(
-                *shape, figsize=(shape[1] * size, shape[0] * size), squeeze=False
-            )
+    def _setup_matplotlib_figure(
+        self, ds, grid_indices, grid_name_mapping, shape, min_grid_col, max_grid_row, size
+    ):
+        figure, all_axes = plt.subplots(
+            *shape, figsize=(shape[1] * size, shape[0] * size), squeeze=False
+        )
 
-            grid_axes = []
-            qubit_names = []
+        grid_axes = []
+        qubit_names = []
 
-            for row, axis_row in enumerate(all_axes):
-                for col, ax in enumerate(axis_row):
-                    grid_row = max(grid_row_idxs) - row
-                    grid_col = col + min_grid_col
-                    if (grid_col, grid_row) in grid_indices:
-                        grid_axes.append(ax)
-                        name = grid_name_mapping.get((grid_col, grid_row))
-                        if name is not None:
-                            qubit_names.append(grid_name_mapping[(grid_col, grid_row)])
-                    else:
-                        ax.axis("off")
+        for row, axis_row in enumerate(all_axes):
+            for col, ax in enumerate(axis_row):
+                grid_row = max_grid_row - row
+                grid_col = col + min_grid_col
+                if (grid_col, grid_row) in grid_indices:
+                    grid_axes.append(ax)
+                    name = grid_name_mapping.get((grid_col, grid_row))
+                    if name is not None:
+                        qubit_names.append(grid_name_mapping[(grid_col, grid_row)])
+                else:
+                    ax.axis("off")
 
-            self.fig = figure
-            self.all_axes = all_axes
-            self.axes = [grid_axes]
-            self.name_dicts = [[{ds.qubit.name: value} for value in qubit_names]]
-        else:
-            # For Plotly-only usage, set matplotlib attributes to None
-            self.fig = None
-            self.all_axes = None
-            self.axes = None
-            self.name_dicts = None
-        
+        self.fig = figure
+        self.all_axes = all_axes
+        self.axes = [grid_axes]
+        self.name_dicts = [[{ds.qubit.name: value} for value in qubit_names]]
+
+    def _setup_plotly_attributes(
+        self, ds, grid_name_mapping, shape, min_grid_col, max_grid_row
+    ):
         # Add Plotly-compatible attributes
         self.n_rows = shape[0]
         self.n_cols = shape[1]
         self.grid_positions = []
         self.plotly_name_dicts = []
         self.grid_order = []
-        
+
         # Build grid order and positions for Plotly compatibility
         for row in range(self.n_rows):
             for col in range(self.n_cols):
-                grid_row = max(grid_row_idxs) - row
+                grid_row = max_grid_row - row
                 grid_col = col + min_grid_col
                 qubit_name = grid_name_mapping.get((grid_col, grid_row))
                 self.grid_order.append(qubit_name)
-                
+
                 if qubit_name is not None:
                     self.plotly_name_dicts.append({ds.qubit.name: qubit_name})
                     self.grid_positions.append((row, col))
-    
+
     def plotly_grid_iter(self) -> Iterator:
         """
         Generator to iterate over the QubitGrid for Plotly compatibility, yielding (grid_position, name_dict) for each qubit.
         Returns the actual grid position (row, col) rather than sequential index to preserve layout.
         """
-        for i, name_dict in enumerate(self.plotly_name_dicts):
-            row, col = self.grid_positions[i]
-            yield (row, col), name_dict
+        return iter(zip(self.grid_positions, self.plotly_name_dicts))
     
     def get_subplot_titles(self, title_template: str = "Qubit {qubit}") -> List[str]:
         """

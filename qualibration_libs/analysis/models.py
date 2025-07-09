@@ -1,3 +1,4 @@
+import traceback
 from collections import namedtuple
 
 import matplotlib.pyplot as plt
@@ -269,7 +270,6 @@ class S21Resonator:
             return self.fit_params
             
         except Exception as e:
-            import traceback
             print(f"An error occurred during fitting: {e}")
             traceback.print_exc()
             self.fit_params = None
