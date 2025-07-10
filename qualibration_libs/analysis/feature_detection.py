@@ -10,7 +10,7 @@ from scipy.stats import skew
 
 from .parameters import analysis_config_manager
 
-__all__ = ["peaks_dips"]
+__all__ = ["peaks_dips", "find_all_peaks_from_signal", "estimate_width_from_curvature"]
 
 # Access signal processing parameters from the config object
 sp_params = analysis_config_manager.get("common_signal_processing")
@@ -102,6 +102,64 @@ def _get_savgol_window_length(data_length: int, window_size: int, polyorder: int
         else:
             return -1  # Not possible to find a valid window
     return window_length
+
+
+def find_all_peaks_from_signal(signal: np.ndarray, prominence_factor: float = 2.0):
+    """
+    Finds all peaks in a signal using consistent preprocessing and returns them.
+
+    Args:
+        signal (np.ndarray): The input signal array.
+        prominence_factor (float): Factor to determine peak prominence relative to noise.
+
+    Returns:
+        tuple: A tuple containing:
+            - peaks (np.ndarray): Indices of the detected peaks.
+            - properties (dict): Dictionary of peak properties from `scipy.signal.find_peaks`.
+            - smoothed (np.ndarray): The smoothed signal after baseline correction.
+            - baseline (np.ndarray): The detected baseline of the signal.
+    """
+    processed = _preprocess_signal_for_peak_detection(signal)
+    prominence = prominence_factor * processed["noise"]
+    peaks, properties = _detect_peaks_with_consistent_parameters(
+        processed["smoothed"], prominence
+    )
+    return peaks, properties, processed["smoothed"], processed["baseline"]
+
+
+def estimate_width_from_curvature(signal: np.ndarray, peak_idx: int) -> float:
+    """
+    Estimates the FWHM of a peak from its curvature (2nd derivative).
+    
+    This method finds the inflection points of a peak by finding the minima
+    of its second derivative on either side of the peak's center. The distance
+    between these inflection points gives an estimate of the peak's width.
+    
+    Args:
+        signal: The input signal array containing the peak.
+        peak_idx: The index of the peak's maximum in the signal array.
+        
+    Returns:
+        The estimated width of the peak in samples (float). Returns np.nan if
+        the width cannot be determined.
+    """
+    if peak_idx <= 0 or peak_idx >= len(signal) - 1:
+        return np.nan
+        
+    curvature = np.gradient(np.gradient(signal))
+    
+    # For an inverted dip (which is a peak), inflection points are where curvature is at a minimum.
+    left_curvature = curvature[:peak_idx]
+    right_curvature = curvature[peak_idx + 1:]
+
+    if len(left_curvature) == 0 or len(right_curvature) == 0:
+        return np.nan
+
+    left_infl_idx = np.argmin(left_curvature)
+    right_infl_idx = np.argmin(right_curvature) + peak_idx + 1
+    
+    width_in_samples = right_infl_idx - left_infl_idx
+    return float(width_in_samples)
 
 
 def peaks_dips(
@@ -243,40 +301,6 @@ def peaks_dips(
         skewness = skew(window) if len(window) > sp_params.min_skew_window_size.value else np.nan
         return np.array([asymmetry_ratio, skewness])
 
-    def _opx_bandwidth_artifact(
-        arr: np.ndarray, 
-        prominence: float, 
-        window: int = 20, 
-        exclusion: int = 3, 
-        artifact_prominence_factor: float = 2.0
-    ) -> np.ndarray:
-        """Detect OPX bandwidth artifacts around the main dip."""
-        processed = _preprocess_signal_for_peak_detection(
-            arr, apply_baseline_correction=False
-        )
-        
-        # Find main dip (minimum)
-        main_idx = np.argmin(processed['smoothed'])
-        
-        # Define window around main dip, excluding center
-        start = max(0, main_idx - window)
-        end = min(len(processed['smoothed']), main_idx + window + 1)
-        exclusion_start = max(start, main_idx - exclusion)
-        exclusion_end = min(end, main_idx + exclusion + 1)
-        
-        # Search for local maxima (peaks) in the window, excluding the dip center
-        search_region = np.concatenate([
-            processed['smoothed'][start:exclusion_start],
-            processed['smoothed'][exclusion_end:end]
-        ])
-        
-        if len(search_region) == 0:
-            return np.array([False])
-            
-        # Find peaks in the search region
-        peaks, _ = find_peaks(search_region, prominence=artifact_prominence_factor * processed['noise'])
-        return np.array([len(peaks) > 0])
-
     peaks_inversion = (
         2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim))
         - 1
@@ -366,15 +390,6 @@ def peaks_dips(
         vectorize=True,
     )
 
-    opx_bandwidth_artifact = xr.apply_ufunc(
-        _opx_bandwidth_artifact,
-        da,
-        prominence_factor * std,
-        input_core_dims=[[dim], []],
-        output_core_dims=[[]],
-        vectorize=True,
-    )
-
     return xr.merge(
         [
             peak_position.rename("position"),
@@ -386,7 +401,6 @@ def peaks_dips(
             snr.rename("snr"),
             xr.DataArray(asymmetry_skew[..., 0], dims=peak_position.dims).rename("asymmetry"),
             xr.DataArray(asymmetry_skew[..., 1], dims=peak_position.dims).rename("skewness"),
-            opx_bandwidth_artifact.rename("opx_bandwidth_artifact"),
         ]
     )
 
