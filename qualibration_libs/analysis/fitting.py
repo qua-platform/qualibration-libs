@@ -232,30 +232,23 @@ def fit_oscillation(da, dim, method="qiskit_curve_analysis"):
         y(t) = a * cos(2π * f * t + phi) + offset
     using non-linear least squares optimization with retry mechanism for robustness.
     
-    Parameters
-    ----------
-    da : xarray.DataArray
-        The input data array containing the oscillatory signal to be fitted.
-    dim : str
-        The name of the dimension along which to perform the fit.
-    method : str, optional
-        Parameter estimation method to use. Options are:
-        - "qiskit_curve_analysis": Uses qiskit curve analysis for parameter estimation (default)
-        - "fft_based": Uses FFT-based parameter estimation
+    Args:
+        da: The input data array containing the oscillatory signal to be fitted.
+        dim: The name of the dimension along which to perform the fit.
+        method: Parameter estimation method to use. Options are:
+            - "qiskit_curve_analysis": Uses qiskit curve analysis for parameter estimation (default)
+            - "fft_based": Uses FFT-based parameter estimation
         
-    Returns
-    -------
-    xarray.DataArray
+    Returns:
         An array containing the fitted parameters for each slice along the specified dimension.
         The output has a new dimension 'fit_vals' with coordinates: ['a', 'f', 'phi', 'offset'],
         corresponding to amplitude, frequency, phase, and offset of the fitted oscillation.
         
-    Notes
-    -----
-    - The function supports two parameter estimation methods: curve analysis and FFT-based
-    - Includes retry mechanism for improved robustness when initial fit fails (qiskit_curve_analysis only)
-    - The fitting is performed using a model function (oscillation) and the lmfit library
-    - If the fit fails, diagnostic plots are shown for debugging
+    Notes:
+        - The function supports two parameter estimation methods: curve analysis and FFT-based
+        - Includes retry mechanism for improved robustness when initial fit fails (qiskit_curve_analysis only)
+        - The fitting is performed using a model function (oscillation) and the lmfit library
+        - If the fit fails, diagnostic plots are shown for debugging
     """
 
     def get_freq_and_amp_and_phase(da, dim):
@@ -417,16 +410,11 @@ def calculate_quality_metrics(
     """
     Calculate fit quality metrics: RMSE, NRMSE, and R-squared.
 
-    Parameters
-    ----------
-    raw_data : np.ndarray
-        The raw measurement data.
-    fitted_data : np.ndarray
-        The data from the Lorentzian fit.
+    Args:
+        raw_data: The raw measurement data.
+        fitted_data: The data from the Lorentzian fit.
 
-    Returns
-    -------
-    Dict[str, float]
+    Returns:
         A dictionary containing 'rmse', 'nrmse', and 'r_squared'.
     """
     residuals = raw_data - fitted_data
@@ -720,6 +708,15 @@ def calculate_quality_metrics(
 def circle_fit_s21_resonator_model(dataset: xr.Dataset):
     """
     Performs a full S21 circle fit for each qubit in the raw xarray Dataset.
+    
+    Args:
+        dataset: xarray Dataset containing the required data variables 'full_freq', 'I', and 'Q'
+            with coordinates including 'qubit'.
+    
+    Returns:
+        A tuple containing:
+            - results: Dictionary mapping qubit names to their fit parameters
+            - fitters: Dictionary mapping qubit names to their S21Resonator fitter objects
     """
     required_vars = ['full_freq', 'I', 'Q']
     if not all(var in dataset for var in required_vars):

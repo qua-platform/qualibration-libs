@@ -6,18 +6,12 @@ from scipy.ndimage import uniform_filter1d
 def get_safe_savgol_window_length(data_length: int, window_size: int, polyorder: int) -> int:
     """Safely determine the window length for savgol_filter.
 
-    Parameters
-    ----------
-    data_length : int
-        The length of the data array.
-    window_size : int
-        The desired window size.
-    polyorder : int
-        The polynomial order for the filter.
+    Args:
+        data_length: The length of the data array.
+        window_size: The desired window size.
+        polyorder: The polynomial order for the filter.
 
-    Returns
-    -------
-    int
+    Returns:
         A valid window length, or -1 if no valid length can be found.
     """
     # Ensure window_length is odd and smaller than data_length
@@ -41,14 +35,10 @@ def compute_signal_to_noise_ratio(signal: np.ndarray) -> float:
     """
     Compute signal-to-noise ratio for a 1D signal array.
 
-    Parameters
-    ----------
-    signal : np.ndarray
-        1D array of signal values
+    Args:
+        signal: 1D array of signal values
 
-    Returns
-    -------
-    float
+    Returns:
         Signal-to-noise ratio
     """
     if signal.size < 2:

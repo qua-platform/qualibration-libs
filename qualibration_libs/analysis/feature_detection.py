@@ -26,14 +26,11 @@ def _preprocess_signal_for_peak_detection(
     Savitzky-Golay filter, and estimates noise from the residual. All functions
     use identical preprocessing parameters to ensure consistency.
     
-    Parameters
-    ----------
-    arr : np.ndarray
-        Input signal array to preprocess
+    Args:
+        arr: Input signal array to preprocess
+        apply_baseline_correction: Whether to apply baseline correction
         
-    Returns
-    -------
-    Dict[str, np.ndarray]
+    Returns:
         Dictionary containing:
         - 'smoothed': Baseline-corrected and smoothed signal
         - 'noise': Estimated noise level from residual
@@ -74,16 +71,11 @@ def _detect_peaks_with_consistent_parameters(signal: np.ndarray, prominence: flo
     """
     Detect peaks using consistent parameters across all detection functions.
     
-    Parameters
-    ----------
-    signal : np.ndarray
-        Signal to analyze for peaks
-    prominence : float
-        Minimum prominence threshold for peak detection
+    Args:
+        signal: Signal to analyze for peaks
+        prominence: Minimum prominence threshold for peak detection
         
-    Returns
-    -------
-    Tuple[np.ndarray, Dict]
+    Returns:
         Peaks and properties from scipy.signal.find_peaks
     """
     return find_peaks(
@@ -119,22 +111,14 @@ def peaks_dips(
     Searches in a data array along the specified dimension for the most prominent peak or dip, and returns a xarray
     dataset with its location, width, and amplitude, along with a smooth baseline from which the peak emerges.
 
-    Parameters
-    ----------
-    da : xr.DataArray
-        The input xarray DataArray.
-    dim : str
-        The dimension along which to perform the fit.
-    prominence_factor : float
-        How prominent the peak must be compared with noise, as defined by the standard deviation.
-    number : int
-        Determines which peak the function returns. 1 is the most prominent peak, 2 is the second most prominent, etc.
-    remove_baseline : bool, optional
-        If True, the function will remove the baseline from the data before finding the peak (default is False).
+    Args:
+        da: The input xarray DataArray.
+        dim: The dimension along which to perform the fit.
+        prominence_factor: How prominent the peak must be compared with noise, as defined by the standard deviation.
+        number: Determines which peak the function returns. 1 is the most prominent peak, 2 is the second most prominent, etc.
+        remove_baseline: If True, the function will remove the baseline from the data before finding the peak (default is False).
 
-    Returns
-    -------
-    xr.Dataset
+    Returns:
         A dataset with the following values:
         - 'amp': Peak amplitude above the base.
         - 'position': Peak location along 'dim'.
@@ -142,10 +126,9 @@ def peaks_dips(
         - 'baseline': A vector whose dimension is the same as 'dim'. It is the baseline from which the peak is found.
           This is important for fitting resonator spectroscopy measurements.
 
-    Notes
-    -----
-    - The function identifies the most prominent peak or dip in the data array along the specified dimension.
-    - The baseline is smoothed and subtracted if `remove_baseline` is True.
+    Notes:
+        - The function identifies the most prominent peak or dip in the data array along the specified dimension.
+        - The baseline is smoothed and subtracted if `remove_baseline` is True.
     """
 
     def _baseline_als(y, lam, p, niter=10):

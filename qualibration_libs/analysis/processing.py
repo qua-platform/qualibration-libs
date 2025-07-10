@@ -7,14 +7,10 @@ import numpy as np
 def convert_power_strings_to_numeric(power_values):
     """Convert power string values to numeric values.
 
-    Parameters
-    ----------
-    power_values : list or np.ndarray
-        A list or array of power values, which may be strings.
+    Args:
+        power_values: A list or array of power values, which may be strings.
 
-    Returns
-    -------
-    np.ndarray
+    Returns:
         An array of numeric power values.
     """
     if len(power_values) == 0:
