@@ -10,7 +10,16 @@ from scipy.stats import skew
 
 from .parameters import analysis_config_manager
 
-__all__ = ["peaks_dips"]
+__all__ = [
+    "peaks_dips",
+    "find_all_peaks_from_signal",
+    "estimate_width_from_curvature",
+    "is_peak_shape_distorted",
+    "is_peak_too_wide",
+    "detect_chevron_modulation",
+    "has_resonator_trace",
+    "has_insufficient_flux_modulation",
+]
 
 # Access signal processing parameters from the config object
 sp_params = analysis_config_manager.get("common_signal_processing")
@@ -26,14 +35,11 @@ def _preprocess_signal_for_peak_detection(
     Savitzky-Golay filter, and estimates noise from the residual. All functions
     use identical preprocessing parameters to ensure consistency.
     
-    Parameters
-    ----------
-    arr : np.ndarray
-        Input signal array to preprocess
+    Args:
+        arr: Input signal array to preprocess
+        apply_baseline_correction: Whether to apply baseline correction
         
-    Returns
-    -------
-    Dict[str, np.ndarray]
+    Returns:
         Dictionary containing:
         - 'smoothed': Baseline-corrected and smoothed signal
         - 'noise': Estimated noise level from residual
@@ -74,16 +80,11 @@ def _detect_peaks_with_consistent_parameters(signal: np.ndarray, prominence: flo
     """
     Detect peaks using consistent parameters across all detection functions.
     
-    Parameters
-    ----------
-    signal : np.ndarray
-        Signal to analyze for peaks
-    prominence : float
-        Minimum prominence threshold for peak detection
+    Args:
+        signal: Signal to analyze for peaks
+        prominence: Minimum prominence threshold for peak detection
         
-    Returns
-    -------
-    Tuple[np.ndarray, Dict]
+    Returns:
         Peaks and properties from scipy.signal.find_peaks
     """
     return find_peaks(
@@ -112,6 +113,243 @@ def _get_savgol_window_length(data_length: int, window_size: int, polyorder: int
     return window_length
 
 
+def find_all_peaks_from_signal(signal: np.ndarray, prominence_factor: float = 2.0):
+    """
+    Finds all peaks in a signal using consistent preprocessing and returns them.
+
+    Args:
+        signal (np.ndarray): The input signal array.
+        prominence_factor (float): Factor to determine peak prominence relative to noise.
+
+    Returns:
+        tuple: A tuple containing:
+            - peaks (np.ndarray): Indices of the detected peaks.
+            - properties (dict): Dictionary of peak properties from `scipy.signal.find_peaks`.
+            - smoothed (np.ndarray): The smoothed signal after baseline correction.
+            - baseline (np.ndarray): The detected baseline of the signal.
+    """
+    processed = _preprocess_signal_for_peak_detection(signal)
+    prominence = prominence_factor * processed["noise"]
+    peaks, properties = _detect_peaks_with_consistent_parameters(
+        processed["smoothed"], prominence
+    )
+    return peaks, properties, processed["smoothed"], processed["baseline"]
+
+
+def estimate_width_from_curvature(signal: np.ndarray, peak_idx: int) -> float:
+    """
+    Estimates the FWHM of a peak from its curvature (2nd derivative).
+    
+    This method finds the inflection points of a peak by finding the minima
+    of its second derivative on either side of the peak's center. The distance
+    between these inflection points gives an estimate of the peak's width.
+    
+    Args:
+        signal: The input signal array containing the peak.
+        peak_idx: The index of the peak's maximum in the signal array.
+        
+    Returns:
+        The estimated width of the peak in samples (float). Returns np.nan if
+        the width cannot be determined.
+    """
+    if peak_idx <= 0 or peak_idx >= len(signal) - 1:
+        return np.nan
+        
+    curvature = np.gradient(np.gradient(signal))
+    
+    # For an inverted dip (which is a peak), inflection points are where curvature is at a minimum.
+    left_curvature = curvature[:peak_idx]
+    right_curvature = curvature[peak_idx + 1:]
+
+    if len(left_curvature) == 0 or len(right_curvature) == 0:
+        return np.nan
+
+    left_infl_idx = np.argmin(left_curvature)
+    right_infl_idx = np.argmin(right_curvature) + peak_idx + 1
+    
+    width_in_samples = right_infl_idx - left_infl_idx
+    return float(width_in_samples)
+
+
+def is_peak_shape_distorted(
+    asymmetry: float,
+    skewness: float,
+    nrmse: float,
+    min_asymmetry: float,
+    max_asymmetry: float,
+    max_skewness: float,
+    nrmse_threshold: float,
+) -> bool:
+    """
+    Check if peak shape indicates distortion based on asymmetry and skewness.
+
+    Args:
+        asymmetry : float
+            Peak asymmetry value
+        skewness : float
+            Peak skewness value
+        nrmse : float
+            Normalized Root Mean Square Error
+        min_asymmetry : float
+            Minimum allowed asymmetry
+        max_asymmetry : float
+            Maximum allowed asymmetry
+        max_skewness : float
+            Maximum allowed skewness
+        nrmse_threshold : float
+            NRMSE threshold for a good fit
+
+    Returns:
+        bool
+            True if peak shape is distorted
+    """
+    asymmetry_bad = (
+        asymmetry is not None and (asymmetry < min_asymmetry or asymmetry > max_asymmetry)
+    )
+    skewness_bad = skewness is not None and abs(skewness) > max_skewness
+    poor_geom_fit = nrmse > nrmse_threshold
+
+    return asymmetry_bad or skewness_bad or poor_geom_fit
+
+
+def is_peak_too_wide(
+    fwhm: float,
+    sweep_span: float,
+    snr: float,
+    distorted_fraction_low_snr: float,
+    snr_for_distortion: float,
+    distorted_fraction_high_snr: float,
+    fwhm_absolute_threshold_hz: float,
+) -> bool:
+    """
+    Check if peak is too wide relative to sweep or absolutely.
+
+    Args:
+        fwhm : float
+            Full width at half maximum
+        sweep_span : float
+            Total sweep span
+        snr : float
+            Signal-to-noise ratio
+        distorted_fraction_low_snr : float
+            Distorted fraction for low SNR
+        snr_for_distortion : float
+            SNR threshold to determine which distorted fraction to use
+        distorted_fraction_high_snr : float
+            Distorted fraction for high SNR
+        fwhm_absolute_threshold_hz : float
+            Absolute FWHM threshold in Hz
+
+    Returns:
+        bool
+            True if peak is too wide
+    """
+    # Determine distortion threshold based on SNR
+    distorted_fraction = (
+        distorted_fraction_low_snr
+        if snr < snr_for_distortion
+        else distorted_fraction_high_snr
+    )
+
+    # Check relative width
+    relative_width_bad = sweep_span > 0 and (fwhm / sweep_span > distorted_fraction)
+
+    # Check absolute width
+    absolute_width_bad = fwhm > fwhm_absolute_threshold_hz
+
+    return relative_width_bad or absolute_width_bad
+
+
+def detect_chevron_modulation(
+    signal_2d: np.ndarray, threshold: float
+) -> bool:
+    """
+    Detect chevron-like modulation in 2D signal data.
+
+    Args:
+        signal_2d : np.ndarray
+            2D array of signal values
+        threshold : float
+            Minimum modulation threshold
+
+    Returns:
+        bool
+            True if chevron modulation detected
+    """
+    if signal_2d.ndim != 2:
+        return False
+
+    # Calculate peak-to-peak amplitude across frequency axis
+    ptps = np.ptp(signal_2d, axis=0)
+    modulation_range = np.ptp(ptps)
+    avg_ptp = np.mean(ptps)
+
+    # Check if modulation is significant
+    return (modulation_range / (avg_ptp + 1e-12)) > threshold
+
+
+def has_resonator_trace(
+    ds: xr.Dataset,
+    qubit: str,
+    smooth_sigma: float,
+    dip_threshold: float,
+    gradient_threshold: float,
+    var_name: str = "IQ_abs",
+    freq_dim: str = "detuning",
+    epsilon: float = 1e-9,
+) -> bool:
+    """Detect whether a resonator-like frequency trace exists."""
+    try:
+        # Extract and normalize data
+        da = ds[var_name].sel(qubit=qubit)
+        da_norm = da / (da.mean(dim=freq_dim) + epsilon)
+
+        # Get minimum trace across frequency sweep
+        min_trace = da_norm.min(dim=freq_dim).values
+
+        # Smooth to suppress noise
+        min_trace_smooth = savgol_filter(min_trace, int(smooth_sigma * 5) | 1, 2)
+
+        # Calculate peak-to-peak dip depth and variation
+        dip_depth = np.max(min_trace_smooth) - np.min(min_trace_smooth)
+        gradient = np.max(np.abs(np.gradient(min_trace_smooth)))
+
+        return (dip_depth > dip_threshold) and (gradient > gradient_threshold)
+    except:
+        return False
+
+
+def has_insufficient_flux_modulation(
+    ds: xr.Dataset,
+    qubit: str,
+    smooth_sigma: float,
+    min_modulation_hz: float,
+) -> bool:
+    """Detect whether the flux modulation of the resonator is too small."""
+    try:
+        # Calculate peak frequency from IQ_abs minimum
+        peak_idx = ds.IQ_abs.argmin(dim="detuning")
+        peak_freq = ds.full_freq.isel(detuning=peak_idx)
+        peak_freq = peak_freq.transpose("qubit", "flux_bias")
+
+        pf = peak_freq.sel(qubit=qubit)
+        if pf.isnull().all():
+            return True
+
+        freq_vals = pf.values
+        freq_vals = freq_vals[~np.isnan(freq_vals)]
+
+        if freq_vals.size < 2:
+            return True
+
+        smoothed = savgol_filter(freq_vals, int(smooth_sigma * 5) | 1, 2)
+        modulation_range = np.max(smoothed) - np.min(smoothed)
+
+        return modulation_range < min_modulation_hz
+    except:
+        return True
+
+
 def peaks_dips(
     da, dim, prominence_factor=2, number=1, remove_baseline=True
 ) -> xr.Dataset:
@@ -119,22 +357,14 @@ def peaks_dips(
     Searches in a data array along the specified dimension for the most prominent peak or dip, and returns a xarray
     dataset with its location, width, and amplitude, along with a smooth baseline from which the peak emerges.
 
-    Parameters
-    ----------
-    da : xr.DataArray
-        The input xarray DataArray.
-    dim : str
-        The dimension along which to perform the fit.
-    prominence_factor : float
-        How prominent the peak must be compared with noise, as defined by the standard deviation.
-    number : int
-        Determines which peak the function returns. 1 is the most prominent peak, 2 is the second most prominent, etc.
-    remove_baseline : bool, optional
-        If True, the function will remove the baseline from the data before finding the peak (default is False).
+    Args:
+        da: The input xarray DataArray.
+        dim: The dimension along which to perform the fit.
+        prominence_factor: How prominent the peak must be compared with noise, as defined by the standard deviation.
+        number: Determines which peak the function returns. 1 is the most prominent peak, 2 is the second most prominent, etc.
+        remove_baseline: If True, the function will remove the baseline from the data before finding the peak (default is False).
 
-    Returns
-    -------
-    xr.Dataset
+    Returns:
         A dataset with the following values:
         - 'amp': Peak amplitude above the base.
         - 'position': Peak location along 'dim'.
@@ -142,10 +372,9 @@ def peaks_dips(
         - 'baseline': A vector whose dimension is the same as 'dim'. It is the baseline from which the peak is found.
           This is important for fitting resonator spectroscopy measurements.
 
-    Notes
-    -----
-    - The function identifies the most prominent peak or dip in the data array along the specified dimension.
-    - The baseline is smoothed and subtracted if `remove_baseline` is True.
+    Notes:
+        - The function identifies the most prominent peak or dip in the data array along the specified dimension.
+        - The baseline is smoothed and subtracted if `remove_baseline` is True.
     """
 
     def _baseline_als(y, lam, p, niter=10):
@@ -260,40 +489,6 @@ def peaks_dips(
         skewness = skew(window) if len(window) > sp_params.min_skew_window_size.value else np.nan
         return np.array([asymmetry_ratio, skewness])
 
-    def _opx_bandwidth_artifact(
-        arr: np.ndarray, 
-        prominence: float, 
-        window: int = 20, 
-        exclusion: int = 3, 
-        artifact_prominence_factor: float = 2.0
-    ) -> np.ndarray:
-        """Detect OPX bandwidth artifacts around the main dip."""
-        processed = _preprocess_signal_for_peak_detection(
-            arr, apply_baseline_correction=False
-        )
-        
-        # Find main dip (minimum)
-        main_idx = np.argmin(processed['smoothed'])
-        
-        # Define window around main dip, excluding center
-        start = max(0, main_idx - window)
-        end = min(len(processed['smoothed']), main_idx + window + 1)
-        exclusion_start = max(start, main_idx - exclusion)
-        exclusion_end = min(end, main_idx + exclusion + 1)
-        
-        # Search for local maxima (peaks) in the window, excluding the dip center
-        search_region = np.concatenate([
-            processed['smoothed'][start:exclusion_start],
-            processed['smoothed'][exclusion_end:end]
-        ])
-        
-        if len(search_region) == 0:
-            return np.array([False])
-            
-        # Find peaks in the search region
-        peaks, _ = find_peaks(search_region, prominence=artifact_prominence_factor * processed['noise'])
-        return np.array([len(peaks) > 0])
-
     peaks_inversion = (
         2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim))
         - 1
@@ -383,15 +578,6 @@ def peaks_dips(
         vectorize=True,
     )
 
-    opx_bandwidth_artifact = xr.apply_ufunc(
-        _opx_bandwidth_artifact,
-        da,
-        prominence_factor * std,
-        input_core_dims=[[dim], []],
-        output_core_dims=[[]],
-        vectorize=True,
-    )
-
     return xr.merge(
         [
             peak_position.rename("position"),
@@ -403,7 +589,6 @@ def peaks_dips(
             snr.rename("snr"),
             xr.DataArray(asymmetry_skew[..., 0], dims=peak_position.dims).rename("asymmetry"),
             xr.DataArray(asymmetry_skew[..., 1], dims=peak_position.dims).rename("skewness"),
-            opx_bandwidth_artifact.rename("opx_bandwidth_artifact"),
         ]
     )
 

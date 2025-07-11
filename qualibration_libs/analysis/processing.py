@@ -1,20 +1,18 @@
 
+import logging
 import re
 
 import numpy as np
+import xarray as xr
 
 
 def convert_power_strings_to_numeric(power_values):
     """Convert power string values to numeric values.
 
-    Parameters
-    ----------
-    power_values : list or np.ndarray
-        A list or array of power values, which may be strings.
+    Args:
+        power_values: A list or array of power values, which may be strings.
 
-    Returns
-    -------
-    np.ndarray
+    Returns:
         An array of numeric power values.
     """
     if len(power_values) == 0:
@@ -42,3 +40,25 @@ def convert_power_strings_to_numeric(power_values):
     except (ValueError, TypeError):
         # Fallback: use indices
         return np.arange(len(power_values), dtype=float)
+
+
+def calculate_sweep_span(fit: xr.Dataset) -> float:
+    """Calculate sweep span for relative comparisons."""
+    if "detuning" in fit.dims:
+        return float(fit.coords["detuning"].max() - fit.coords["detuning"].min())
+    if "full_freq" in fit.dims:
+        return float(fit.coords["full_freq"].max() - fit.coords["full_freq"].min())
+    return 0.0
+
+
+def extract_qubit_signal(fit: xr.Dataset, qubit: str) -> np.ndarray:
+    """Extract signal data for a specific qubit."""
+    if hasattr(fit, "I") and hasattr(fit.I, "sel"):
+        return fit.I.sel(qubit=qubit).values
+    elif hasattr(fit, "state") and hasattr(fit.state, "sel"):
+        return fit.state.sel(qubit=qubit).values
+    else:
+        logging.warning(
+            f"Could not find 'I' or 'state' data for qubit {qubit}. Returning zeros."
+        )
+        return np.zeros((2, 2))

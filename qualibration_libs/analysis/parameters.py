@@ -121,7 +121,17 @@ class ResonatorSpectroscopyQualityChecks(AnalysisParameterGroup):
     nrmse_threshold: Parameter = Parameter(
         value=0.3,
         description="Normalized Root Mean Square Error threshold for goodness-of-fit.",
-        used_in=["_is_peak_shape_distorted"]
+        used_in=["_is_peak_shape_distorted", "_determine_resonator_outcome"]
+    )
+    fit_window_radius_multiple: Parameter = Parameter(
+        value=1.5,
+        description="Multiple of the FWHM to define the fitting window radius.",
+        used_in=["_fit_multi_peak_resonator"],
+    )
+    maxfev: Parameter = Parameter(
+        value=20000,
+        description="Maximum number of function evaluations for curve_fit.",
+        used_in=["_fit_multi_peak_resonator"],
     )
 
 class ResonatorSpectroscopyVsPowerQualityChecks(AnalysisParameterGroup):

@@ -21,14 +21,14 @@ __all__ = [
 def lorentzian_peak(x, amplitude, center, width, offset):
     """Computes the Lorentzian peak function.
 
-    Args:
+    Args
         x: The input values at which to evaluate the Lorentzian function.
         amplitude: The amplitude of the Lorentzian peak.
         center: The center position of the Lorentzian peak.
         width: The full width at half maximum (FWHM) of the Lorentzian peak.
         offset: The offset value added to the Lorentzian function.
 
-    Returns:
+    Returns
         The evaluated Lorentzian function at the input values `x`.
 
     Notes:
@@ -42,14 +42,14 @@ def lorentzian_peak(x, amplitude, center, width, offset):
 def lorentzian_dip(x, amplitude, center, width, offset):
     """Computes the Lorentzian dip function.
 
-    Args:
+    Args
         x: The input values at which to evaluate the Lorentzian function.
         amplitude: The amplitude of the Lorentzian dip.
         center: The center position of the Lorentzian dip.
         width: The full width at half maximum (FWHM) of the Lorentzian dip.
         offset: The offset value from which the Lorentzian dip subtracts.
 
-    Returns:
+    Returns
         The evaluated Lorentzian function at the input values `x`.
 
     Notes:
@@ -63,14 +63,14 @@ def lorentzian_dip(x, amplitude, center, width, offset):
 def oscillation(t, a, f, phi, offset):
     """Computes a sinusoidal oscillation.
 
-    Args:
+    Args
         t: Time values.
         a: Amplitude of the oscillation.
         f: Frequency of the oscillation.
         phi: Phase offset of the oscillation (in radians).
         offset: Vertical offset of the oscillation.
 
-    Returns:
+    Returns
         The computed oscillation values at times `t`.
     """
     return a * np.cos(2 * np.pi * f * t + phi) + offset
@@ -97,7 +97,7 @@ def oscillation(t, a, f, phi, offset):
 def oscillation_decay_exp(t, a, f, phi, offset, decay):
     """Computes a decaying sinusoidal oscillation (exponential decay).
 
-    Args:
+    Args
         t: Time values.
         a: Initial amplitude of the oscillation.
         f: Frequency of the oscillation.
@@ -105,7 +105,7 @@ def oscillation_decay_exp(t, a, f, phi, offset, decay):
         offset: Vertical offset of the oscillation.
         decay: Exponential decay rate (1/T_decay).
 
-    Returns:
+    Returns
         The computed decaying oscillation values at times `t`.
     """
     return a * np.exp(-t * decay) * np.cos(2 * np.pi * f * t + phi) + offset
@@ -114,14 +114,14 @@ def oscillation_decay_exp(t, a, f, phi, offset, decay):
 def decay_exp(t, a, offset, decay, **kwargs):
     """Computes a simple exponential decay or growth.
 
-    Args:
+    Args
         t: Time values.
         a: Amplitude scaling factor.
         offset: Vertical offset.
         decay: Exponential decay rate (positive for decay, negative for growth).
         **kwargs: Catches unused keyword arguments (e.g., from curve_fit).
 
-    Returns:
+    Returns
         The computed exponential decay/growth values at times `t`.
     """
     return a * np.exp(t * decay) + offset
@@ -206,7 +206,7 @@ class S21Resonator:
     def __init__(self, frequencies: NDArray, s21_complex: NDArray):
         """Initializes the S21Resonator fitter.
 
-        Args:
+        Args
             frequencies (NDArray): The frequency points of the resonator scan.
             s21_complex (NDArray): The complex S21 data corresponding to the
                 frequencies.
@@ -225,7 +225,7 @@ class S21Resonator:
         circle, and then fitting the phase response to extract the resonator
         parameters. Finally, it assesses the fit quality.
 
-        Returns:
+        Returns
             Optional[dict]: A dictionary containing the readable fitted parameters
             and goodness-of-fit metrics (RMSE and R-squared). The parameters include
             'frequency', 'fwhm', 'loaded_q', 'coupling_q', 'internal_q',
@@ -281,7 +281,7 @@ class S21Resonator:
         This method calculates the Root Mean Square Error (RMSE), R-squared,
         and Normalized Root Mean Square Error (NRMSE) for the complex fit.
 
-        Returns:
+        Returns
             Optional[dict]: A dictionary containing fit quality metrics: 'rmse',
             'r_squared', and 'nrmse'. Returns None if the fit has not been
             performed.
@@ -317,7 +317,7 @@ class S21Resonator:
     def _s21_model(self, frequencies: NDArray, resonance: float, q_loaded: float, q_coupling: float, phi: float = 0.0, amplitude: float = 1.0, alpha: float = 0.0, tau: float = 0.0) -> NDArray:
         """Complex S21 resonator model.
 
-        Args:
+        Args
             frequencies (NDArray): Frequencies at which to evaluate the model.
             resonance (float): The resonance frequency.
             q_loaded (float): The loaded quality factor.
@@ -327,7 +327,7 @@ class S21Resonator:
             alpha (float, optional): The phase shift. Defaults to 0.0.
             tau (float, optional): The cable delay in seconds. Defaults to 0.0.
 
-        Returns:
+        Returns
             NDArray: The complex S21 data calculated from the model.
         """
         return (amplitude * np.exp(1j * alpha) * np.exp(-2 * np.pi * 1j * frequencies * tau) * (1 - ((q_loaded / (np.abs(q_coupling))) * np.exp(1j * phi)) / (1 + 2j * q_loaded * (frequencies / resonance - 1))))
@@ -336,11 +336,11 @@ class S21Resonator:
 
         This private method orchestrates the multi-step fitting process.
 
-        Args:
+        Args
             data (_ResonatorData): A named tuple containing frequency and complex
                 S21 data.
 
-        Returns:
+        Returns
             Tuple[float, List[float], List[float]]: A tuple containing:
                 - The resonance frequency.
                 - A list of the seven model parameters.
@@ -361,13 +361,13 @@ class S21Resonator:
     def _cable_delay(self, frequencies: NDArray, phases: NDArray, num_points: int) -> float:
         """Estimates the cable delay from the phase response.
 
-        Args:
+        Args
             frequencies (NDArray): Frequency data.
             phases (NDArray): Unwrapped phase data.
             num_points (int): Number of points from each end of the data to use
                 for the linear fit.
 
-        Returns:
+        Returns
             float: The estimated cable delay (tau) in seconds.
         """
         freqs, phs = np.concatenate((frequencies[:num_points], frequencies[-num_points:])), np.concatenate((phases[:num_points], phases[-num_points:]))
@@ -375,22 +375,22 @@ class S21Resonator:
     def _remove_cable_delay(self, frequencies: NDArray, z: NDArray, tau: float) -> NDArray:
         """Removes the estimated cable delay from the complex data.
 
-        Args:
+        Args
             frequencies (NDArray): Frequency data.
             z (NDArray): Complex S21 data.
             tau (float): The estimated cable delay in seconds.
 
-        Returns:
+        Returns
             NDArray: The complex S21 data with the cable delay removed.
         """
         return z * np.exp(2j * np.pi * frequencies * tau)
     def _circle_fit(self, z: NDArray) -> tuple[complex, float]:
         """Fits the complex data to a circle in the IQ plane.
 
-        Args:
+        Args
             z (NDArray): Complex S21 data (with cable delay removed).
 
-        Returns:
+        Returns
             Tuple[complex, float]: A tuple containing:
                 - The center of the fitted circle (z_c) as a complex number.
                 - The radius of the fitted circle (r_0).
@@ -412,11 +412,11 @@ class S21Resonator:
     def _phase_fit(self, frequencies: NDArray, phases: NDArray) -> NDArray:
         """Fits the phase response to extract resonance and Q factor.
 
-        Args:
+        Args
             frequencies (NDArray): Frequency data.
             phases (NDArray): Unwrapped phase data from the circle fit.
 
-        Returns:
+        Returns
             NDArray: An array containing the fitted parameters:
                 (resonance_frequency, loaded_q, phase_offset_theta).
         """
@@ -442,34 +442,34 @@ class S21Resonator:
 
         This is used as the residual function in the phase fit.
 
-        Args:
+        Args
             phases (NDArray): The phase differences.
 
-        Returns:
+        Returns
             NDArray: The wrapped phase distances.
         """
         return np.pi - np.abs(np.pi - np.abs(phases))
     def _phase_centered_model(self, frequencies: NDArray, resonance: float, q_loaded: float, theta: float, tau: float = 0.0) -> NDArray:
         """The model for the phase response of the resonator.
 
-        Args:
+        Args
             frequencies (NDArray): Frequency data.
             resonance (float): The resonance frequency.
             q_loaded (float): The loaded quality factor.
             theta (float): The phase offset.
             tau (float, optional): The cable delay. Defaults to 0.0.
 
-        Returns:
+        Returns
             NDArray: The modeled phase response.
         """
         return (theta - 2 * np.pi * tau * (frequencies - resonance) + 2.0 * np.arctan(2.0 * q_loaded * (1.0 - frequencies / resonance)))
     def _periodic_boundary(self, angle: float) -> float:
         """Wraps an angle to the interval [-pi, pi].
 
-        Args:
+        Args
             angle (float): The input angle in radians.
 
-        Returns:
+        Returns
             float: The wrapped angle in radians.
         """
         return (angle + np.pi) % (2 * np.pi) - np.pi

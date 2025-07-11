@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 import qiskit_experiments.curve_analysis as ca
@@ -8,7 +8,13 @@ from matplotlib import pyplot as plt
 from qualibration_libs.analysis.models import *
 from scipy.optimize import curve_fit
 
-__all__ = ["fit_oscillation", "fit_oscillation_decay_exp", "fit_decay_exp"]
+__all__ = [
+    "fit_oscillation",
+    "fit_oscillation_decay_exp",
+    "fit_decay_exp",
+    "extract_fit_quality",
+    "generate_lorentzian_fit",
+]
 
 
 def _fix_initial_value(x, da):
@@ -232,30 +238,23 @@ def fit_oscillation(da, dim, method="qiskit_curve_analysis"):
         y(t) = a * cos(2π * f * t + phi) + offset
     using non-linear least squares optimization with retry mechanism for robustness.
     
-    Parameters
-    ----------
-    da : xarray.DataArray
-        The input data array containing the oscillatory signal to be fitted.
-    dim : str
-        The name of the dimension along which to perform the fit.
-    method : str, optional
-        Parameter estimation method to use. Options are:
-        - "qiskit_curve_analysis": Uses qiskit curve analysis for parameter estimation (default)
-        - "fft_based": Uses FFT-based parameter estimation
+    Args:
+        da: The input data array containing the oscillatory signal to be fitted.
+        dim: The name of the dimension along which to perform the fit.
+        method: Parameter estimation method to use. Options are:
+            - "qiskit_curve_analysis": Uses qiskit curve analysis for parameter estimation (default)
+            - "fft_based": Uses FFT-based parameter estimation
         
-    Returns
-    -------
-    xarray.DataArray
+    Returns:
         An array containing the fitted parameters for each slice along the specified dimension.
         The output has a new dimension 'fit_vals' with coordinates: ['a', 'f', 'phi', 'offset'],
         corresponding to amplitude, frequency, phase, and offset of the fitted oscillation.
         
-    Notes
-    -----
-    - The function supports two parameter estimation methods: curve analysis and FFT-based
-    - Includes retry mechanism for improved robustness when initial fit fails (qiskit_curve_analysis only)
-    - The fitting is performed using a model function (oscillation) and the lmfit library
-    - If the fit fails, diagnostic plots are shown for debugging
+    Notes:
+        - The function supports two parameter estimation methods: curve analysis and FFT-based
+        - Includes retry mechanism for improved robustness when initial fit fails (qiskit_curve_analysis only)
+        - The fitting is performed using a model function (oscillation) and the lmfit library
+        - If the fit fails, diagnostic plots are shown for debugging
     """
 
     def get_freq_and_amp_and_phase(da, dim):
@@ -411,22 +410,48 @@ def fit_oscillation(da, dim, method="qiskit_curve_analysis"):
     return fit_params
 
 
+def extract_fit_quality(fit: xr.Dataset) -> Optional[float]:
+    """Safely extract R² fit quality from dataset."""
+    try:
+        if "fit" in fit and hasattr(fit.fit, "attrs") and "r_squared" in fit.fit.attrs:
+            return float(fit.fit.attrs["r_squared"])
+    except (AttributeError, KeyError, ValueError, TypeError):
+        pass
+    return None
+
+
+def generate_lorentzian_fit(
+    qubit_data: xr.Dataset, detuning_values: np.ndarray
+) -> np.ndarray:
+    """Generate the Lorentzian fit from qubit data.
+
+    Args:
+        qubit_data (xr.Dataset): Dataset containing the fit parameters for a single qubit.
+        detuning_values (np.ndarray): Array of detuning values at which to evaluate the Lorentzian.
+
+    Returns:
+        np.ndarray: The Lorentzian fit evaluated at the given detuning values.
+    """
+    return lorentzian_dip(
+        detuning_values,
+        float(qubit_data.amplitude.values),
+        float(qubit_data.position.values),
+        float(qubit_data.width.values) / 2,  # Convert to half-width at half-max
+        float(qubit_data.base_line.mean().values),
+    )
+
+
 def calculate_quality_metrics(
     raw_data: np.ndarray, fitted_data: np.ndarray
 ) -> Dict[str, float]:
     """
     Calculate fit quality metrics: RMSE, NRMSE, and R-squared.
 
-    Parameters
-    ----------
-    raw_data : np.ndarray
-        The raw measurement data.
-    fitted_data : np.ndarray
-        The data from the Lorentzian fit.
+    Args:
+        raw_data: The raw measurement data.
+        fitted_data: The data from the Lorentzian fit.
 
-    Returns
-    -------
-    Dict[str, float]
+    Returns:
         A dictionary containing 'rmse', 'nrmse', and 'r_squared'.
     """
     residuals = raw_data - fitted_data
@@ -720,6 +745,15 @@ def calculate_quality_metrics(
 def circle_fit_s21_resonator_model(dataset: xr.Dataset):
     """
     Performs a full S21 circle fit for each qubit in the raw xarray Dataset.
+    
+    Args:
+        dataset: xarray Dataset containing the required data variables 'full_freq', 'I', and 'Q'
+            with coordinates including 'qubit'.
+    
+    Returns:
+        A tuple containing:
+            - results: Dictionary mapping qubit names to their fit parameters
+            - fitters: Dictionary mapping qubit names to their S21Resonator fitter objects
     """
     required_vars = ['full_freq', 'I', 'Q']
     if not all(var in dataset for var in required_vars):
