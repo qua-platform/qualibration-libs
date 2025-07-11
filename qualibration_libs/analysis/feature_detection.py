@@ -10,7 +10,16 @@ from scipy.stats import skew
 
 from .parameters import analysis_config_manager
 
-__all__ = ["peaks_dips", "find_all_peaks_from_signal", "estimate_width_from_curvature"]
+__all__ = [
+    "peaks_dips",
+    "find_all_peaks_from_signal",
+    "estimate_width_from_curvature",
+    "is_peak_shape_distorted",
+    "is_peak_too_wide",
+    "detect_chevron_modulation",
+    "has_resonator_trace",
+    "has_insufficient_flux_modulation",
+]
 
 # Access signal processing parameters from the config object
 sp_params = analysis_config_manager.get("common_signal_processing")
@@ -160,6 +169,185 @@ def estimate_width_from_curvature(signal: np.ndarray, peak_idx: int) -> float:
     
     width_in_samples = right_infl_idx - left_infl_idx
     return float(width_in_samples)
+
+
+def is_peak_shape_distorted(
+    asymmetry: float,
+    skewness: float,
+    nrmse: float,
+    min_asymmetry: float,
+    max_asymmetry: float,
+    max_skewness: float,
+    nrmse_threshold: float,
+) -> bool:
+    """
+    Check if peak shape indicates distortion based on asymmetry and skewness.
+
+    Args:
+        asymmetry : float
+            Peak asymmetry value
+        skewness : float
+            Peak skewness value
+        nrmse : float
+            Normalized Root Mean Square Error
+        min_asymmetry : float
+            Minimum allowed asymmetry
+        max_asymmetry : float
+            Maximum allowed asymmetry
+        max_skewness : float
+            Maximum allowed skewness
+        nrmse_threshold : float
+            NRMSE threshold for a good fit
+
+    Returns:
+        bool
+            True if peak shape is distorted
+    """
+    asymmetry_bad = (
+        asymmetry is not None and (asymmetry < min_asymmetry or asymmetry > max_asymmetry)
+    )
+    skewness_bad = skewness is not None and abs(skewness) > max_skewness
+    poor_geom_fit = nrmse > nrmse_threshold
+
+    return asymmetry_bad or skewness_bad or poor_geom_fit
+
+
+def is_peak_too_wide(
+    fwhm: float,
+    sweep_span: float,
+    snr: float,
+    distorted_fraction_low_snr: float,
+    snr_for_distortion: float,
+    distorted_fraction_high_snr: float,
+    fwhm_absolute_threshold_hz: float,
+) -> bool:
+    """
+    Check if peak is too wide relative to sweep or absolutely.
+
+    Args:
+        fwhm : float
+            Full width at half maximum
+        sweep_span : float
+            Total sweep span
+        snr : float
+            Signal-to-noise ratio
+        distorted_fraction_low_snr : float
+            Distorted fraction for low SNR
+        snr_for_distortion : float
+            SNR threshold to determine which distorted fraction to use
+        distorted_fraction_high_snr : float
+            Distorted fraction for high SNR
+        fwhm_absolute_threshold_hz : float
+            Absolute FWHM threshold in Hz
+
+    Returns:
+        bool
+            True if peak is too wide
+    """
+    # Determine distortion threshold based on SNR
+    distorted_fraction = (
+        distorted_fraction_low_snr
+        if snr < snr_for_distortion
+        else distorted_fraction_high_snr
+    )
+
+    # Check relative width
+    relative_width_bad = sweep_span > 0 and (fwhm / sweep_span > distorted_fraction)
+
+    # Check absolute width
+    absolute_width_bad = fwhm > fwhm_absolute_threshold_hz
+
+    return relative_width_bad or absolute_width_bad
+
+
+def detect_chevron_modulation(
+    signal_2d: np.ndarray, threshold: float
+) -> bool:
+    """
+    Detect chevron-like modulation in 2D signal data.
+
+    Args:
+        signal_2d : np.ndarray
+            2D array of signal values
+        threshold : float
+            Minimum modulation threshold
+
+    Returns:
+        bool
+            True if chevron modulation detected
+    """
+    if signal_2d.ndim != 2:
+        return False
+
+    # Calculate peak-to-peak amplitude across frequency axis
+    ptps = np.ptp(signal_2d, axis=0)
+    modulation_range = np.ptp(ptps)
+    avg_ptp = np.mean(ptps)
+
+    # Check if modulation is significant
+    return (modulation_range / (avg_ptp + 1e-12)) > threshold
+
+
+def has_resonator_trace(
+    ds: xr.Dataset,
+    qubit: str,
+    smooth_sigma: float,
+    dip_threshold: float,
+    gradient_threshold: float,
+    var_name: str = "IQ_abs",
+    freq_dim: str = "detuning",
+    epsilon: float = 1e-9,
+) -> bool:
+    """Detect whether a resonator-like frequency trace exists."""
+    try:
+        # Extract and normalize data
+        da = ds[var_name].sel(qubit=qubit)
+        da_norm = da / (da.mean(dim=freq_dim) + epsilon)
+
+        # Get minimum trace across frequency sweep
+        min_trace = da_norm.min(dim=freq_dim).values
+
+        # Smooth to suppress noise
+        min_trace_smooth = savgol_filter(min_trace, int(smooth_sigma * 5) | 1, 2)
+
+        # Calculate peak-to-peak dip depth and variation
+        dip_depth = np.max(min_trace_smooth) - np.min(min_trace_smooth)
+        gradient = np.max(np.abs(np.gradient(min_trace_smooth)))
+
+        return (dip_depth > dip_threshold) and (gradient > gradient_threshold)
+    except:
+        return False
+
+
+def has_insufficient_flux_modulation(
+    ds: xr.Dataset,
+    qubit: str,
+    smooth_sigma: float,
+    min_modulation_hz: float,
+) -> bool:
+    """Detect whether the flux modulation of the resonator is too small."""
+    try:
+        # Calculate peak frequency from IQ_abs minimum
+        peak_idx = ds.IQ_abs.argmin(dim="detuning")
+        peak_freq = ds.full_freq.isel(detuning=peak_idx)
+        peak_freq = peak_freq.transpose("qubit", "flux_bias")
+
+        pf = peak_freq.sel(qubit=qubit)
+        if pf.isnull().all():
+            return True
+
+        freq_vals = pf.values
+        freq_vals = freq_vals[~np.isnan(freq_vals)]
+
+        if freq_vals.size < 2:
+            return True
+
+        smoothed = savgol_filter(freq_vals, int(smooth_sigma * 5) | 1, 2)
+        modulation_range = np.max(smoothed) - np.min(smoothed)
+
+        return modulation_range < min_modulation_hz
+    except:
+        return True
 
 
 def peaks_dips(

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 import qiskit_experiments.curve_analysis as ca
@@ -8,7 +8,13 @@ from matplotlib import pyplot as plt
 from qualibration_libs.analysis.models import *
 from scipy.optimize import curve_fit
 
-__all__ = ["fit_oscillation", "fit_oscillation_decay_exp", "fit_decay_exp"]
+__all__ = [
+    "fit_oscillation",
+    "fit_oscillation_decay_exp",
+    "fit_decay_exp",
+    "extract_fit_quality",
+    "generate_lorentzian_fit",
+]
 
 
 def _fix_initial_value(x, da):
@@ -402,6 +408,37 @@ def fit_oscillation(da, dim, method="qiskit_curve_analysis"):
     fit_params.attrs['method'] = method
     
     return fit_params
+
+
+def extract_fit_quality(fit: xr.Dataset) -> Optional[float]:
+    """Safely extract R² fit quality from dataset."""
+    try:
+        if "fit" in fit and hasattr(fit.fit, "attrs") and "r_squared" in fit.fit.attrs:
+            return float(fit.fit.attrs["r_squared"])
+    except (AttributeError, KeyError, ValueError, TypeError):
+        pass
+    return None
+
+
+def generate_lorentzian_fit(
+    qubit_data: xr.Dataset, detuning_values: np.ndarray
+) -> np.ndarray:
+    """Generate the Lorentzian fit from qubit data.
+
+    Args:
+        qubit_data (xr.Dataset): Dataset containing the fit parameters for a single qubit.
+        detuning_values (np.ndarray): Array of detuning values at which to evaluate the Lorentzian.
+
+    Returns:
+        np.ndarray: The Lorentzian fit evaluated at the given detuning values.
+    """
+    return lorentzian_dip(
+        detuning_values,
+        float(qubit_data.amplitude.values),
+        float(qubit_data.position.values),
+        float(qubit_data.width.values) / 2,  # Convert to half-width at half-max
+        float(qubit_data.base_line.mean().values),
+    )
 
 
 def calculate_quality_metrics(
