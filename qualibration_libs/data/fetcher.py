@@ -311,7 +311,7 @@ class XarrayDataFetcher:
             m = re.match(r"([a-zA-Z_]+?(?:_(c|t)+)?)(\d+)$", key)
             if m:
                 base = m.group(1)
-                idx = int(m.group(2))
+                idx = int(m.group(3))
                 filled_data = self._fill_missing_data(data, non_qubit_shape)
                 logger.debug(f"Grouping key '{key}': base '{base}', index {idx}")
                 grouped.setdefault(base, []).append((idx, filled_data))
