@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+### Fixed
+- analysis/fitting - allows the fit to converge even if the exponential is inverted.
 ### Changed
 - Transfer the `power_tools` to quam-builder to remove its dependency to qualibration-libs.
 
