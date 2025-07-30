@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Changed
 - Transfer the `power_tools` to quam-builder to remove its dependency to qualibration-libs.
 
+- Add TwoQubitExperimentNodeParameters class
+
 ## [0.1.0] - 2025-05-07
 ### Added
 - First release for the Superconducting QUAlibration graph.
