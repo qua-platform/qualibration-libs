@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 ### Fix
 - analysis/fitting - fit oscillations in a more robust manner.  
+### Changed
+- Transfer the `power_tools` to quam-builder to remove its dependency to qualibration-libs.
 
 ## [0.1.0] - 2025-05-07
 ### Added
