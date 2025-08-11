@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Utility library supporting calibration nodes and graphs for the QUAlibration graphs platform."
 readme = "README.md"
 authors = [{ name = "Theo Laudat", email = "theo@quantum-machines.co" }]
-requires-python = ">=3.9, <=3.12"
+requires-python = ">=3.9, <3.13"
 dependencies = [
     "colorama>=0.4.6",
 ]
