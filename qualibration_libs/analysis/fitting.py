@@ -8,8 +8,24 @@ from lmfit import Model, Parameter
 from qualibration_libs.analysis.models import *
 
 
-__all__ = ["fit_oscillation", "fit_oscillation_decay_exp", "fit_decay_exp"]
+__all__ = ["fit_oscillation", "fit_oscillation_decay_exp", "fit_decay_exp", "unwrap_phase"]
 
+
+def unwrap_phase(da, dim):
+    """
+    Unwraps the phase of a DataArray along a specified dimension.
+    This is useful for correcting phase jumps in the data.
+
+    Parameters:
+    da (xr.DataArray): The input DataArray containing phase data.
+    dim (str): The dimension along which to unwrap the phase.
+
+    Returns:
+    xr.DataArray: A new DataArray with the unwrapped phase.
+    """
+    return xr.apply_ufunc(
+        np.unwrap, da, input_core_dims=[[dim]], output_core_dims=[[dim]]
+    )
 
 def _fix_initial_value(x, da):
     if len(da.dims) == 1:
