@@ -5,9 +5,9 @@ from typing import List, Optional
 import numpy as np
 import xarray as xr
 
-from quam_libs.components import Transmon
-from quam_libs.experiments.ramsey.parameters import Parameters
-from quam_libs.lib.fit import fit_oscillation_decay_exp
+from qualibration_libs.legacy.components import Transmon
+from qualibration_libs.legacy.experiments.ramsey.parameters import Parameters
+from qualibration_libs.legacy.lib.fit import fit_oscillation_decay_exp
 
 
 @dataclass

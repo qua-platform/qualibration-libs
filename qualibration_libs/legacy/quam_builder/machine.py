@@ -5,14 +5,14 @@ from typing import Union, Dict
 from quam.components import Octave
 
 from qualang_tools.wirer import Connectivity
-from quam_libs.quam_builder.pulses import add_default_transmon_pulses, add_default_transmon_pair_pulses
-from quam_libs.quam_builder.transmons.add_transmon_drive_component import add_transmon_drive_component
-from quam_libs.quam_builder.transmons.add_transmon_flux_component import add_transmon_flux_component
-from quam_libs.quam_builder.transmons.add_transmon_pair_component import add_transmon_pair_component
-from quam_libs.quam_builder.transmons.add_transmon_resonator_component import add_transmon_resonator_component
+from qualibration_libs.legacy.quam_builder.pulses import add_default_transmon_pulses, add_default_transmon_pair_pulses
+from qualibration_libs.legacy.quam_builder.transmons.add_transmon_drive_component import add_transmon_drive_component
+from qualibration_libs.legacy.quam_builder.transmons.add_transmon_flux_component import add_transmon_flux_component
+from qualibration_libs.legacy.quam_builder.transmons.add_transmon_pair_component import add_transmon_pair_component
+from qualibration_libs.legacy.quam_builder.transmons.add_transmon_resonator_component import add_transmon_resonator_component
 from qualang_tools.wirer.connectivity.wiring_spec import WiringLineType
-from quam_libs.components import OPXPlusQuAM, FEMQuAM, QuAM, Transmon
-from quam_libs.quam_builder.wiring.create_wiring import create_wiring
+from qualibration_libs.legacy.components import OPXPlusQuAM, FEMQuAM, QuAM, Transmon
+from qualibration_libs.legacy.quam_builder.wiring.create_wiring import create_wiring
 
 
 def build_quam(machine: QuAM, quam_state_path: Union[Path, str], octaves_settings: Dict = {}) -> QuAM:

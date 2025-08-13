@@ -2,7 +2,7 @@ import xarray as xr
 import numpy as np
 from matplotlib import pyplot as plt
 
-from quam_libs.lib.plot_utils import QubitGrid, grid_iter
+from qualibration_libs.legacy.lib.plot_utils import QubitGrid, grid_iter
 
 
 def plot_resonator_spectroscopy_vs_qubit_flux(ds: xr.Dataset, fit: dict, qubits: list) -> dict[str, plt.Figure]:

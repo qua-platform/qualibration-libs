@@ -2,8 +2,8 @@ from typing import Sequence, Union, Tuple, List
 
 from qm.qua import declare, fixed
 
-from quam_libs.components import Transmon
-from quam_libs.experiments.readout_optimization_3d.parameters import ReadoutOptimization3dParameters
+from qualibration_libs.legacy.components import Transmon
+from qualibration_libs.legacy.experiments.readout_optimization_3d.parameters import ReadoutOptimization3dParameters
 
 
 def make_qua_variables_per_qubit(measurement_batch: Sequence[Transmon],

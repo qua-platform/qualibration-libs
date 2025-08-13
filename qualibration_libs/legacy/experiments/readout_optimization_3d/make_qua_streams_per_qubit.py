@@ -3,7 +3,7 @@ from typing import Sequence, Tuple, List, Union
 from qm.qua import declare_stream
 from qm.qua._dsl import _ResultSource
 
-from quam_libs.components import Transmon
+from qualibration_libs.legacy.components import Transmon
 
 
 def make_qua_streams_per_qubit(measurement_batch: Sequence[Transmon]) \

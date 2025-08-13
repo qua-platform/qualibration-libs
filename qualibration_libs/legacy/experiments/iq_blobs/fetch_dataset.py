@@ -5,10 +5,10 @@ from typing import List
 
 from qm import QmJob
 
-from quam_libs.components import Transmon
-from quam_libs.experiments.iq_blobs.parameters import IQBlobsParameters
-from quam_libs.lib.qua_datasets import convert_IQ_to_V
-from quam_libs.lib.save_utils import fetch_results_as_xarray
+from qualibration_libs.legacy.components import Transmon
+from qualibration_libs.legacy.experiments.iq_blobs.parameters import IQBlobsParameters
+from qualibration_libs.legacy.lib.qua_datasets import convert_IQ_to_V
+from qualibration_libs.legacy.lib.save_utils import fetch_results_as_xarray
 
 
 def fetch_dataset(job: QmJob, qubits: List[Transmon], node_parameters: IQBlobsParameters) -> xr.Dataset:

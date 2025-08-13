@@ -1,5 +1,5 @@
 from qualibrate_app.config import get_config_path, get_settings
-from quam_libs.components import QuAM
+from quam_config.my_quam import Quam
 import os
 from pathlib import Path
 import xarray as xr

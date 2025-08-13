@@ -1,5 +1,5 @@
 from typing import Optional
-from quam_libs.components.transmon import Transmon
+from qualibration_libs.legacy.components.transmon import Transmon
 import numpy as np
 import xarray as xr
 

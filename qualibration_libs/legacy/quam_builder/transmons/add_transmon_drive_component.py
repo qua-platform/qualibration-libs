@@ -1,10 +1,10 @@
 from typing import Dict
 from quam.components.channels import IQChannel, MWChannel
 
-from quam_libs.quam_builder.transmons.channel_ports import iq_out_channel_ports, mw_out_channel_ports
-from quam_libs.quam_builder.transmons.get_digital_outputs import get_digital_outputs
+from qualibration_libs.legacy.quam_builder.transmons.channel_ports import iq_out_channel_ports, mw_out_channel_ports
+from qualibration_libs.legacy.quam_builder.transmons.get_digital_outputs import get_digital_outputs
 from qualang_tools.addons.calibration.calibrations import unit
-from quam_libs.components import Transmon
+from qualibration_libs.legacy.components import Transmon
 
 u = unit(coerce_to_integer=True)
 

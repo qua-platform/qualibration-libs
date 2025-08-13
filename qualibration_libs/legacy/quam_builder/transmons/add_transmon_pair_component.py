@@ -1,6 +1,6 @@
 from typing import Dict
 
-from quam_libs.components import TransmonPair, TunableCoupler, QuAM
+from qualibration_libs.legacy.components import TransmonPair, TunableCoupler, QuAM
 
 
 def add_transmon_pair_component(machine: QuAM, wiring_path: str, ports: Dict[str, str]) -> TransmonPair:

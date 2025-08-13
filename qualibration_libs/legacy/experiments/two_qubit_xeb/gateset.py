@@ -3,7 +3,7 @@ from .qua_gate import QUAGate
 from qm.qua import amp
 import numpy as np
 from typing import Literal, Callable, Optional, List, Dict, Union
-from quam_libs.components import Transmon
+from qualibration_libs.legacy.components import Transmon
 
 
 def play_sq_gate_macro(baseline_gate_name: str, amp_matrix: Optional[List] = None) -> Callable[[Transmon], None]:

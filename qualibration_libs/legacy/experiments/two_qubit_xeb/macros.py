@@ -12,7 +12,7 @@ from typing import List
 from qm.qua import *
 from qualang_tools.addons.variables import assign_variables_to_element
 import numpy as np
-from quam_libs.components import TransmonPair, Transmon
+from qualibration_libs.legacy.components import TransmonPair, Transmon
 from scipy import optimize
 from scipy.stats import stats
 from itertools import combinations

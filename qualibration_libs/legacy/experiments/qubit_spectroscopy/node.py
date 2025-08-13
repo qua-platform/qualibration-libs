@@ -1,7 +1,7 @@
 from typing import List
 
-from quam_libs.components import Transmon
-from quam_libs.experiments.time_of_flight.parameters import Parameters
+from qualibration_libs.legacy.components import Transmon
+from qualibration_libs.legacy.experiments.time_of_flight.parameters import Parameters
 
 
 def get_optional_pulse_duration(qubits: List[Transmon], node_parameters: Parameters):

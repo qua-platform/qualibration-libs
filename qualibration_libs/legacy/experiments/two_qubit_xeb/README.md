@@ -14,7 +14,7 @@ This experiment was performed and presented in the use-case [Two-Qubit Gate Opti
 
 ## Prerequisites
 The XEB script is designed to be compatible with QuAM, and therefore requires the user to migrate his original QUA configuration file into a QuAM json file and have access to dedicated QuAM components.
-This script being designed for the use case of flux-tunable superconducting qubits, we provide a dedicated example of template QuAM components for this use case in the `quam_libs/components` folder. The user can use these components as a starting point to build his own QuAM configuration file.
+This script being designed for the use case of flux-tunable superconducting qubits, we provide a dedicated example of template QuAM components for this use case in the `qualibration_libs.legacy/components` folder. The user can use these components as a starting point to build his own QuAM configuration file.
 The user should also have access to the QuAM library, which can be found [here](https://docs.quantum-machines.co/quam/).
 We encourage you to reach out to the Customer Success team to set your QuAM accordingly. Moreover, note that this example might require dedicated adjustments depending on the way the gates are implemented on your platform.
 
@@ -56,7 +56,7 @@ We first provide a class `XEBConfig` that defines the parameters of the experime
 - `seqs`: the number of random circuits to be generated.
 - `depths`: the array of depths for the random circuits. Those depths will be used to generate random circuits of varying depths, and will lead to the determination of a layer fidelity through a fit of the cross-entropy curve.
 - `n_shots`: the number of shots for each circuit.
-- `qubits`: the qubits involved in the experiment. For now, those are expected to be of type `quam_libs.components.Transmon` but we will extend this in the future. Note that the script can handle only one or two qubits for now.
+- `qubits`: the qubits involved in the experiment. For now, those are expected to be of type `qualibration_libs.legacy.components.Transmon` but we will extend this in the future. Note that the script can handle only one or two qubits for now.
 - `baseline_gate_name`: the name of the operation that will be used as a baseline for the random circuits. The name should match the name of the operation defined in the QuAM for implementing the $SX$ gate (equivalently X/2).
 - `gate_set_choice`: it corresponds to the set of single qubit gates that will be used to generate random layers in the circuit. The user can choose two native different gate sets inspired from the literature [1] [2]:
   - `"sw"`: This gate set contains the following gates: $SX$, $SY$, and $SW$, as done in [2]. In this case, the implementation assumes that both $SY$ and $SW$ gates can be obtained from the $SX$ baseline calibration through a suitable amplitude matrix modulation (achieved in real-time).
@@ -65,7 +65,7 @@ We first provide a class `XEBConfig` that defines the parameters of the experime
     ```python
     from qua_gate import QUAGate
     from qm.qua import play
-    from quam_libs.components import Transmon
+    from qualibration_libs.legacy.components import Transmon
     def sx_macro(qubit: Transmon):
         # Insert your macro for implementing your SX gate here, this macro should depend on the qubit provided (here depicted as a Transmon QuAM component).
         qubit.xy.play("sx")
@@ -83,7 +83,7 @@ We first provide a class `XEBConfig` that defines the parameters of the experime
     ```
 - `two_qb_gate`: this is the gate that will be used as the entangling gate in the circuit. The user should specify this gate as a `QUAGate` object, which collects the macro for implementing the two-qubit gate, as well as its logical definition in the circuit for computing its effect in a statevector simulation. All standard gates (CZ, CNOT/CX, iSWAP, SWAP, ECR) are supported through the simple specification of a string depicting the name of the gate (in lowercase). See the example below:
 ```python
-from quam_libs.components import TransmonPair
+from qualibration_libs.legacy.components import TransmonPair
 from qua_gate import QUAGate
 def two_qubit_gate_macro(qubit_pair: TransmonPair):
     # Insert your macro for implementing your two qubit gate here, this macro should depend on the input TransmonPair
@@ -95,7 +95,7 @@ def two_qubit_gate_macro(qubit_pair: TransmonPair):
 two_qubit_gate = QUAGate("cz", two_qubit_gate_macro)
 
 ```
-- `qubit_pairs`: the qubit pairs involved in the experiment. They should match the qubit pairs defined in the QuAM. Note that the script can handle only qubit pairs that are Transmons for now and should therefore be given as `[quam_libs.components.TransmonPair]`. We will extend this to other platforms in the future.
+- `qubit_pairs`: the qubit pairs involved in the experiment. They should match the qubit pairs defined in the QuAM. Note that the script can handle only qubit pairs that are Transmons for now and should therefore be given as `[qualibration_libs.legacy.components.TransmonPair]`. We will extend this to other platforms in the future.
 - `readout_pulse_name`: the name of the readout pulse that will be used to measure the qubits. The name should match the name of the operation defined in the QuAM/configuration for implementing the readout pulse for each qubit.
 Additional parameters are available in the config such as:
 - `reset_method`: the method used to reset the qubits. The user can choose between `"active"` (active reset) and `"cooldown"` (passive reset).

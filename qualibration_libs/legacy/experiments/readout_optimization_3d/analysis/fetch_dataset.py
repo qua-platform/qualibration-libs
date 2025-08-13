@@ -1,9 +1,9 @@
 import numpy as np
 
-from quam_libs.experiments.readout_optimization_3d.parameters import get_frequency_detunings_in_hz, \
+from qualibration_libs.legacy.experiments.readout_optimization_3d.parameters import get_frequency_detunings_in_hz, \
     ReadoutOptimization3dParameters, get_amplitude_factors, get_durations
-from quam_libs.lib.qua_datasets import convert_IQ_to_V
-from quam_libs.lib.save_utils import fetch_results_as_xarray
+from qualibration_libs.legacy.lib.qua_datasets import convert_IQ_to_V
+from qualibration_libs.legacy.lib.save_utils import fetch_results_as_xarray
 
 
 def fetch_dataset(job, qubits, run_axis: np.ndarray, node_parameters: ReadoutOptimization3dParameters):

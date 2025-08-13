@@ -3,8 +3,8 @@ import math
 from typing import Sequence, List
 
 from quam.components import MWChannel, IQChannel
-from quam_libs.components import Transmon
-from quam_libs.experiments.readout_optimization_3d.parameters import Parameters
+from qualibration_libs.legacy.components import Transmon
+from qualibration_libs.legacy.experiments.readout_optimization_3d.parameters import Parameters
 
 
 def get_max_accumulated_readouts(qubits: Sequence[Transmon], node_parameters: Parameters) -> int:
