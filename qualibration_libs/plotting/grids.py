@@ -1,10 +1,9 @@
 import re
+from typing import Iterator, List, Tuple, Union
 
 import matplotlib
-from matplotlib import pyplot as plt
 import xarray as xr
-
-from typing import List, Tuple, Union
+from matplotlib import pyplot as plt
 
 
 def grid_pair_names(qubit_pairs) -> Tuple[List[str], List[str]]:
@@ -68,8 +67,32 @@ class QubitGrid:
         return re.sub("[^0-9]", "", input_string)
 
     def __init__(
-        self, ds: xr.Dataset, grid_names: Union[list[str], str] = None, size: int = 3
+        self, ds: xr.Dataset, grid_names: Union[list[str], str] = None, size: int = 3, create_figure: bool = True
     ):
+        (
+            grid_indices,
+            grid_name_mapping,
+            shape,
+            min_grid_col,
+            max_grid_row,
+        ) = self._initialize_grid_layout(ds, grid_names)
+
+        self._setup_plotly_attributes(
+            ds, grid_name_mapping, shape, min_grid_col, max_grid_row
+        )
+
+        if create_figure:
+            self._setup_matplotlib_figure(
+                ds, grid_indices, grid_name_mapping, shape, min_grid_col, max_grid_row, size
+            )
+        else:
+            # For Plotly-only usage, set matplotlib attributes to None
+            self.fig = None
+            self.all_axes = None
+            self.axes = None
+            self.name_dicts = None
+
+    def _initialize_grid_layout(self, ds, grid_names):
         if grid_names:
             if type(grid_names) == str:
                 grid_names = [grid_names]
@@ -95,11 +118,16 @@ class QubitGrid:
         grid_col_idxs = [idx[0] for idx in grid_indices]
         min_grid_row = min(grid_row_idxs)
         min_grid_col = min(grid_col_idxs)
+        max_grid_row = max(grid_row_idxs)
         shape = (
-            max(grid_row_idxs) - min_grid_row + 1,
+            max_grid_row - min_grid_row + 1,
             max(grid_col_idxs) - min_grid_col + 1,
         )
+        return grid_indices, grid_name_mapping, shape, min_grid_col, max_grid_row
 
+    def _setup_matplotlib_figure(
+        self, ds, grid_indices, grid_name_mapping, shape, min_grid_col, max_grid_row, size
+    ):
         figure, all_axes = plt.subplots(
             *shape, figsize=(shape[1] * size, shape[0] * size), squeeze=False
         )
@@ -109,7 +137,7 @@ class QubitGrid:
 
         for row, axis_row in enumerate(all_axes):
             for col, ax in enumerate(axis_row):
-                grid_row = max(grid_row_idxs) - row
+                grid_row = max_grid_row - row
                 grid_col = col + min_grid_col
                 if (grid_col, grid_row) in grid_indices:
                     grid_axes.append(ax)
@@ -123,6 +151,58 @@ class QubitGrid:
         self.all_axes = all_axes
         self.axes = [grid_axes]
         self.name_dicts = [[{ds.qubit.name: value} for value in qubit_names]]
+
+    def _setup_plotly_attributes(
+        self, ds, grid_name_mapping, shape, min_grid_col, max_grid_row
+    ):
+        # Add Plotly-compatible attributes
+        self.n_rows = shape[0]
+        self.n_cols = shape[1]
+        self.grid_positions = []
+        self.plotly_name_dicts = []
+        self.grid_order = []
+
+        # Build grid order and positions for Plotly compatibility
+        for row in range(self.n_rows):
+            for col in range(self.n_cols):
+                grid_row = max_grid_row - row
+                grid_col = col + min_grid_col
+                qubit_name = grid_name_mapping.get((grid_col, grid_row))
+                self.grid_order.append(qubit_name)
+
+                if qubit_name is not None:
+                    self.plotly_name_dicts.append({ds.qubit.name: qubit_name})
+                    self.grid_positions.append((row, col))
+
+    def plotly_grid_iter(self) -> Iterator:
+        """
+        Generator to iterate over the QubitGrid for Plotly compatibility, yielding (grid_position, name_dict) for each qubit.
+        Returns the actual grid position (row, col) rather than sequential index to preserve layout.
+        """
+        return iter(zip(self.grid_positions, self.plotly_name_dicts))
+    
+    def get_subplot_titles(self, title_template: str = "Qubit {qubit}") -> List[str]:
+        """
+        Generate subplot titles for the full grid layout, including empty positions.
+        
+        Parameters
+        ----------
+        title_template : str
+            Template string for titles. Use {qubit} as placeholder for qubit name.
+            
+        Returns
+        -------
+        List[str]
+            List of subplot titles matching the grid layout (row-major order).
+            Empty positions get empty string titles.
+        """
+        titles = []
+        for qubit_name in self.grid_order:
+            if qubit_name is not None:
+                titles.append(title_template.format(qubit=qubit_name))
+            else:
+                titles.append("")
+        return titles
 
 
 def grid_iter(grid: xr.plot.FacetGrid) -> Tuple[matplotlib.axes.Axes, dict]:

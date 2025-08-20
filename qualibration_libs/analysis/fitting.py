@@ -1,14 +1,20 @@
-from matplotlib import pyplot as plt
-import qiskit_experiments.curve_analysis as ca
-from scipy.optimize import curve_fit
+from typing import Dict, Optional
+
 import numpy as np
+import qiskit_experiments.curve_analysis as ca
 import xarray as xr
 from lmfit import Model, Parameter
-
+from matplotlib import pyplot as plt
 from qualibration_libs.analysis.models import *
+from scipy.optimize import curve_fit
 
-
-__all__ = ["fit_oscillation", "fit_oscillation_decay_exp", "fit_decay_exp"]
+__all__ = [
+    "fit_oscillation",
+    "fit_oscillation_decay_exp",
+    "fit_decay_exp",
+    "extract_fit_quality",
+    "generate_lorentzian_fit",
+]
 
 
 def _fix_initial_value(x, da):
@@ -223,30 +229,100 @@ def fit_oscillation_decay_exp(da, dim):
 #     )
 
 
-def fit_oscillation(da, dim):
-    def get_freq(dat):
-        def f(d):
-            return ca.guess.frequency(da[dim], d)
+def fit_oscillation(da, dim, method="qiskit_curve_analysis"):
+    """
+    Fits an oscillatory model to data along a specified dimension using selectable parameter estimation methods.
+    This function estimates the frequency, amplitude, and phase of an oscillatory signal in the input
+    data array `da` along the given dimension `dim` using either curve analysis or FFT-based initial
+    parameter guesses. It then fits the data to an oscillatory model of the form:
+        y(t) = a * cos(2π * f * t + phi) + offset
+    using non-linear least squares optimization with retry mechanism for robustness.
+    
+    Args:
+        da: The input data array containing the oscillatory signal to be fitted.
+        dim: The name of the dimension along which to perform the fit.
+        method: Parameter estimation method to use. Options are:
+            - "qiskit_curve_analysis": Uses qiskit curve analysis for parameter estimation (default)
+            - "fft_based": Uses FFT-based parameter estimation
+        
+    Returns:
+        An array containing the fitted parameters for each slice along the specified dimension.
+        The output has a new dimension 'fit_vals' with coordinates: ['a', 'f', 'phi', 'offset'],
+        corresponding to amplitude, frequency, phase, and offset of the fitted oscillation.
+        
+    Notes:
+        - The function supports two parameter estimation methods: curve analysis and FFT-based
+        - Includes retry mechanism for improved robustness when initial fit fails (qiskit_curve_analysis only)
+        - The fitting is performed using a model function (oscillation) and the lmfit library
+        - If the fit fails, diagnostic plots are shown for debugging
+    """
 
-        return np.apply_along_axis(f, -1, dat)
+    def get_freq_and_amp_and_phase(da, dim):
+        """Parameter estimation - matches original new implementation structure"""
+        if method == "fft_based":
+            def compute_FFT(x, y):
+                N = len(x)
+                T = x[1] - x[0]
+                yf = np.fft.fft(y)
+                xf = np.fft.fftfreq(N, T)
+                mask = xf > 0.1
+                xf, fft_magnitude = xf[mask], np.abs(yf)[mask]
+                idx = np.argmax(fft_magnitude)
+                peak_freqs = xf
+                peak_amps = 2 * fft_magnitude / N
+                peak_phases = np.angle(yf[mask])
+                return peak_freqs[idx], peak_amps[idx], peak_phases[idx]
 
-    def get_amp(dat):
-        max_ = np.max(dat, axis=-1)
-        min_ = np.min(dat, axis=-1)
-        return (max_ - min_) / 2
+            # Apply the FFT computation across the specified dimension
+            def get_fft_param(dat, idx):
+                return np.apply_along_axis(
+                    lambda x: compute_FFT(da[dim].values, x)[idx], -1, dat
+                )
 
-    da_c = da - da.mean(dim=dim)
-    freq_guess = _fix_initial_value(
-        xr.apply_ufunc(get_freq, da_c, input_core_dims=[[dim]]).rename("freq guess"),
-        da_c,
-    )
-    amp_guess = _fix_initial_value(
-        xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess"), da
-    )
-    # phase_guess = np.pi * (da.loc[{dim : da.coords[dim].values[0]}] < da.mean(dim=dim) )
-    phase_guess = np.pi * (
-        da.loc[{dim: np.abs(da.coords[dim]).min()}] < da.mean(dim=dim)
-    )
+            params = [
+                xr.apply_ufunc(get_fft_param, da, i, input_core_dims=[[dim], []])
+                for i in range(3)
+            ]
+            params = [_fix_initial_value(p, da) for p in params]
+            return [
+                p.rename(n)
+                for p, n in zip(params, ["freq guess", "amp guess", "phase guess"])
+            ]
+        
+        elif method == "qiskit_curve_analysis":
+            def get_freq(dat):
+                def f(d):
+                    return ca.guess.frequency(da[dim], d)
+                return np.apply_along_axis(f, -1, dat)
+
+            def get_amp(dat):
+                max_ = np.max(dat, axis=-1)
+                min_ = np.min(dat, axis=-1)
+                return (max_ - min_) / 2
+
+            da_c = da - da.mean(dim=dim)
+            freq_guess = _fix_initial_value(
+                xr.apply_ufunc(get_freq, da_c, input_core_dims=[[dim]]).rename("freq guess"),
+                da_c,
+            )
+            amp_guess = _fix_initial_value(
+                xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess"), da
+            )
+            phase_guess = np.pi * (
+                da.loc[{dim: np.abs(da.coords[dim]).min()}] < da.mean(dim=dim)
+            )
+            return freq_guess, amp_guess, phase_guess
+        
+        else:
+            raise ValueError(f"Unknown method: {method}. Use 'qiskit_curve_analysis' or 'fft_based'")
+
+    # Handle the different return types from the two methods
+    if method == "fft_based":
+        params_list = get_freq_and_amp_and_phase(da, dim)
+        freq_guess, amp_guess, phase_guess = params_list[0], params_list[1], params_list[2]
+    else:
+        freq_guess, amp_guess, phase_guess = get_freq_and_amp_and_phase(da, dim)
+    
     offset_guess = da.mean(dim=dim)
 
     def apply_fit(x, y, a, f, phi, offset):
@@ -262,7 +338,9 @@ def fit_oscillation(da, dim):
                 phi=Parameter("phi", value=phi),
                 offset=offset,
             )
-            if fit.rsquared < 0.9:
+            
+            # Retry mechanism with different frequency bounds if R² < 0.9 (only for qiskit_curve_analysis)
+            if method == "qiskit_curve_analysis" and fit.rsquared < 0.9:
                 fit = model.fit(
                     y,
                     t=x,
@@ -276,7 +354,14 @@ def fit_oscillation(da, dim):
                     phi=Parameter("phi", value=phi),
                     offset=offset,
                 )
-            return np.array([fit.values[k] for k in ["a", "f", "phi", "offset"]])
+            
+            # Calculate NRMSE (Normalized Root Mean Square Error)
+            y_pred = oscillation(x, fit.values["a"], fit.values["f"], fit.values["phi"], fit.values["offset"])
+            rmse = np.sqrt(np.mean((y - y_pred) ** 2))
+            y_range = np.ptp(y)  # Peak-to-peak range
+            nrmse = rmse / y_range if y_range > 0 else np.inf
+            
+            return np.array([fit.values[k] for k in ["a", "f", "phi", "offset"]]), fit.rsquared, nrmse
         except RuntimeError as e:
             print(f"{a=}, {f=}, {phi=}, {offset=}")
             plt.plot(x, oscillation(x, a, f, phi, offset))
@@ -293,10 +378,99 @@ def fit_oscillation(da, dim):
         phase_guess,
         offset_guess,
         input_core_dims=[[dim], [dim], [], [], [], []],
-        output_core_dims=[["fit_vals"]],
+        output_core_dims=[["fit_vals"], [], []],
         vectorize=True,
     )
-    return fit_res.assign_coords(fit_vals=("fit_vals", ["a", "f", "phi", "offset"]))
+    
+    # Extract the fit parameters, R² values, and NRMSE values
+    fit_params = fit_res[0].assign_coords(fit_vals=("fit_vals", ["a", "f", "phi", "offset"]))
+    r_squared = fit_res[1]
+    nrmse = fit_res[2]
+    
+    # Add R² and NRMSE as attributes to the fit parameters
+    if hasattr(r_squared, 'values'):
+        r_squared = r_squared.values
+    if hasattr(nrmse, 'values'):
+        nrmse = nrmse.values
+    
+    if isinstance(r_squared, np.ndarray):
+        r_squared = float(np.mean(r_squared))
+    else:
+        r_squared = float(r_squared)
+        
+    if isinstance(nrmse, np.ndarray):
+        nrmse = float(np.mean(nrmse))
+    else:
+        nrmse = float(nrmse)
+    
+    fit_params.attrs['r_squared'] = r_squared
+    fit_params.attrs['nrmse'] = nrmse
+    fit_params.attrs['method'] = method
+    
+    return fit_params
+
+
+def extract_fit_quality(fit: xr.Dataset) -> Optional[float]:
+    """Safely extract R² fit quality from dataset."""
+    try:
+        if "fit" in fit and hasattr(fit.fit, "attrs") and "r_squared" in fit.fit.attrs:
+            return float(fit.fit.attrs["r_squared"])
+    except (AttributeError, KeyError, ValueError, TypeError):
+        pass
+    return None
+
+
+def generate_lorentzian_fit(
+    qubit_data: xr.Dataset, detuning_values: np.ndarray
+) -> np.ndarray:
+    """Generate the Lorentzian fit from qubit data.
+
+    Args:
+        qubit_data (xr.Dataset): Dataset containing the fit parameters for a single qubit.
+        detuning_values (np.ndarray): Array of detuning values at which to evaluate the Lorentzian.
+
+    Returns:
+        np.ndarray: The Lorentzian fit evaluated at the given detuning values.
+    """
+    return lorentzian_dip(
+        detuning_values,
+        float(qubit_data.amplitude.values),
+        float(qubit_data.position.values),
+        float(qubit_data.width.values) / 2,  # Convert to half-width at half-max
+        float(qubit_data.base_line.mean().values),
+    )
+
+
+def calculate_quality_metrics(
+    raw_data: np.ndarray, fitted_data: np.ndarray
+) -> Dict[str, float]:
+    """
+    Calculate fit quality metrics: RMSE, NRMSE, and R-squared.
+
+    Args:
+        raw_data: The raw measurement data.
+        fitted_data: The data from the Lorentzian fit.
+
+    Returns:
+        A dictionary containing 'rmse', 'nrmse', and 'r_squared'.
+    """
+    residuals = raw_data - fitted_data
+    rmse = np.sqrt(np.mean(residuals**2))
+
+    # NRMSE (normalized by peak-to-peak range)
+    data_range = np.ptp(raw_data)
+    nrmse = rmse / data_range if data_range > 0 else np.inf
+
+    # R-squared (coefficient of determination)
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((raw_data - np.mean(raw_data)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+    # Ensure R-squared is valid
+    if not (0 <= r_squared <= 1):
+        r_squared = 0  # Invalid fit
+
+    return {"rmse": rmse, "nrmse": nrmse, "r_squared": r_squared}
 
 
 # def _truncate_data(transmission, window):
@@ -341,7 +515,7 @@ def fit_oscillation(da, dim):
 #     init_params.add("phi", value=0)
 #
 #     return init_params
-
+#
 #
 # class _two_resonator_model(Model):
 #     # A class to fit the S21 model to a data. Accepts an xarray data
@@ -566,3 +740,47 @@ def fit_oscillation(da, dim):
 #         fit.params.pretty_print()
 #
 #     return fit, fit_eval
+
+
+def circle_fit_s21_resonator_model(dataset: xr.Dataset):
+    """
+    Performs a full S21 circle fit for each qubit in the raw xarray Dataset.
+    
+    Args:
+        dataset: xarray Dataset containing the required data variables 'full_freq', 'I', and 'Q'
+            with coordinates including 'qubit'.
+    
+    Returns:
+        A tuple containing:
+            - results: Dictionary mapping qubit names to their fit parameters
+            - fitters: Dictionary mapping qubit names to their S21Resonator fitter objects
+    """
+    required_vars = ['full_freq', 'I', 'Q']
+    if not all(var in dataset for var in required_vars):
+        print(f"Error: Dataset must contain the data variables: {required_vars}")
+        return None
+
+    results = {}
+    fitters = {}
+    qubits = dataset.coords["qubit"].values
+
+    for qubit in qubits:
+        # print(f"\n{'='*20}\n--- Fitting qubit: {qubit} ---\n{'='*20}")
+        qubit_data = dataset.sel(qubit=qubit)
+        frequencies = qubit_data["full_freq"].values
+        I_data = qubit_data["I"].values
+        Q_data = qubit_data["Q"].values
+        valid_indices = ~np.isnan(frequencies) & ~np.isnan(I_data) & ~np.isnan(Q_data)
+        frequencies, I_data, Q_data = frequencies[valid_indices], I_data[valid_indices], Q_data[valid_indices]
+        s21_complex = I_data + 1j * Q_data
+
+        fitter = S21Resonator(frequencies, s21_complex)
+        fit_params = fitter.fit()
+
+        if fit_params:
+            results[qubit] = fit_params
+            fitters[qubit] = fitter
+        else:
+            results[qubit] = {"fit_parameters": None}
+
+    return results, fitters
