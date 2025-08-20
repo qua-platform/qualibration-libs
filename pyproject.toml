@@ -1,6 +1,6 @@
 [project]
 name = "qualibration-libs"
-version = "0.2.0"
+version = "0.2.1"
 description = "Utility library supporting calibration nodes and graphs for the QUAlibration graphs platform."
 readme = "README.md"
 authors = [{ name = "Theo Laudat", email = "theo@quantum-machines.co" }]
