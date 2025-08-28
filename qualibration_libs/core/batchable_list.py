@@ -61,7 +61,7 @@ class BatchableList(MutableSequence[T]):
         self._items.insert(index, value)
 
     def __repr__(self) -> str:
-        return repr(self._batch_groups)
+        return repr(self.batch())
 
     def batch(self) -> List[Dict[int, T]]:
         """
