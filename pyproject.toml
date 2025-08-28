@@ -7,14 +7,14 @@ authors = [{ name = "Theo Laudat", email = "theo@quantum-machines.co" }]
 requires-python = ">=3.9, <3.13"
 dependencies = [
     "colorama>=0.4.6",
-    "lmfit>=1.0.0",
-    "matplotlib>=3.5.0",
+    "lmfit>=1.3.3",
+    "matplotlib>=3.10.0",
     "numpy>=1.20.0",
-    "qm>=1.0.0",
-    "quam-builder>=1.0.0",
-    "qualibrate>=1.0.0",
-    "scipy>=1.7.0",
-    "xarray>=2022.1.0",
+    "qm-qua>=1.2.2",
+    "quam-builder>=0.1.2",
+    "qualibrate>=0.2.1",
+    "scipy>=1.13.1",
+    "xarray>=2024.7.0",
 ]
 
 [project.scripts]
