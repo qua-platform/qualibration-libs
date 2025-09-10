@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+- New dependencies: lmfit, matplotlib, numpy, qm, quam-builder, qualibrate, scipy, xarray
+
+### Changed
+- Updated BatchableList.repr method to show batch configuration
+- Updated analysis modules : extracted qiskit-experiment guess.py into package.
+
+### Removed
+- Removed qiskit-experiment dependency
+
 ## [0.2.0] - 2025-08-06
 ### Changed
 - Transfer the `power_tools` to quam-builder to remove its dependency to qualibration-libs.
