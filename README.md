@@ -41,8 +41,6 @@ This package includes the following modules:
   - `processing`: Offers functions for processing `xarray.Dataset` objects commonly resulting from QUA experiments. Includes utilities for converting raw I/Q data to Volts (`convert_IQ_to_V`), calculating and adding amplitude (`IQ_abs`) and phase (`phase`) data variables (`add_amplitude_and_phase`), and so on.
 - **`runtime`**: Set of functions called during the runtime (execution/simulation) of an experiment:
   - `simulate`: Contains `simulate_and_plot` for simulating QUA programs, plotting analog samples, and optionally generating interactive waveform reports using `qm.waveform_report`.
-- **`hardware`**: Interfaces with hardware components:
-  - `power_tools`: Functions to precisely set and retrieve the output power (in dBm) for specific operations on `MWChannel` (`set_output_power_mw_channel`, `get_output_power_mw_channel`) and `IQChannel` (`set_output_power_iq_channel`, `get_output_power_iq_channel`) components defined in QUAM. Handles adjustments to full-scale power or gain/amplitude to achieve target power levels using helpers like `calculate_voltage_scaling_factor`.
 - **`parameters`**: Defines Pydantic parameter structures used in Qualibration nodes:
   - `common`: Includes `CommonNodeParameters` for simulation settings, timeouts, loading historical data, etc.
   - `experiment`: Defines `QubitsExperimentNodeParameters` (qubit selection, multiplexing, state discrimination, reset types) and helper functions like `get_qubits` and `make_batchable_list_from_multiplexed` to manage qubit lists based on parameters.

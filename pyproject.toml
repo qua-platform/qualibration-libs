@@ -1,12 +1,20 @@
 [project]
 name = "qualibration-libs"
-version = "0.1.0"
+version = "0.2.1"
 description = "Utility library supporting calibration nodes and graphs for the QUAlibration graphs platform."
 readme = "README.md"
 authors = [{ name = "Theo Laudat", email = "theo@quantum-machines.co" }]
-requires-python = ">=3.9, <=3.12"
+requires-python = ">=3.9, <3.13"
 dependencies = [
     "colorama>=0.4.6",
+    "lmfit>=1.3.3",
+    "matplotlib>=3.10.0",
+    "numpy>=1.20.0",
+    "qm-qua>=1.2.2",
+    "quam-builder>=0.1.2",
+    "qualibrate>=0.2.1",
+    "scipy>=1.13.1",
+    "xarray>=2024.7.0",
 ]
 
 [project.scripts]

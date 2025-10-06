@@ -1,5 +1,5 @@
 from matplotlib import pyplot as plt
-import qiskit_experiments.curve_analysis as ca
+from qualibration_libs.analysis import guess
 from scipy.optimize import curve_fit
 import numpy as np
 import xarray as xr
@@ -37,7 +37,7 @@ def _fix_initial_value(x, da):
 def fit_decay_exp(da, dim):
     def get_decay(dat):
         def oed(d):
-            return ca.guess.exp_decay(da[dim], d)
+            return guess.exp_decay(da[dim], d)
 
         return np.apply_along_axis(oed, -1, dat)
 
@@ -104,13 +104,13 @@ def fit_decay_exp(da, dim):
 def fit_oscillation_decay_exp(da, dim):
     def get_decay(dat):
         def oed(d):
-            return ca.guess.oscillation_exp_decay(da[dim], d)
+            return guess.oscillation_exp_decay(da[dim], d)
 
         return np.apply_along_axis(oed, -1, dat)
 
     def get_freq(dat):
         def f(d):
-            return ca.guess.frequency(da[dim], d)
+            return guess.frequency(da[dim], d)
 
         return np.apply_along_axis(f, -1, dat)
 
@@ -242,7 +242,7 @@ def fit_oscillation_decay_exp(da, dim):
 def fit_oscillation(da, dim):
     def get_freq(dat):
         def f(d):
-            return ca.guess.frequency(da[dim], d)
+            return guess.frequency(da[dim], d)
 
         return np.apply_along_axis(f, -1, dat)
 
