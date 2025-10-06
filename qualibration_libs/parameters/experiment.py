@@ -27,7 +27,7 @@ class QubitsExperimentNodeParameters(BaseExperimentNodeParameters):
 
 class TwoQubitExperimentNodeParameters(BaseExperimentNodeParameters):
     qubit_pairs: Optional[List[str]] = None
-    """A list of qubit names which should participate in the execution of the node. Default is None."""
+    """A list of qubit pair names which should participate in the execution of the node. Default is None."""
 
 
 def get_qubits(node: QualibrationNode) -> BatchableList[AnyTransmon]:
