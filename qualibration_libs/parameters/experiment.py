@@ -25,7 +25,7 @@ class QubitsExperimentNodeParameters(BaseExperimentNodeParameters):
     """A list of qubit names which should participate in the execution of the node. Default is None."""
 
 
-class TwoQubitExperimentNodeParameters(BaseExperimentNodeParameters):
+class QubitPairExperimentNodeParameters(BaseExperimentNodeParameters):
     qubit_pairs: Optional[List[str]] = None
     """A list of qubit pair names which should participate in the execution of the node. Default is None."""
 
@@ -55,7 +55,7 @@ def _get_qubits(machine: AnyQuam, node_parameters: QubitsExperimentNodeParameter
 def get_qubit_pairs(node: QualibrationNode) -> BatchableList[AnyTransmonPair]:
     qubit_pairs = _get_qubit_pairs(node.machine, node.parameters)
 
-    if isinstance(node.parameters, TwoQubitExperimentNodeParameters):
+    if isinstance(node.parameters, QubitPairExperimentNodeParameters):
         multiplexed = node.parameters.multiplexed
     else:
         multiplexed = False
@@ -65,7 +65,7 @@ def get_qubit_pairs(node: QualibrationNode) -> BatchableList[AnyTransmonPair]:
     return qubit_pairs_batchable_list
 
 
-def _get_qubit_pairs(machine: AnyQuam, node_parameters: TwoQubitExperimentNodeParameters) -> List[AnyTransmonPair]:
+def _get_qubit_pairs(machine: AnyQuam, node_parameters: QubitPairExperimentNodeParameters) -> List[AnyTransmonPair]:
     if node_parameters.qubit_pairs is None or node_parameters.qubit_pairs == "":
         qubit_pairs = machine.active_qubit_pairs
     else:
