@@ -2,6 +2,7 @@ import numpy as np
 import xarray as xr
 
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
+from quam_builder.architecture.superconducting.qubit_pair import AnyTransmonPair
 
 
 __all__ = ["convert_IQ_to_V", "add_amplitude_and_phase", "subtract_slope"]
@@ -9,7 +10,8 @@ __all__ = ["convert_IQ_to_V", "add_amplitude_and_phase", "subtract_slope"]
 
 def convert_IQ_to_V(
     da: xr.Dataset,
-    qubits: list[AnyTransmon],
+    qubits: list[AnyTransmon] = None,
+    qubit_pairs: list[AnyTransmonPair] = None,
     IQ_list: list[str] = ("I", "Q"),
     single_demod: bool = False,
 ) -> xr.Dataset:
@@ -20,6 +22,8 @@ def convert_IQ_to_V(
     :type da: xr.DataArray
     :param qubits: the list of qubits components.
     :type qubits: list[AnyTransmon]
+    :param qubit_pairs: the list of qubit pair components.
+    :type qubit_pairs: list[AnyTransmonPair]
     :param IQ_list: the list of data to convert to V e.g. ["I", "Q"].
     :type IQ_list: list[str]
     :param single_demod: Flag to add the additional factor of 2 needed for single demod.
@@ -29,10 +33,30 @@ def convert_IQ_to_V(
 
     """
     # Create a xarray with a coordinate 'qubit' and the value is q.resonator.operations["readout"].length
-    readout_lengths = xr.DataArray(
-        [q.resonator.operations["readout"].length for q in qubits],
-        coords=[("qubit", [q.name for q in qubits])],
-    )
+    if qubits is not None:
+        readout_lengths = xr.DataArray(
+            [q.resonator.operations["readout"].length for q in qubits],
+            coords=[("qubit", [q.name for q in qubits])],
+        )
+    elif qubit_pairs is not None:
+        control_target = ["c", "t"]
+        readout_lengths = xr.DataArray(
+            data=[
+                [
+                    qp.qubit_control.resonator.operations["readout"].length,
+                    qp.qubit_target.resonator.operations["readout"].length,
+                ]
+                for qp in qubit_pairs
+            ],
+            dims=["qubit_pair", "control_target"],
+            coords={
+                "qubit_pair": [qp.name for qp in qubit_pairs],
+                "control_target": control_target,
+            },
+        )
+    else:
+        raise ValueError("Either qubits or qubit_pairs must be provided!")
+
     demod_factor = 2 if single_demod else 1
     return da.assign(
         {key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list}
