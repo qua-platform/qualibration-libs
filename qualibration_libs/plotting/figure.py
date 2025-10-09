@@ -135,11 +135,45 @@ class QualibrationFigure:
                     for hv in sel.coords[hue].values:
                         y_h = np.asarray(sel[var].sel({hue: hv}).values)
                         label = map_hue_value(hue, hv)
-                        self._fig.add_trace(go.Scatter(x=x_vals, y=y_h, name=label, mode="markers"), row=row_main,
-                                            col=col)
+                        # Apply styling to scatter trace
+                        scatter_kwargs = {
+                            "x": x_vals, 
+                            "y": y_h, 
+                            "name": label, 
+                            "mode": "markers",
+                            "marker": dict(size=_config.CURRENT_THEME.marker_size),
+                            "line": dict(width=_config.CURRENT_THEME.line_width)
+                        }
+                        # Apply style overrides if provided
+                        if "marker_size" in style_overrides:
+                            scatter_kwargs["marker"]["size"] = style_overrides["marker_size"]
+                        if "line_width" in style_overrides:
+                            scatter_kwargs["line"]["width"] = style_overrides["line_width"]
+                        if "color" in style_overrides:
+                            scatter_kwargs["marker"]["color"] = style_overrides["color"]
+                        if "mode" in style_overrides:
+                            scatter_kwargs["mode"] = style_overrides["mode"]
+                        self._fig.add_trace(go.Scatter(**scatter_kwargs), row=row_main, col=col)
                 else:
-                    self._fig.add_trace(go.Scatter(x=x_vals, y=y_vals, name=name, mode="markers"), row=row_main,
-                                        col=col)
+                    # Apply styling to scatter trace
+                    scatter_kwargs = {
+                        "x": x_vals, 
+                        "y": y_vals, 
+                        "name": name, 
+                        "mode": "markers",
+                        "marker": dict(size=_config.CURRENT_THEME.marker_size),
+                        "line": dict(width=_config.CURRENT_THEME.line_width)
+                    }
+                    # Apply style overrides if provided
+                    if "marker_size" in style_overrides:
+                        scatter_kwargs["marker"]["size"] = style_overrides["marker_size"]
+                    if "line_width" in style_overrides:
+                        scatter_kwargs["line"]["width"] = style_overrides["line_width"]
+                    if "color" in style_overrides:
+                        scatter_kwargs["marker"]["color"] = style_overrides["color"]
+                    if "mode" in style_overrides:
+                        scatter_kwargs["mode"] = style_overrides["mode"]
+                    self._fig.add_trace(go.Scatter(**scatter_kwargs), row=row_main, col=col)
 
                 xlab = label_from_attrs(x, (sel.coords[x].attrs if x in sel.coords else {}))
                 ylab = label_from_attrs(var, sel[var].attrs if hasattr(sel[var], "attrs") else {})
@@ -159,8 +193,20 @@ class QualibrationFigure:
                 z_vals = np.asarray(sel[var].values)
                 x_vals = np.asarray(sel.coords[x].values)
                 y_vals = np.asarray(sel.coords[y].values)
-                self._fig.add_trace(go.Heatmap(x=x_vals, y=y_vals, z=z_vals, colorbar=dict(title=var)), row=row_main,
-                                    col=col)
+                # Apply styling to heatmap trace
+                heatmap_kwargs = {
+                    "x": x_vals, 
+                    "y": y_vals, 
+                    "z": z_vals, 
+                    "colorbar": dict(title=var),
+                    "colorscale": "Viridis"  # Default colorscale
+                }
+                # Apply style overrides if provided
+                if "colorscale" in style_overrides:
+                    heatmap_kwargs["colorscale"] = style_overrides["colorscale"]
+                if "colorbar" in style_overrides:
+                    heatmap_kwargs["colorbar"].update(style_overrides["colorbar"])
+                self._fig.add_trace(go.Heatmap(**heatmap_kwargs), row=row_main, col=col)
                 xlab = label_from_attrs(x, sel.coords[x].attrs)
                 ylab = label_from_attrs(y, sel.coords[y].attrs)
                 self._fig.update_xaxes(title_text=xlab, row=row_main, col=col)
@@ -175,7 +221,9 @@ class QualibrationFigure:
                 else:
                     panel_overlays = overlays
                 for ov in panel_overlays:
-                    ov.add_to(self._fig, row=row_main, col=col, theme=_config.CURRENT_THEME, **style_overrides)
+                    # Pass x values for fit overlays
+                    x_vals_for_overlay = x_vals if 'x_vals' in locals() else None
+                    ov.add_to(self._fig, row=row_main, col=col, theme=_config.CURRENT_THEME, x=x_vals_for_overlay, **style_overrides)
 
             if residuals and row_resid is not None:
                 self._fig.add_shape(type="line", x0=0, x1=1, y0=0, y1=0, xref="paper", yref="y", line={"dash": "dot"},
