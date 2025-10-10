@@ -13,6 +13,9 @@ A comprehensive plotting library designed specifically for quantum calibration d
 - [Overlays](#overlays)
 - [Advanced Features](#advanced-features)
 - [Examples](#examples)
+- [Quick Reference: Matplotlib → Qualibration Plotting](#quick-reference-matplotlib--qualibration-plotting)
+- [Migration Process](#migration-process)
+- [Testing and Demos](#testing-and-demos)
 - [API Reference](#api-reference)
 
 ## Quick Start
@@ -485,6 +488,238 @@ fig = qplot.QualibrationFigure.plot(
 )
 ```
 
+## Quick Reference: Matplotlib → Qualibration Plotting
+
+This section provides before/after examples for migrating from matplotlib to the qualibration plotting module.
+
+### Import Changes
+
+```python
+# Before
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+
+# After
+import qualibration_libs.plotting as qplot
+from qualibration_libs.plotting import QualibrationFigure, QubitGrid
+from qualibration_libs.plotting.overlays import RefLine, FitOverlay, TextBoxOverlay
+```
+
+### Basic Plotting
+
+```python
+# Before
+plt.plot(x, y)
+plt.xlabel('X Label')
+plt.ylabel('Y Label')
+plt.title('Title')
+plt.show()
+
+# After
+ds = xr.Dataset({'y': (['x'], y), 'x': x})
+ds.x.attrs['long_name'] = 'X Label'
+ds.y.attrs['long_name'] = 'Y Label'
+fig = ds.qplot.plot(x='x', data_var='y', title='Title')
+node.results["figures"] = {"Title": fig.figure}
+```
+
+### Scatter Plots
+
+```python
+# Before
+plt.scatter(x, y, label='Data')
+plt.legend()
+plt.show()
+
+# After
+ds = xr.Dataset({'y': (['x'], y), 'x': x})
+fig = ds.qplot.plot(x='x', data_var='y', title='Scatter Plot')
+node.results["figures"] = {"Scatter": fig.figure}
+```
+
+### Multi-Subplot Layouts
+
+```python
+# Before
+fig, axes = plt.subplots(2, 2)
+for i, ax in enumerate(axes.flat):
+    ax.plot(x, data[i])
+    ax.set_title(f'Plot {i}')
+
+# After
+ds = xr.Dataset({
+    'data': (['qubit', 'x'], data),
+    'x': x
+})
+grid = QubitGrid(coords={f'q{i}': (i//2, i%2) for i in range(4)})
+fig = QualibrationFigure.plot(ds, x='x', data_var='data', grid=grid)
+node.results["figures"] = {"Multi-Plot": fig.figure}
+```
+
+### Reference Lines
+
+```python
+# Before
+plt.axvline(x=threshold, color='r', linestyle='--', label='Threshold')
+plt.axhline(y=baseline, color='g', linestyle=':', label='Baseline')
+
+# After
+overlays = [
+    RefLine(x=threshold, name='Threshold', dash='dash'),
+    RefLine(y=baseline, name='Baseline', dash='dot')
+]
+fig = ds.qplot.plot(x='x', data_var='y', overlays=overlays)
+```
+
+### Fit Overlays
+
+```python
+# Before
+plt.plot(x, y_fit, 'r--', label=f'Fit: {params}')
+plt.legend()
+
+# After
+fit_overlay = FitOverlay(
+    y_fit=y_fit,
+    params=params,
+    formatter=lambda p: f"Fit: {p['param']:.2f}",
+    name='Fit'
+)
+fig = ds.qplot.plot(x='x', data_var='y', overlays=[fit_overlay])
+```
+
+### 2D Heatmaps
+
+```python
+# Before
+plt.imshow(Z, extent=[x.min(), x.max(), y.min(), y.max()])
+plt.colorbar()
+
+# After
+ds = xr.Dataset({'Z': (['x', 'y'], Z), 'x': x, 'y': y})
+fig = ds.qplot.plot(x='x', y='y', data_var='Z')
+```
+
+### Annotations
+
+```python
+# Before
+plt.annotate('Peak', xy=(peak_x, peak_y), xytext=(peak_x+1, peak_y+1),
+             arrowprops=dict(arrowstyle='->'))
+
+# After
+text_overlay = TextBoxOverlay(
+    text=f'Peak at ({peak_x:.1f}, {peak_y:.1f})',
+    anchor='top right'
+)
+fig = ds.qplot.plot(x='x', data_var='y', overlays=[text_overlay])
+```
+
+### Debug Plots
+
+```python
+# Before
+plt.plot(x, y, label='Data')
+plt.plot(x, y_fit, label='Fit')
+plt.title('Debug Plot')
+plt.legend()
+plt.show()
+
+# After
+ds_debug = xr.Dataset({
+    'data': (['x'], y),
+    'fit': (['x'], y_fit),
+    'x': x
+})
+fit_overlay = FitOverlay(y_fit=ds_debug.fit.values, name='Fit')
+fig = ds_debug.qplot.plot(x='x', data_var='data', overlays=[fit_overlay], title='Debug Plot')
+node.results["figures"] = {"Debug": fig.figure}
+```
+
+### Common Patterns
+
+#### 1. Simple Line Plot
+```python
+# Data: x, y arrays
+ds = xr.Dataset({'y': (['x'], y), 'x': x})
+fig = ds.qplot.plot(x='x', data_var='y')
+```
+
+#### 2. Multi-Qubit Plot
+```python
+# Data: dict of {qubit: data} or xarray with qubit dimension
+fig = ds.qplot.plot(x='x', data_var='y', qubit_dim='qubit')
+```
+
+#### 3. Plot with Fit
+```python
+# Data: x, y, y_fit arrays
+ds = xr.Dataset({'y': (['x'], y), 'x': x})
+fit_overlay = FitOverlay(y_fit=y_fit, params=params)
+fig = ds.qplot.plot(x='x', data_var='y', overlays=[fit_overlay])
+```
+
+#### 4. 2D Heatmap
+```python
+# Data: 2D array Z with coordinates x, y
+ds = xr.Dataset({'Z': (['x', 'y'], Z), 'x': x, 'y': y})
+fig = ds.qplot.plot(x='x', y='y', data_var='Z')
+```
+
+## Migration Process
+
+### Step-by-Step Migration from Matplotlib
+
+#### Step 1: Identify Current Plotting Code
+1. Search for `import matplotlib` or `plt.` in your code
+2. Identify the plotting patterns used
+3. Note the data structures being plotted
+
+#### Step 2: Convert Data to xarray
+1. Wrap your data in `xr.Dataset` or `xr.DataArray`
+2. Add metadata attributes (`long_name`, `units`)
+3. Ensure proper dimension names
+
+**Data Conversion Examples:**
+
+```python
+import xarray as xr
+import qualibration_libs.io as qio
+
+# From NumPy arrays
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+ds = xr.Dataset({
+    'amplitude': (['time'], y),
+    'time': x
+})
+ds.time.attrs['long_name'] = 'Time'
+ds.time.attrs['units'] = 'ns'
+ds.amplitude.attrs['long_name'] = 'Amplitude'
+ds.amplitude.attrs['units'] = 'V'
+
+# Save dataset using io.py
+qio.save_dataset(ds, 'my_data.nc')
+
+# Load existing dataset with automatic version upgrade
+ds = qio.load_dataset('old_data.nc')
+```
+
+#### Step 3: Replace Plotting Calls
+1. Use `ds.qplot.plot()` for simple cases
+2. Use `QualibrationFigure.plot()` for complex cases
+3. Add overlays for reference lines, fits, annotations
+
+#### Step 4: Update Node Results
+1. Store figures in `node.results["figures"]`
+2. Use descriptive keys for figure names
+3. Remove `plt.show()` calls
+
+#### Step 5: Test and Refine
+1. Test the new plots in QUAlibrate
+2. Adjust styling if needed
+3. Add overlays for better visualization
+
 ## API Reference
 
 ### QualibrationFigure
@@ -559,15 +794,53 @@ Theme configuration with attributes:
 - `paper_bg`: Paper background color
 - `colorway`: Default color sequence
 
-## Best Practices
+## Testing and Demos
 
-1. **Use xarray for data**: Preserves metadata and enables automatic labeling
-2. **Set meaningful attributes**: Use `long_name` and `units` in coordinates
-3. **Leverage overlays**: Add reference lines, fits, and annotations
-4. **Use theme contexts**: For temporary styling changes
-5. **Custom grids**: For complex qubit layouts
-6. **Residuals plots**: For fit quality assessment
-7. **Consistent styling**: Use global themes for publication-ready plots
+### Running Tests
+
+The plotting module includes comprehensive unit tests. Run them using:
+
+```bash
+# Run all tests
+python qualibration_libs/plotting/run_tests.py
+
+# Or run tests directly with pytest
+pytest qualibration_libs/plotting/tests/ -v
+```
+
+### Running Demos
+
+Several demo scripts are available to showcase the plotting capabilities:
+
+```bash
+# Run all demos
+python qualibration_libs/plotting/run_tests.py
+
+# Run individual demos
+python qualibration_libs/plotting/demos/simple_demo.py
+python qualibration_libs/plotting/demos/basic_plots.py
+python qualibration_libs/plotting/demos/advanced_plots.py
+python qualibration_libs/plotting/demos/fit_overlay_demo.py
+python qualibration_libs/plotting/demos/feature_verification.py
+python qualibration_libs/plotting/demos/correct_raw_vs_fit_demo.py
+python qualibration_libs/plotting/demos/real_fit_data_demo.py
+```
+
+### Demo Scripts Overview
+
+- **`simple_demo.py`**: Basic functionality with real test data
+- **`basic_plots.py`**: Fundamental plotting capabilities (1D, 2D, multi-qubit)
+- **`advanced_plots.py`**: Complex scenarios (flux tuning, fit analysis)
+- **`fit_overlay_demo.py`**: Fit overlays and parameter display
+- **`feature_verification.py`**: Residuals plots and advanced features
+- **`correct_raw_vs_fit_demo.py`**: Raw data vs fitted data comparison
+- **`real_fit_data_demo.py`**: Real experimental data examples
+
+### Test Data
+
+The demos use test data files located in `qualibration_libs/plotting/test_data/`:
+- `ds_raw.h5`, `ds_raw_2.h5`, `ds_raw_3.h5`: Raw measurement data
+- `ds_fit.h5`, `ds_fit_2.h5`, `ds_fit_3.h5`: Fitted data with parameters
 
 ## Dependencies
 
@@ -575,6 +848,7 @@ Theme configuration with attributes:
 - xarray  
 - numpy
 - pandas (optional)
+- pytest (for testing)
 
 ## License
 
