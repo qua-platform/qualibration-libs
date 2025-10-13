@@ -85,8 +85,8 @@ def demo_raw_vs_fit_data():
             title=f"Raw Data vs Real Fit - {qubit_name}"
         )
         
-        print(f"✓ Created plot with {len(fig.figure.data)} traces")
-        print(f"✓ Trace names: {[trace.name for trace in fig.figure.data]}")
+        print(f"[OK] Created plot with {len(fig.figure.data)} traces")
+        print(f"[OK] Trace names: {[trace.name for trace in fig.figure.data]}")
         fig.figure.show()
         
         # Calculate fit quality
@@ -165,8 +165,8 @@ def demo_multi_qubit_real_fits():
             title="Multi-Qubit Real Fit Comparison"
         )
         
-        print(f"✓ Created multi-qubit plot with {len(fig.figure.data)} traces")
-        print(f"✓ Using real fit curves from ds_fit.h5")
+        print(f"[OK] Created multi-qubit plot with {len(fig.figure.data)} traces")
+        print(f"[OK] Using real fit curves from ds_fit.h5")
         fig.figure.show()
     else:
         print("Need at least 2 successful fits for multi-qubit comparison")
@@ -201,7 +201,7 @@ def demo_fit_parameter_analysis():
             data_var='amplitude',
             title="Fit Amplitude vs Qubit"
         )
-        print("✓ Amplitude analysis plot created")
+        print("[OK] Amplitude analysis plot created")
         fig.figure.show()
         
         # Plot width vs qubit
@@ -211,7 +211,7 @@ def demo_fit_parameter_analysis():
             data_var='width',
             title="Fit Width vs Qubit"
         )
-        print("✓ Width analysis plot created")
+        print("[OK] Width analysis plot created")
         fig.figure.show()
         
         # Plot position vs qubit
@@ -221,7 +221,7 @@ def demo_fit_parameter_analysis():
             data_var='position',
             title="Fit Position vs Qubit"
         )
-        print("✓ Position analysis plot created")
+        print("[OK] Position analysis plot created")
         fig.figure.show()
         
         # Show parameter statistics
@@ -263,7 +263,7 @@ def demo_flux_tuning_fit_data():
                 data_var='peak_freq',
                 title=f"Peak Frequency vs Flux Bias - {qubit}"
             )
-            print(f"✓ Created flux tuning plot for {qubit}")
+            print(f"[OK] Created flux tuning plot for {qubit}")
             fig.figure.show()
     
     # Plot fit results
@@ -282,7 +282,7 @@ def demo_flux_tuning_fit_data():
             data_var=param,
             title=f"Flux Tuning Fit Parameter {param}"
         )
-        print(f"✓ Created {param} parameter plot")
+        print(f"[OK] Created {param} parameter plot")
         fig.figure.show()
 
 
@@ -324,7 +324,7 @@ def demo_power_sweep_fit_data():
                 data_var='IQ_abs',
                 title=f"Power Sweep Analysis - {qubit_name} (Optimal: {optimal_power:.1f} dBm)"
             )
-            print(f"✓ Created power sweep heatmap for {qubit_name}")
+            print(f"[OK] Created power sweep heatmap for {qubit_name}")
             fig.figure.show()
     else:
         print("No successful fits found in power sweep data")
@@ -345,12 +345,12 @@ def main():
         print("\n" + "="*60)
         print("🎉 ALL REAL FIT DATA DEMOS COMPLETED!")
         print("="*60)
-        print("✓ Raw vs fit data comparison is working")
-        print("✓ Multi-qubit real fit comparison is working")
-        print("✓ Fit parameter analysis is working")
-        print("✓ Flux tuning fit data is working")
-        print("✓ Power sweep fit data is working")
-        print("✓ Using actual fit curves from HDF5 files")
+        print("[OK] Raw vs fit data comparison is working")
+        print("[OK] Multi-qubit real fit comparison is working")
+        print("[OK] Fit parameter analysis is working")
+        print("[OK] Flux tuning fit data is working")
+        print("[OK] Power sweep fit data is working")
+        print("[OK] Using actual fit curves from HDF5 files")
         
     except Exception as e:
         print(f"\n❌ Real fit data demo failed: {e}")

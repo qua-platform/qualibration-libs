@@ -163,12 +163,21 @@ fig = qplot.QualibrationFigure.plot(
 ### Residuals Plots
 
 ```python
-# Add residuals subplot
+# Add residuals subplot (requires FitOverlay for actual residual data)
+from qualibration_libs.plotting.overlays import FitOverlay
+
+# Create fit overlay with your fitted curve
+fit_overlay = FitOverlay(
+    y_fit=fitted_curve,
+    params={'param1': value1, 'param2': value2}
+)
+
 fig = qplot.QualibrationFigure.plot(
     data,
     x='frequency',
     data_var='amplitude',
-    residuals=True,         # Enable residuals plot
+    overlays=[fit_overlay],
+    residuals=True,         # Shows residuals = data - fit_curve in separate subplot
     title="Fit with Residuals"
 )
 ```
@@ -739,7 +748,7 @@ Create a new plot from data.
 - `qubit_names`: Explicit list of qubit names
 - `grid`: QubitGrid for custom layout
 - `overlays`: Overlay objects or dict/function
-- `residuals`: Enable residuals subplot
+- `residuals`: Enable residuals subplot (requires FitOverlay for actual residual data)
 - `title`: Plot title
 - `**style_overrides`: Additional styling options
 
@@ -821,6 +830,7 @@ python qualibration_libs/plotting/demos/simple_demo.py
 python qualibration_libs/plotting/demos/basic_plots.py
 python qualibration_libs/plotting/demos/advanced_plots.py
 python qualibration_libs/plotting/demos/fit_overlay_demo.py
+python qualibration_libs/plotting/demos/residuals_demo.py
 python qualibration_libs/plotting/demos/feature_verification.py
 python qualibration_libs/plotting/demos/correct_raw_vs_fit_demo.py
 python qualibration_libs/plotting/demos/real_fit_data_demo.py
@@ -832,7 +842,8 @@ python qualibration_libs/plotting/demos/real_fit_data_demo.py
 - **`basic_plots.py`**: Fundamental plotting capabilities (1D, 2D, multi-qubit)
 - **`advanced_plots.py`**: Complex scenarios (flux tuning, fit analysis)
 - **`fit_overlay_demo.py`**: Fit overlays and parameter display
-- **`feature_verification.py`**: Residuals plots and advanced features
+- **`residuals_demo.py`**: Comprehensive residuals functionality testing
+- **`feature_verification.py`**: Advanced features and verification
 - **`correct_raw_vs_fit_demo.py`**: Raw data vs fitted data comparison
 - **`real_fit_data_demo.py`**: Real experimental data examples
 

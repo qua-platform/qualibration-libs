@@ -56,8 +56,8 @@ def demo_simple_fit_overlay():
         title="Simple Gaussian Fit Overlay"
     )
     
-    print(f"✓ Created plot with {len(fig.figure.data)} traces")
-    print(f"✓ Trace names: {[trace.name for trace in fig.figure.data]}")
+    print(f"[OK] Created plot with {len(fig.figure.data)} traces")
+    print(f"[OK] Trace names: {[trace.name for trace in fig.figure.data]}")
     fig.figure.show()
 
 
@@ -128,8 +128,8 @@ def demo_real_fit_data():
             title=f"Real Fit Analysis - {qubit_name}"
         )
         
-        print(f"✓ Created plot with {len(fig.figure.data)} traces")
-        print(f"✓ Trace names: {[trace.name for trace in fig.figure.data]}")
+        print(f"[OK] Created plot with {len(fig.figure.data)} traces")
+        print(f"[OK] Trace names: {[trace.name for trace in fig.figure.data]}")
         fig.figure.show()
         
         # Test with multiple successful qubits
@@ -176,7 +176,7 @@ def demo_real_fit_data():
                 title="Multi-Qubit Fit Comparison"
             )
             
-            print(f"✓ Created multi-qubit plot with {len(fig.figure.data)} traces")
+            print(f"[OK] Created multi-qubit plot with {len(fig.figure.data)} traces")
             fig.figure.show()
     else:
         print("No successful fits found in the data")
@@ -239,8 +239,8 @@ def demo_fit_quality_analysis():
             title=f"Fit Quality Analysis - {qubit_name}"
         )
         
-        print(f"✓ Created fit quality plot with {len(fig.figure.data)} traces")
-        print(f"✓ Includes residuals subplot")
+        print(f"[OK] Created fit quality plot with {len(fig.figure.data)} traces")
+        print(f"[OK] Includes residuals subplot")
         fig.figure.show()
         
         # Calculate and display fit statistics
@@ -311,8 +311,8 @@ def demo_custom_fit_functions():
         title="Custom Fit Functions Comparison"
     )
     
-    print(f"✓ Created plot with {len(fig.figure.data)} traces")
-    print(f"✓ Includes Lorentzian and Double Gaussian fits")
+    print(f"[OK] Created plot with {len(fig.figure.data)} traces")
+    print(f"[OK] Includes Lorentzian and Double Gaussian fits")
     fig.figure.show()
 
 
@@ -330,11 +330,11 @@ def main():
         print("\n" + "="*60)
         print("🎉 ALL FIT OVERLAY DEMOS COMPLETED!")
         print("="*60)
-        print("✓ Simple synthetic fits are working")
-        print("✓ Real quantum device fit data is working")
-        print("✓ Fit quality analysis with residuals is working")
-        print("✓ Custom fit functions are working")
-        print("✓ Parameter display and formatting is working")
+        print("[OK] Simple synthetic fits are working")
+        print("[OK] Real quantum device fit data is working")
+        print("[OK] Fit quality analysis with residuals is working")
+        print("[OK] Custom fit functions are working")
+        print("[OK] Parameter display and formatting is working")
         
     except Exception as e:
         print(f"\n❌ Fit overlay demo failed: {e}")

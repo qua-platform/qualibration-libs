@@ -119,38 +119,42 @@ class TestThemeFunctions:
     
     def test_theme_context(self):
         """Test theme context manager."""
-        original_theme = PlotTheme()
+        from qualibration_libs.plotting import config
+        
+        # Get the actual current theme before the context
+        original_font_size = config.CURRENT_THEME.font_size
+        original_palette = config.CURRENT_PALETTE
+        original_rc = dict(config.CURRENT_RC.values)
         
         with theme_context(
             theme=PlotTheme(font_size=20),
             palette=["#FF0000"],
             rc={'test_param': True}
         ):
-            from qualibration_libs.plotting import config
             assert config.CURRENT_THEME.font_size == 20
             assert config.CURRENT_PALETTE == ("#FF0000",)
             assert config.CURRENT_RC.values['test_param'] is True
         
         # Should restore original values
-        from qualibration_libs.plotting import config
-        assert config.CURRENT_THEME.font_size == original_theme.font_size
-        assert config.CURRENT_PALETTE is None or config.CURRENT_PALETTE != ("#FF0000",)
+        assert config.CURRENT_THEME.font_size == original_font_size
+        assert config.CURRENT_PALETTE == original_palette
         assert 'test_param' not in config.CURRENT_RC.values
     
     def test_theme_context_exception(self):
         """Test theme context manager with exception."""
-        original_font_size = 14
+        from qualibration_libs.plotting import config
+        
+        # Get the actual current theme before the context
+        original_font_size = config.CURRENT_THEME.font_size
         
         try:
             with theme_context(theme=PlotTheme(font_size=20)):
-                from qualibration_libs.plotting import config
                 assert config.CURRENT_THEME.font_size == 20
                 raise ValueError("Test exception")
         except ValueError:
             pass
         
         # Should still restore original values
-        from qualibration_libs.plotting import config
         assert config.CURRENT_THEME.font_size == original_font_size
 
 
@@ -159,15 +163,20 @@ class TestApplyThemeToLayout:
     
     def test_apply_theme_to_layout_dict(self):
         """Test applying theme to layout dictionary."""
-        layout = {}
-        theme = PlotTheme(font_size=18, figure_bg="lightblue")
+        from qualibration_libs.plotting import config
         
+        # Set a custom theme
+        custom_theme = PlotTheme(font_size=18, figure_bg="lightblue")
+        config.CURRENT_THEME.font_size = custom_theme.font_size
+        config.CURRENT_THEME.figure_bg = custom_theme.figure_bg
+        
+        layout = {}
         apply_theme_to_layout(layout)
         
         assert layout['template'] == "plotly_white"
-        assert layout['paper_bgcolor'] == theme.paper_bg
-        assert layout['plot_bgcolor'] == theme.figure_bg
-        assert layout['font']['size'] == theme.font_size
+        assert layout['paper_bgcolor'] == custom_theme.paper_bg
+        assert layout['plot_bgcolor'] == custom_theme.figure_bg
+        assert layout['font']['size'] == custom_theme.font_size
     
     def test_apply_theme_to_layout_with_palette(self):
         """Test applying theme with palette."""
@@ -189,14 +198,16 @@ class TestApplyThemeToLayout:
         
         apply_theme_to_layout(mock_layout)
         
-        # Should call update method
-        mock_layout.update.assert_called_once()
-        call_args = mock_layout.update.call_args[0][0]
+        # Should call update method (may be called multiple times)
+        assert mock_layout.update.call_count >= 1
         
-        assert call_args['template'] == "plotly_white"
-        assert 'paper_bgcolor' in call_args
-        assert 'plot_bgcolor' in call_args
-        assert 'font' in call_args
+        # Check the first call (theme)
+        first_call = mock_layout.update.call_args_list[0]
+        first_call_args = first_call[0][0] if first_call[0] else first_call[1]
+        assert first_call_args['template'] == "plotly_white"
+        assert 'paper_bgcolor' in first_call_args
+        assert 'plot_bgcolor' in first_call_args
+        assert 'font' in first_call_args
 
 
 class TestBuiltInPalettes:

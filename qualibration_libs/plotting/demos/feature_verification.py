@@ -42,8 +42,8 @@ def demo_subplot_grids():
         data_var='IQ_abs',
         title="Default 1x8 Grid Layout"
     )
-    print(f"✓ Created plot with {len(fig.figure.data)} traces")
-    print(f"✓ Subplot titles: {[ann.text for ann in fig.figure.layout.annotations if ann.text]}")
+    print(f"[OK] Created plot with {len(fig.figure.data)} traces")
+    print(f"[OK] Subplot titles: {[ann.text for ann in fig.figure.layout.annotations if ann.text]}")
     fig.figure.show()
     
     # Test 2: Custom 2x4 grid
@@ -63,8 +63,8 @@ def demo_subplot_grids():
         grid=grid_2x4,
         title="Custom 2x4 Grid Layout"
     )
-    print(f"✓ Created plot with {len(fig.figure.data)} traces")
-    print(f"✓ Subplot titles: {[ann.text for ann in fig.figure.layout.annotations if ann.text]}")
+    print(f"[OK] Created plot with {len(fig.figure.data)} traces")
+    print(f"[OK] Subplot titles: {[ann.text for ann in fig.figure.layout.annotations if ann.text]}")
     fig.figure.show()
     
     # Test 3: Custom 4x2 grid
@@ -84,8 +84,8 @@ def demo_subplot_grids():
         grid=grid_4x2,
         title="Custom 4x2 Grid Layout"
     )
-    print(f"✓ Created plot with {len(fig.figure.data)} traces")
-    print(f"✓ Subplot titles: {[ann.text for ann in fig.figure.layout.annotations if ann.text]}")
+    print(f"[OK] Created plot with {len(fig.figure.data)} traces")
+    print(f"[OK] Subplot titles: {[ann.text for ann in fig.figure.layout.annotations if ann.text]}")
     fig.figure.show()
 
 
@@ -111,9 +111,9 @@ def demo_heatmaps():
     )
     
     heatmap_traces = [trace for trace in fig.figure.data if trace.type == 'heatmap']
-    print(f"✓ Created heatmap with {len(heatmap_traces)} heatmap traces")
+    print(f"[OK] Created heatmap with {len(heatmap_traces)} heatmap traces")
     if heatmap_traces:
-        print(f"✓ Heatmap data shape: {heatmap_traces[0].z.shape}")
+        print(f"[OK] Heatmap data shape: {heatmap_traces[0].z.shape}")
     fig.figure.show()
     
     # Test 2: 3D data as 2D heatmap
@@ -130,9 +130,9 @@ def demo_heatmaps():
     )
     
     heatmap_traces = [trace for trace in fig.figure.data if trace.type == 'heatmap']
-    print(f"✓ Created heatmap with {len(heatmap_traces)} heatmap traces")
+    print(f"[OK] Created heatmap with {len(heatmap_traces)} heatmap traces")
     if heatmap_traces:
-        print(f"✓ Heatmap data shape: {heatmap_traces[0].z.shape}")
+        print(f"[OK] Heatmap data shape: {heatmap_traces[0].z.shape}")
     fig.figure.show()
     
     # Test 3: Multi-qubit heatmap comparison
@@ -146,7 +146,7 @@ def demo_heatmaps():
     )
     
     heatmap_traces = [trace for trace in fig.figure.data if trace.type == 'heatmap']
-    print(f"✓ Created multi-qubit heatmap with {len(heatmap_traces)} heatmap traces")
+    print(f"[OK] Created multi-qubit heatmap with {len(heatmap_traces)} heatmap traces")
     fig.figure.show()
 
 
@@ -174,7 +174,7 @@ def demo_overlays():
         overlays=overlays,
         title="Reference Line Overlays"
     )
-    print(f"✓ Created plot with {len(overlays)} reference lines")
+    print(f"[OK] Created plot with {len(overlays)} reference lines")
     fig.figure.show()
     
     # Test 2: Custom line overlay
@@ -199,7 +199,7 @@ def demo_overlays():
         overlays=[line_overlay],
         title="Custom Line Overlay"
     )
-    print("✓ Created plot with custom line overlay")
+    print("[OK] Created plot with custom line overlay")
     fig.figure.show()
     
     # Test 3: Per-qubit overlays
@@ -219,7 +219,7 @@ def demo_overlays():
         overlays=create_qubit_overlays,
         title="Per-Qubit Overlays"
     )
-    print("✓ Created plot with per-qubit overlays")
+    print("[OK] Created plot with per-qubit overlays")
     fig.figure.show()
 
 
@@ -240,7 +240,7 @@ def demo_themes():
         data_var='IQ_abs',
         title="Default Theme"
     )
-    print("✓ Created plot with default theme")
+    print("[OK] Created plot with default theme")
     fig.figure.show()
     
     # Test 2: Custom theme
@@ -262,7 +262,7 @@ def demo_themes():
         data_var='IQ_abs',
         title="Custom Theme"
     )
-    print("✓ Created plot with custom theme")
+    print("[OK] Created plot with custom theme")
     fig.figure.show()
     
     # Test 3: Custom color palette
@@ -276,7 +276,7 @@ def demo_themes():
         data_var='IQ_abs',
         title="Custom Color Palette"
     )
-    print("✓ Created plot with custom color palette")
+    print("[OK] Created plot with custom color palette")
     fig.figure.show()
     
     # Test 4: Theme context manager
@@ -291,7 +291,7 @@ def demo_themes():
             data_var='IQ_abs',
             title="Theme Context Manager"
         )
-        print("✓ Created plot with theme context manager")
+        print("[OK] Created plot with theme context manager")
         fig.figure.show()
     
     # Reset to default
@@ -321,7 +321,7 @@ def demo_residuals():
     # Check for residual subplot shapes (zero line)
     shapes = fig.figure.layout.shapes
     zero_lines = [shape for shape in shapes if shape.type == 'line' and shape.y0 == 0]
-    print(f"✓ Created residuals plot with {len(zero_lines)} zero reference lines")
+    print(f"[OK] Created residuals plot with {len(zero_lines)} zero reference lines")
     fig.figure.show()
 
 
@@ -340,11 +340,11 @@ def main():
         print("\n" + "="*60)
         print("🎉 ALL FEATURES VERIFIED SUCCESSFULLY!")
         print("="*60)
-        print("✓ Multi-qubit subplot grids are working")
-        print("✓ 2D heatmap plots are working")
-        print("✓ Overlay functionality is working")
-        print("✓ Theme customization is working")
-        print("✓ Residuals plots are working")
+        print("[OK] Multi-qubit subplot grids are working")
+        print("[OK] 2D heatmap plots are working")
+        print("[OK] Overlay functionality is working")
+        print("[OK] Theme customization is working")
+        print("[OK] Residuals plots are working")
         
     except Exception as e:
         print(f"\n❌ Feature verification failed: {e}")

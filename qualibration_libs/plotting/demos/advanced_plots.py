@@ -28,9 +28,9 @@ def load_test_data():
         if filepath.exists():
             try:
                 data_files[filename] = xr.open_dataset(filepath)
-                print(f"✓ Loaded {filename}")
+                print(f"[OK] Loaded {filename}")
             except Exception as e:
-                print(f"✗ Failed to load {filename}: {e}")
+                print(f"[FAIL] Failed to load {filename}: {e}")
     
     return data_files
 
