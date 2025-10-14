@@ -193,8 +193,10 @@ fig = qplot.QualibrationFigure.plot(
 
 ```python
 # Set global theme
+from qualibration_libs.plotting.config import PlotTheme
+
 qplot.set_theme(
-    theme=qplot.PlotTheme(
+    theme=PlotTheme(
         font_size=16,
         marker_size=8,
         line_width=3,
@@ -219,8 +221,10 @@ qplot.set_palette(["#FF0000", "#00FF00", "#0000FF"])
 
 ```python
 # Temporary theme changes
+from qualibration_libs.plotting.config import PlotTheme
+
 with qplot.theme_context(
-    theme=qplot.PlotTheme(font_size=20),
+    theme=PlotTheme(font_size=20),
     palette="deep"
 ):
     fig = qplot.QualibrationFigure.plot(data, x='freq', data_var='amp')
