@@ -30,7 +30,7 @@ def load_test_data():
                 data_files[filename] = xr.open_dataset(filepath)
                 print(f"[OK] Loaded {filename}")
             except Exception as e:
-                print(f"[FAIL] Failed to load {filename}: {e}")
+                print(f"[ERROR] Failed to load {filename}: {e}")
     
     return data_files
 
@@ -268,7 +268,7 @@ def demo_multi_qubit_comparison(data_files):
         col = i % 4
         qubit_coords_2x4[qubit] = (row, col)
     
-    grid_2x4 = QubitGrid(coords=qubit_coords_2x4, shape=(2, 4))
+    grid_2x4 = QubitGrid(qubit_coords_2x4, shape=(2, 4))
     
     fig = qplot.QualibrationFigure.plot(
         ds,
@@ -286,7 +286,7 @@ def demo_multi_qubit_comparison(data_files):
         col = i % 2
         qubit_coords_4x2[qubit] = (row, col)
     
-    grid_4x2 = QubitGrid(coords=qubit_coords_4x2, shape=(4, 2))
+    grid_4x2 = QubitGrid(qubit_coords_4x2, shape=(4, 2))
     
     fig = qplot.QualibrationFigure.plot(
         ds,
@@ -343,7 +343,8 @@ def demo_publication_ready_plots(data_files):
     # Create publication-ready theme
     print("\nCreating publication-ready plots...")
     
-    pub_theme = qplot.PlotTheme(
+    from qualibration_libs.plotting.config import PlotTheme
+    pub_theme = PlotTheme(
         font_size=16,
         title_size=20,
         tick_label_size=14,
@@ -426,7 +427,7 @@ def demo_publication_ready_plots(data_files):
     fig.figure.show()
     
     # Reset theme
-    qplot.set_theme(theme=qplot.PlotTheme())
+    qplot.set_theme(theme=PlotTheme())
 
 
 def demo_flux_tuning_fit_analysis(data_files):

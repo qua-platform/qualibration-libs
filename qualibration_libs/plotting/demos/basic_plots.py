@@ -29,7 +29,7 @@ def load_test_data():
                 data_files[filename] = xr.open_dataset(filepath)
                 print(f"[OK] Loaded {filename}")
             except Exception as e:
-                print(f"[FAIL] Failed to load {filename}: {e}")
+                print(f"[ERROR] Failed to load {filename}: {e}")
     
     return data_files
 
@@ -341,7 +341,7 @@ def demo_custom_grids(data_files):
         qubit_coords[qubit] = (row, col)
     
     custom_grid = QubitGrid(
-        coords=qubit_coords,
+        qubit_coords,
         shape=(2, 4)
     )
     
@@ -363,7 +363,7 @@ def demo_custom_grids(data_files):
         qubit_coords_4x2[qubit] = (row, col)
     
     custom_grid_4x2 = QubitGrid(
-        coords=qubit_coords_4x2,
+        qubit_coords_4x2,
         shape=(4, 2)
     )
     
@@ -401,7 +401,8 @@ def demo_styling(data_files):
     
     # Custom theme
     print("\nCreating plot with custom theme...")
-    custom_theme = qplot.PlotTheme(
+    from qualibration_libs.plotting.config import PlotTheme
+    custom_theme = PlotTheme(
         font_size=18,
         marker_size=10,
         line_width=3,
@@ -436,7 +437,7 @@ def demo_styling(data_files):
     # Theme context manager
     print("\nCreating plot with theme context manager...")
     with qplot.theme_context(
-        theme=qplot.PlotTheme(font_size=20, marker_size=12),
+        theme=PlotTheme(font_size=20, marker_size=12),
         palette="deep"
     ):
         fig = qplot.QualibrationFigure.plot(
@@ -448,7 +449,7 @@ def demo_styling(data_files):
         fig.figure.show()
     
     # Reset to default
-    qplot.set_theme(theme=qplot.PlotTheme())
+    qplot.set_theme(theme=PlotTheme())
     qplot.set_palette("qualibrate")
 
 

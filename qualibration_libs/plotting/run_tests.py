@@ -44,7 +44,7 @@ def run_tests():
             print("[OK] All tests passed!")
             return True
         else:
-            print("[FAIL] Some tests failed!")
+            print("[ERROR] Some tests failed!")
             return False
             
     except Exception as e:
@@ -66,7 +66,8 @@ def run_demos():
     demos = [
         "basic_plots.py",
         "advanced_plots.py",
-        "residuals_demo.py"
+        "residuals_demo.py",
+        "qubit_grid_demo.py"
     ]
     
     success_count = 0
@@ -84,14 +85,14 @@ def run_demos():
                     print(f"[OK] {demo} completed successfully")
                     success_count += 1
                 else:
-                    print(f"[FAIL] {demo} failed with exit code {result.returncode}")
+                    print(f"[ERROR] {demo} failed with exit code {result.returncode}")
                     if result.stderr:
                         print("Error output:")
                         print(result.stderr)
             except subprocess.TimeoutExpired:
-                print(f"[FAIL] {demo} timed out")
+                print(f"[ERROR] {demo} timed out")
             except Exception as e:
-                print(f"[FAIL] {demo} failed with error: {e}")
+                print(f"[ERROR] {demo} failed with error: {e}")
         else:
             print(f"Demo file not found: {demo_path}")
     
@@ -114,14 +115,14 @@ def main():
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    print(f"Unit Tests: {'[OK] PASSED' if test_success else '[FAIL] FAILED'}")
-    print(f"Demos: {'[OK] PASSED' if demo_success else '[FAIL] FAILED'}")
+    print(f"Unit Tests: {'[OK] PASSED' if test_success else '[ERROR] FAILED'}")
+    print(f"Demos: {'[OK] PASSED' if demo_success else '[ERROR] FAILED'}")
     
     if test_success and demo_success:
         print("\n[SUCCESS] All tests and demos completed successfully!")
         return 0
     else:
-        print("\n[FAIL] Some tests or demos failed!")
+        print("\n[ERROR] Some tests or demos failed!")
         return 1
 
 

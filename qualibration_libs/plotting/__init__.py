@@ -1,4 +1,4 @@
-from .grid import QubitGrid
+from .grid import QubitGrid, grid_iter
 from .figure import QualibrationFigure
 from .api import set_theme, set_palette, theme_context
 from .accessors import XrQualPlotAccessor
@@ -11,6 +11,7 @@ def register_accessors() -> str:
 
 __all__ = [
     "QubitGrid",
+    "grid_iter",
     "QualibrationFigure",
     "set_theme",
     "set_palette",
