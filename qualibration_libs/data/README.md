@@ -54,7 +54,7 @@ data_fetcher = XarrayDataFetcher(job, axes)
 
 #
 for dataset in data_fetcher:
-    progress_counter(data_fetcher["n"], n_avg, start_time=data_fetcher.t_start)
+    progress_counter(data_fetcher.get("n", 0), n_avg, start_time=data_fetcher.t_start)
 ```
 
 The main routine is `for dataset in data_fetcher:`, which is a for loop that keeps providing an updated Xarray dataset using the coordinates from the sweep axes and the data fetched so far.
