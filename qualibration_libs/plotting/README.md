@@ -451,9 +451,9 @@ fig.figure.show()
 # Compare all qubits in subplot grid
 fig = qplot.QualibrationFigure.plot(
     ds,
-    x='frequency',
-    data_var='Q0',  # Will plot all qubits
-    title="Multi-Qubit Frequency Response"
+    x='detuning',
+    data_var='IQ_abs',  # Will plot all qubits
+    title="Multi-Qubit IQ Magnitude"
 )
 
 # Custom grid layout
