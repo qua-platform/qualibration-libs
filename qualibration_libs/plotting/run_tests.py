@@ -65,7 +65,8 @@ def run_demos():
     
     demos = [
         "basic_plots.py",
-        "advanced_plots.py"
+        "advanced_plots.py",
+        "qubit_grid_demo.py"
     ]
     
     success_count = 0
