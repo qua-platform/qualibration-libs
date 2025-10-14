@@ -166,10 +166,13 @@ fig = qplot.QualibrationFigure.plot(
 # Add residuals subplot (requires FitOverlay for actual residual data)
 from qualibration_libs.plotting.overlays import FitOverlay
 
-# Create fit overlay with your fitted curve
+# Create fit overlay with your fitted curve and parameters
+# See FitOverlay API reference below for full parameter documentation
 fit_overlay = FitOverlay(
-    y_fit=fitted_curve,
-    params={'param1': value1, 'param2': value2}
+    y_fit=fitted_curve,                    # Array of fitted y-values
+    params={'f0': 5.0, 'Q': 1000, 'A': 0.5},  # Fit parameters for display
+    formatter=lambda p: f"f₀ = {p['f0']:.3f} GHz, Q = {p['Q']:.0f}, A = {p['A']:.2f}",
+    name="Resonance Fit"
 )
 
 fig = qplot.QualibrationFigure.plot(
@@ -181,6 +184,8 @@ fig = qplot.QualibrationFigure.plot(
     title="Fit with Residuals"
 )
 ```
+
+**Note:** The `FitOverlay` creates both a visual fit curve and a text box displaying the fit parameters. See the [FitOverlay API reference](#fitoverlay) for complete parameter documentation.
 
 ## Styling and Themes
 
@@ -774,8 +779,31 @@ Scatter points overlay.
 #### `TextBoxOverlay(text, anchor='top right')`
 Text annotation overlay.
 
-#### `FitOverlay(y_fit=None, params=None, formatter=None, name='fit', dash='dash', width=None)`
+#### `FitOverlay(y_fit=None, params=None, formatter=None, name='fit', dash='dash', width=None)` {#fitoverlay}
 Fit curve and parameter display overlay.
+
+**Parameters:**
+- `y_fit` (array, optional): Array of fitted y-values to plot as a curve
+- `params` (dict, optional): Dictionary of fit parameters to display in text box
+- `formatter` (callable, optional): Function that formats params dict into display text
+- `name` (str): Name for the fit curve trace (default: 'fit')
+- `dash` (str): Line style for fit curve (default: 'dash')
+- `width` (float, optional): Line width for fit curve
+
+**Features:**
+- Creates a dashed line overlay showing the fitted curve
+- Displays fit parameters in a text box when both `params` and `formatter` are provided
+- Works with residuals plots to show fit quality
+
+**Example:**
+```python
+fit_overlay = FitOverlay(
+    y_fit=fitted_data,
+    params={'f0': 5.0, 'Q': 1000, 'amplitude': 0.5},
+    formatter=lambda p: f"f₀ = {p['f0']:.3f} GHz, Q = {p['Q']:.0f}",
+    name="Resonance Fit"
+)
+```
 
 ### Styling Functions
 
