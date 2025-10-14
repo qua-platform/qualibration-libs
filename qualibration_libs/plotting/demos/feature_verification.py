@@ -54,7 +54,7 @@ def demo_subplot_grids():
         col = i % 4
         qubit_coords[qubit] = (row, col)
     
-    grid_2x4 = QubitGrid(coords=qubit_coords, shape=(2, 4))
+    grid_2x4 = QubitGrid(qubit_coords, shape=(2, 4))
     
     fig = qplot.QualibrationFigure.plot(
         ds,
@@ -75,7 +75,7 @@ def demo_subplot_grids():
         col = i % 2
         qubit_coords_4x2[qubit] = (row, col)
     
-    grid_4x2 = QubitGrid(coords=qubit_coords_4x2, shape=(4, 2))
+    grid_4x2 = QubitGrid(qubit_coords_4x2, shape=(4, 2))
     
     fig = qplot.QualibrationFigure.plot(
         ds,
