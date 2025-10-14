@@ -29,7 +29,7 @@ def main():
     
     print(f"Loading data from {data_file.name}...")
     ds = xr.open_dataset(data_file)
-    print(f"✓ Loaded data with shape: {dict(ds.dims)}")
+    print(f"[OK] Loaded data with shape: {dict(ds.dims)}")
     print(f"  Qubits: {list(ds.coords['qubit'].values)}")
     
     # Create a simple plot
@@ -40,7 +40,7 @@ def main():
         data_var='IQ_abs',
         title="IQ Magnitude vs Detuning - qC1"
     )
-    print("✓ Plot created successfully")
+    print("[OK] Plot created successfully")
     
     # Show the plot
     print("Displaying plot...")
@@ -60,7 +60,7 @@ def main():
         overlays=overlays,
         title="IQ Magnitude with Reference Lines - qC1"
     )
-    print("✓ Plot with overlays created successfully")
+    print("[OK] Plot with overlays created successfully")
     fig.figure.show()
     
     # Create multi-qubit plot
@@ -71,7 +71,7 @@ def main():
         data_var='IQ_abs',
         title="Multi-Qubit IQ Magnitude"
     )
-    print("✓ Multi-qubit plot created successfully")
+    print("[OK] Multi-qubit plot created successfully")
     fig.figure.show()
     
     # Test theme functionality
@@ -90,7 +90,7 @@ def main():
         data_var='IQ_abs',
         title="Custom Theme Plot"
     )
-    print("✓ Custom theme applied successfully")
+    print("[OK] Custom theme applied successfully")
     fig.figure.show()
     
     print("\n🎉 Demo completed successfully!")

@@ -94,8 +94,8 @@ def demo_raw_data_with_fits():
             title=f"Raw Data with Fitted Curve - {qubit_name}"
         )
         
-        print(f"✓ Created plot with {len(fig.figure.data)} traces")
-        print(f"✓ Trace names: {[trace.name for trace in fig.figure.data]}")
+        print(f"[OK] Created plot with {len(fig.figure.data)} traces")
+        print(f"[OK] Trace names: {[trace.name for trace in fig.figure.data]}")
         fig.figure.show()
         
         # Calculate fit quality
@@ -173,8 +173,8 @@ def demo_multi_qubit_raw_with_fits():
             title="Multi-Qubit Raw Data with Fitted Curves"
         )
         
-        print(f"✓ Created multi-qubit plot with {len(fig.figure.data)} traces")
-        print(f"✓ Using raw data from ds_raw.h5 with fitted curves from ds_fit.h5")
+        print(f"[OK] Created multi-qubit plot with {len(fig.figure.data)} traces")
+        print(f"[OK] Using raw data from ds_raw.h5 with fitted curves from ds_fit.h5")
         fig.figure.show()
     else:
         print("Need at least 2 successful fits for multi-qubit comparison")
@@ -209,7 +209,7 @@ def demo_fit_parameter_analysis():
             data_var='amplitude',
             title="Fit Amplitude vs Qubit (from ds_fit.h5)"
         )
-        print("✓ Amplitude analysis plot created")
+        print("[OK] Amplitude analysis plot created")
         fig.figure.show()
         
         # Plot width vs qubit
@@ -219,7 +219,7 @@ def demo_fit_parameter_analysis():
             data_var='width',
             title="Fit Width vs Qubit (from ds_fit.h5)"
         )
-        print("✓ Width analysis plot created")
+        print("[OK] Width analysis plot created")
         fig.figure.show()
         
         # Plot position vs qubit
@@ -229,7 +229,7 @@ def demo_fit_parameter_analysis():
             data_var='position',
             title="Fit Position vs Qubit (from ds_fit.h5)"
         )
-        print("✓ Position analysis plot created")
+        print("[OK] Position analysis plot created")
         fig.figure.show()
         
         # Show parameter statistics
@@ -268,8 +268,8 @@ def demo_raw_data_only():
         title="Raw Measurement Data (ds_raw.h5)"
     )
     
-    print(f"✓ Created plot with {len(fig.figure.data)} traces")
-    print(f"✓ Showing raw measurement data only")
+    print(f"[OK] Created plot with {len(fig.figure.data)} traces")
+    print(f"[OK] Showing raw measurement data only")
     fig.figure.show()
     
     # Plot individual components
@@ -282,7 +282,7 @@ def demo_raw_data_only():
         data_var='I',
         title="Raw I Component (ds_raw.h5)"
     )
-    print("✓ I component plot created")
+    print("[OK] I component plot created")
     fig.figure.show()
     
     # Q component
@@ -292,7 +292,7 @@ def demo_raw_data_only():
         data_var='Q',
         title="Raw Q Component (ds_raw.h5)"
     )
-    print("✓ Q component plot created")
+    print("[OK] Q component plot created")
     fig.figure.show()
     
     # Phase
@@ -302,7 +302,7 @@ def demo_raw_data_only():
         data_var='phase',
         title="Raw Phase (ds_raw.h5)"
     )
-    print("✓ Phase plot created")
+    print("[OK] Phase plot created")
     fig.figure.show()
 
 
@@ -323,12 +323,12 @@ def main():
         print("\n" + "="*60)
         print("🎉 ALL CORRECT DEMOS COMPLETED!")
         print("="*60)
-        print("✓ Raw measurement data (ds_raw.h5) is working")
-        print("✓ Fitted curves (ds_fit.h5) are working")
-        print("✓ Raw data with fitted curves overlaid is working")
-        print("✓ Multi-qubit raw data with fits is working")
-        print("✓ Fit parameter analysis is working")
-        print("✓ Using correct data sources!")
+        print("[OK] Raw measurement data (ds_raw.h5) is working")
+        print("[OK] Fitted curves (ds_fit.h5) are working")
+        print("[OK] Raw data with fitted curves overlaid is working")
+        print("[OK] Multi-qubit raw data with fits is working")
+        print("[OK] Fit parameter analysis is working")
+        print("[OK] Using correct data sources!")
         
     except Exception as e:
         print(f"\n❌ Demo failed: {e}")

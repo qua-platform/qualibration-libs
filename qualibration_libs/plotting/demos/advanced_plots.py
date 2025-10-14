@@ -191,9 +191,8 @@ def demo_fit_quality_analysis(data_files):
             
             # Create overlays for fit analysis
             overlays = [
-                LineOverlay(
-                    x=detuning,
-                    y=baseline,
+                FitOverlay(
+                    y_fit=baseline,
                     name="Baseline Fit",
                     dash="dash"
                 ),
@@ -382,9 +381,8 @@ def demo_publication_ready_plots(data_files):
     gaussian_fit = np.exp(-((detuning - center) / width)**2) * 0.1
     
     overlays = [
-        LineOverlay(
-            x=detuning,
-            y=gaussian_fit,
+        FitOverlay(
+            y_fit=gaussian_fit,
             name="Gaussian Fit",
             dash="dash"
         ),

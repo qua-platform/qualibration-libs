@@ -66,6 +66,7 @@ def run_demos():
     demos = [
         "basic_plots.py",
         "advanced_plots.py",
+        "residuals_demo.py",
         "qubit_grid_demo.py"
     ]
     

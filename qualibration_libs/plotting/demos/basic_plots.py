@@ -69,14 +69,42 @@ def demo_1d_frequency_sweep(data_files):
     )
     fig.figure.show()
     
-    # Plot with residuals
-    print("\nCreating plot with residuals...")
+    # Plot with residuals (empty residuals subplot - no fit data)
+    print("\nCreating plot with residuals (no fit data)...")
     fig = qplot.QualibrationFigure.plot(
         ds.isel(qubit=0),
         x='detuning',
         data_var='IQ_abs',
         residuals=True,
-        title="IQ Magnitude with Residuals - qC1"
+        title="IQ Magnitude with Residuals (No Fit Data) - qC1"
+    )
+    fig.figure.show()
+    
+    # Plot with residuals AND fit data (proper residuals demo)
+    print("\nCreating plot with residuals AND fit data...")
+    from qualibration_libs.plotting.overlays import FitOverlay
+    import numpy as np
+    
+    # Create a simple fit overlay for demonstration
+    detuning = ds.coords['detuning'].values
+    # Create a simple Gaussian fit
+    center = 0.0  # Center at 0 Hz
+    width = 2e6   # 2 MHz width
+    fit_curve = np.exp(-((detuning - center) / width)**2)
+    
+    fit_overlay = FitOverlay(
+        y_fit=fit_curve,
+        params={'center': center, 'width': width},
+        formatter=lambda p: f"Center: {p['center']:.0f} Hz, Width: {p['width']:.0f} Hz"
+    )
+    
+    fig = qplot.QualibrationFigure.plot(
+        ds.isel(qubit=0),
+        x='detuning',
+        data_var='IQ_abs',
+        overlays=[fit_overlay],
+        residuals=True,
+        title="IQ Magnitude with Residuals AND Fit Data - qC1"
     )
     fig.figure.show()
 

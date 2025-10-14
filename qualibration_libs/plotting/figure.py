@@ -216,6 +216,10 @@ class QualibrationFigure:
                 self._fig.update_xaxes(title_text=xlab, row=row_main, col=col)
                 self._fig.update_yaxes(title_text=ylab, row=row_main, col=col)
 
+            # Track fit data for residuals calculation
+            fit_data = None
+            fit_x_vals = None
+            
             if overlays:
                 panel_overlays: Sequence[Overlay]
                 if callable(overlays):
@@ -228,11 +232,45 @@ class QualibrationFigure:
                     # Pass x values for fit overlays
                     x_vals_for_overlay = x_vals if 'x_vals' in locals() else None
                     ov.add_to(self._fig, row=row_main, col=col, theme=_config.CURRENT_THEME, x=x_vals_for_overlay, **style_overrides)
+                    
+                    # Check if this overlay provides fit data for residuals
+                    if hasattr(ov, 'y_fit') and ov.y_fit is not None:
+                        fit_data = ov.y_fit
+                        fit_x_vals = x_vals_for_overlay if x_vals_for_overlay is not None else x_vals
 
             if residuals and row_resid is not None:
+                # Add zero reference line
                 self._fig.add_shape(type="line", x0=0, x1=1, y0=0, y1=0, xref="paper", yref="y", line={"dash": "dot"},
                                     row=row_resid, col=col)
                 self._fig.update_yaxes(title_text="Residuals", row=row_resid, col=col)
+                
+                # Plot residuals if we have fit data
+                if fit_data is not None and 'y_vals' in locals():
+                    residual_vals = y_vals - fit_data
+                    # Plot residuals as scatter points
+                    residual_kwargs = {
+                        "x": fit_x_vals if fit_x_vals is not None else x_vals,
+                        "y": residual_vals,
+                        "name": f"{name} residuals",
+                        "mode": "markers",
+                        "marker": dict(size=_config.CURRENT_THEME.marker_size),
+                        "line": dict(width=_config.CURRENT_THEME.line_width)
+                    }
+                    # Apply style overrides if provided
+                    if "marker_size" in style_overrides:
+                        residual_kwargs["marker"]["size"] = style_overrides["marker_size"]
+                    if "line_width" in style_overrides:
+                        residual_kwargs["line"]["width"] = style_overrides["line_width"]
+                    if "color" in style_overrides:
+                        residual_kwargs["marker"]["color"] = style_overrides["color"]
+                    if "mode" in style_overrides:
+                        residual_kwargs["mode"] = style_overrides["mode"]
+                    
+                    self._fig.add_trace(go.Scatter(**residual_kwargs), row=row_resid, col=col)
+                    
+                    # Update x-axis label for residuals (should match main plot)
+                    if 'xlab' in locals():
+                        self._fig.update_xaxes(title_text=xlab, row=row_resid, col=col)
 
         _config.apply_theme_to_layout(self._fig.layout)
         if _config.CURRENT_PALETTE:

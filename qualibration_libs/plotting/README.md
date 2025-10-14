@@ -163,15 +163,29 @@ fig = qplot.QualibrationFigure.plot(
 ### Residuals Plots
 
 ```python
-# Add residuals subplot
+# Add residuals subplot (requires FitOverlay for actual residual data)
+from qualibration_libs.plotting.overlays import FitOverlay
+
+# Create fit overlay with your fitted curve and parameters
+# See FitOverlay API reference below for full parameter documentation
+fit_overlay = FitOverlay(
+    y_fit=fitted_curve,                    # Array of fitted y-values
+    params={'f0': 5.0, 'Q': 1000, 'A': 0.5},  # Fit parameters for display
+    formatter=lambda p: f"f₀ = {p['f0']:.3f} GHz, Q = {p['Q']:.0f}, A = {p['A']:.2f}",
+    name="Resonance Fit"
+)
+
 fig = qplot.QualibrationFigure.plot(
     data,
     x='frequency',
     data_var='amplitude',
-    residuals=True,         # Enable residuals plot
+    overlays=[fit_overlay],
+    residuals=True,         # Shows residuals = data - fit_curve in separate subplot
     title="Fit with Residuals"
 )
 ```
+
+**Note:** The `FitOverlay` creates both a visual fit curve and a text box displaying the fit parameters. See the [FitOverlay API reference](#fitoverlay) for complete parameter documentation.
 
 ## Styling and Themes
 
@@ -179,8 +193,10 @@ fig = qplot.QualibrationFigure.plot(
 
 ```python
 # Set global theme
+from qualibration_libs.plotting.config import PlotTheme
+
 qplot.set_theme(
-    theme=qplot.PlotTheme(
+    theme=PlotTheme(
         font_size=16,
         marker_size=8,
         line_width=3,
@@ -205,8 +221,10 @@ qplot.set_palette(["#FF0000", "#00FF00", "#0000FF"])
 
 ```python
 # Temporary theme changes
+from qualibration_libs.plotting.config import PlotTheme
+
 with qplot.theme_context(
-    theme=qplot.PlotTheme(font_size=20),
+    theme=PlotTheme(font_size=20),
     palette="deep"
 ):
     fig = qplot.QualibrationFigure.plot(data, x='freq', data_var='amp')
@@ -433,9 +451,9 @@ fig.figure.show()
 # Compare all qubits in subplot grid
 fig = qplot.QualibrationFigure.plot(
     ds,
-    x='frequency',
-    data_var='Q0',  # Will plot all qubits
-    title="Multi-Qubit Frequency Response"
+    x='detuning',
+    data_var='IQ_abs',  # Will plot all qubits
+    title="Multi-Qubit IQ Magnitude"
 )
 
 # Custom grid layout
@@ -739,7 +757,7 @@ Create a new plot from data.
 - `qubit_names`: Explicit list of qubit names
 - `grid`: QubitGrid for custom layout
 - `overlays`: Overlay objects or dict/function
-- `residuals`: Enable residuals subplot
+- `residuals`: Enable residuals subplot (requires FitOverlay for actual residual data)
 - `title`: Plot title
 - `**style_overrides`: Additional styling options
 
@@ -765,8 +783,31 @@ Scatter points overlay.
 #### `TextBoxOverlay(text, anchor='top right')`
 Text annotation overlay.
 
-#### `FitOverlay(y_fit=None, params=None, formatter=None, name='fit', dash='dash', width=None)`
+#### `FitOverlay(y_fit=None, params=None, formatter=None, name='fit', dash='dash', width=None)` {#fitoverlay}
 Fit curve and parameter display overlay.
+
+**Parameters:**
+- `y_fit` (array, optional): Array of fitted y-values to plot as a curve
+- `params` (dict, optional): Dictionary of fit parameters to display in text box
+- `formatter` (callable, optional): Function that formats params dict into display text
+- `name` (str): Name for the fit curve trace (default: 'fit')
+- `dash` (str): Line style for fit curve (default: 'dash')
+- `width` (float, optional): Line width for fit curve
+
+**Features:**
+- Creates a dashed line overlay showing the fitted curve
+- Displays fit parameters in a text box when both `params` and `formatter` are provided
+- Works with residuals plots to show fit quality
+
+**Example:**
+```python
+fit_overlay = FitOverlay(
+    y_fit=fitted_data,
+    params={'f0': 5.0, 'Q': 1000, 'amplitude': 0.5},
+    formatter=lambda p: f"f₀ = {p['f0']:.3f} GHz, Q = {p['Q']:.0f}",
+    name="Resonance Fit"
+)
+```
 
 ### Styling Functions
 
@@ -821,6 +862,7 @@ python qualibration_libs/plotting/demos/simple_demo.py
 python qualibration_libs/plotting/demos/basic_plots.py
 python qualibration_libs/plotting/demos/advanced_plots.py
 python qualibration_libs/plotting/demos/fit_overlay_demo.py
+python qualibration_libs/plotting/demos/residuals_demo.py
 python qualibration_libs/plotting/demos/feature_verification.py
 python qualibration_libs/plotting/demos/correct_raw_vs_fit_demo.py
 python qualibration_libs/plotting/demos/real_fit_data_demo.py
@@ -832,7 +874,8 @@ python qualibration_libs/plotting/demos/real_fit_data_demo.py
 - **`basic_plots.py`**: Fundamental plotting capabilities (1D, 2D, multi-qubit)
 - **`advanced_plots.py`**: Complex scenarios (flux tuning, fit analysis)
 - **`fit_overlay_demo.py`**: Fit overlays and parameter display
-- **`feature_verification.py`**: Residuals plots and advanced features
+- **`residuals_demo.py`**: Comprehensive residuals functionality testing
+- **`feature_verification.py`**: Advanced features and verification
 - **`correct_raw_vs_fit_demo.py`**: Raw data vs fitted data comparison
 - **`real_fit_data_demo.py`**: Real experimental data examples
 
