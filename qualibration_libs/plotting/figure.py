@@ -10,7 +10,8 @@ import xarray as xr
 from . import config as _config
 from .grid import QubitGrid
 from .overlays import Overlay
-from .typing import DataLike
+from . import typing as _typing
+DataLike = _typing.DataLike
 from .utils import label_from_attrs, compute_secondary_ticks, map_hue_value
 
 
@@ -95,7 +96,7 @@ class QualibrationFigure:
 
         if grid is None:
             coords = {name: (0, i) for i, name in enumerate(qubit_names)}
-            grid = QubitGrid(coords=coords, shape=(1, len(coords)))
+            grid = QubitGrid(coords, shape=(1, len(coords)))
         n_rows, n_cols, positions = grid.resolve(qubit_names)
         if residuals:
             total_rows = n_rows * 2

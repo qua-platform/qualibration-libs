@@ -108,7 +108,7 @@ class TestQualibrationFigure:
     def test_custom_grid_layout(self, sample_data_1d):
         """Test custom qubit grid layout."""
         grid = QubitGrid(
-            coords={'qC1': (0, 0), 'qC2': (0, 1), 'qC3': (1, 0)},
+            {'qC1': (0, 0), 'qC2': (0, 1), 'qC3': (1, 0)},
             shape=(2, 2)
         )
         
@@ -388,7 +388,7 @@ class TestQubitGrid:
     def test_basic_grid(self):
         """Test basic grid creation."""
         coords = {'Q0': (0, 0), 'Q1': (0, 1), 'Q2': (1, 0)}
-        grid = QubitGrid(coords=coords, shape=(2, 2))
+        grid = QubitGrid(coords, shape=(2, 2))
         
         assert grid.coords == coords
         assert grid.shape == (2, 2)
@@ -396,7 +396,7 @@ class TestQubitGrid:
     def test_grid_resolution(self):
         """Test grid resolution functionality."""
         coords = {'Q0': (0, 0), 'Q1': (0, 1), 'Q2': (1, 0)}
-        grid = QubitGrid(coords=coords, shape=(2, 2))
+        grid = QubitGrid(coords, shape=(2, 2))
         
         n_rows, n_cols, positions = grid.resolve(['Q0', 'Q1', 'Q2'])
         
@@ -409,7 +409,7 @@ class TestQubitGrid:
     def test_automatic_shape(self):
         """Test automatic shape determination."""
         coords = {'Q0': (0, 0), 'Q1': (0, 1), 'Q2': (1, 0)}
-        grid = QubitGrid(coords=coords)  # No shape specified
+        grid = QubitGrid(coords)  # No shape specified
         
         n_rows, n_cols, positions = grid.resolve(['Q0', 'Q1', 'Q2'])
         
@@ -419,7 +419,7 @@ class TestQubitGrid:
     def test_missing_qubits(self):
         """Test handling of missing qubits in resolution."""
         coords = {'Q0': (0, 0), 'Q1': (0, 1)}
-        grid = QubitGrid(coords=coords, shape=(2, 2))
+        grid = QubitGrid(coords, shape=(2, 2))
         
         n_rows, n_cols, positions = grid.resolve(['Q0', 'Q1', 'Q2'])  # Q2 missing
         

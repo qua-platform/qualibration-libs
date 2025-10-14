@@ -41,10 +41,10 @@ def run_tests():
         print(f"\nTest exit code: {result.returncode}")
         
         if result.returncode == 0:
-            print("✓ All tests passed!")
+            print("[OK] All tests passed!")
             return True
         else:
-            print("✗ Some tests failed!")
+            print("[ERROR] Some tests failed!")
             return False
             
     except Exception as e:
@@ -80,17 +80,17 @@ def run_demos():
                 ], capture_output=True, text=True, timeout=300)  # 5 minute timeout
                 
                 if result.returncode == 0:
-                    print(f"✓ {demo} completed successfully")
+                    print(f"[OK] {demo} completed successfully")
                     success_count += 1
                 else:
-                    print(f"✗ {demo} failed with exit code {result.returncode}")
+                    print(f"[ERROR] {demo} failed with exit code {result.returncode}")
                     if result.stderr:
                         print("Error output:")
                         print(result.stderr)
             except subprocess.TimeoutExpired:
-                print(f"✗ {demo} timed out")
+                print(f"[ERROR] {demo} timed out")
             except Exception as e:
-                print(f"✗ {demo} failed with error: {e}")
+                print(f"[ERROR] {demo} failed with error: {e}")
         else:
             print(f"Demo file not found: {demo_path}")
     
@@ -113,14 +113,14 @@ def main():
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    print(f"Unit Tests: {'✓ PASSED' if test_success else '✗ FAILED'}")
-    print(f"Demos: {'✓ PASSED' if demo_success else '✗ FAILED'}")
+    print(f"Unit Tests: {'[OK] PASSED' if test_success else '[ERROR] FAILED'}")
+    print(f"Demos: {'[OK] PASSED' if demo_success else '[ERROR] FAILED'}")
     
     if test_success and demo_success:
-        print("\n🎉 All tests and demos completed successfully!")
+        print("\n[SUCCESS] All tests and demos completed successfully!")
         return 0
     else:
-        print("\n❌ Some tests or demos failed!")
+        print("\n[ERROR] Some tests or demos failed!")
         return 1
 
 
