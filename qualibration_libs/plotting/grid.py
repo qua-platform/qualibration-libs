@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple, Sequence, Iterator, Any
+from typing import Any
+from collections.abc import Sequence, Iterator
 import matplotlib.pyplot as plt
 import xarray as xr
 
@@ -49,28 +50,44 @@ class QubitGrid:
         self._qubit_names = qubit_names
         self._positions = positions
 
-    def resolve(self, present_qubits: Sequence[str]) -> Tuple[int, int, Dict[str, Tuple[int, int]]]:
-        positions: Dict[str, Tuple[int, int]] = {}
-        rows_max = 0
-        cols_max = 0
+    def resolve(self, present_qubits: Sequence[str]) -> tuple[int, int, dict[str, tuple[int, int]]]:
+        positions: dict[str, tuple[int, int]] = {}
+
+        rows_min = None
+        rows_max = None
+        cols_min = None
+        cols_max = None
+
+        present_with_coords = []
         for q in present_qubits:
             if q not in self.coords:
                 continue
             r, c = self.coords[q]
-            r_idx, c_idx = r + 1, c + 1
-            positions[q] = (r_idx, c_idx)
-            rows_max = max(rows_max, r_idx)
-            cols_max = max(cols_max, c_idx)
+            present_with_coords.append((q, r, c))
+            rows_min = r if rows_min is None else min(rows_min, r)
+            rows_max = r if rows_max is None else max(rows_max, r)
+            cols_min = c if cols_min is None else min(cols_min, c)
+            cols_max = c if cols_max is None else max(cols_max, c)
+
+        if rows_min is None or cols_min is None:
+            return 0, 0, {}
 
         if self.shape is not None:
             n_rows, n_cols = self.shape
         else:
-            n_rows, n_cols = rows_max, cols_max
+            n_rows = (rows_max - rows_min + 1)
+            n_cols = (cols_max - cols_min + 1)
+
+        for q, r, c in present_with_coords:
+            r_norm = r - rows_min
+            c_norm = c - cols_min
+            r_flipped = (n_rows - 1) - r_norm
+            positions[q] = (r_flipped + 1, c_norm + 1)
 
         return n_rows, n_cols, positions
 
 
-def grid_iter(grid: QubitGrid) -> Iterator[Tuple[Any, Dict[str, str]]]:
+def grid_iter(grid: QubitGrid) -> Iterator[tuple[Any, dict[str, str]]]:
     if not hasattr(grid, '_axes') or not hasattr(grid, '_qubit_names'):
         raise ValueError("grid_iter requires a QubitGrid created with the old interface (ds, grid_locations)")
     
