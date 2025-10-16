@@ -194,8 +194,13 @@ class QualibrationFigure:
 
             else:
                 var = data_var or next(iter(sel.data_vars))
-                # Transpose the data to match the data storage axis to plotting axis 
-                z_vals = np.asarray(sel[var].values).transpose()
+                
+                # find actual dimensions from auxiliary coordinate
+                x_dim = sel.coords[x].dims[0]
+                y_dim = sel.coords[y].dims[0]
+
+                # transpose the data to match the plotting axis
+                z_vals = np.asarray(sel[var].transpose(y_dim, x_dim).values)
                 x_vals = np.asarray(sel.coords[x].values)
                 y_vals = np.asarray(sel.coords[y].values)
                 # Apply styling to heatmap trace
