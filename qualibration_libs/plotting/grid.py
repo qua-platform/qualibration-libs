@@ -126,5 +126,9 @@ def grid_iter(grid: QubitGrid) -> Iterator[tuple[Any, dict[str, str]]]:
             qname = pos_to_qubit.get((row, col))
             if qname is None:
                 continue
-            ax = grid._axes[row - 1, col - 1]
+            # Support both numpy ndarray indexing and list-of-lists
+            try:
+                ax = grid._axes[row - 1, col - 1]
+            except Exception:
+                ax = grid._axes[row - 1][col - 1]
             yield ax, {key_name: qname}
