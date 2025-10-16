@@ -50,10 +50,7 @@ class QubitGrid:
             for c in range(1, n_cols + 1):
                 if (r, c) in used_positions:
                     continue
-                try:
-                    ax = axes[r - 1, c - 1]
-                except Exception:
-                    ax = axes[r - 1][c - 1]
+                ax = axes[r - 1][c - 1]
                 ax.axis("off")
 
         self.fig = fig
@@ -126,9 +123,6 @@ def grid_iter(grid: QubitGrid) -> Iterator[tuple[Any, dict[str, str]]]:
             qname = pos_to_qubit.get((row, col))
             if qname is None:
                 continue
-            # Support both numpy ndarray indexing and list-of-lists
-            try:
-                ax = grid._axes[row - 1, col - 1]
-            except Exception:
-                ax = grid._axes[row - 1][col - 1]
+            # Works for both numpy ndarray and list-of-lists
+            ax = grid._axes[row - 1][col - 1]
             yield ax, {key_name: qname}
