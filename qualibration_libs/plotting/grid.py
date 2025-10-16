@@ -44,6 +44,18 @@ class QubitGrid:
         elif n_rows == 1 or n_cols == 1:
             axes = axes.reshape(n_rows, n_cols)
         
+        # Turn off unused axes to match old behavior
+        used_positions = set(positions.values())  # (row, col) are 1-based
+        for r in range(1, n_rows + 1):
+            for c in range(1, n_cols + 1):
+                if (r, c) in used_positions:
+                    continue
+                try:
+                    ax = axes[r - 1, c - 1]
+                except Exception:
+                    ax = axes[r - 1][c - 1]
+                ax.axis("off")
+
         self.fig = fig
         self._axes = axes
         self._ds = ds
@@ -90,18 +102,29 @@ class QubitGrid:
 def grid_iter(grid: QubitGrid) -> Iterator[tuple[Any, dict[str, str]]]:
     if not hasattr(grid, '_axes') or not hasattr(grid, '_qubit_names'):
         raise ValueError("grid_iter requires a QubitGrid created with the old interface (ds, grid_locations)")
-    
-    for qubit_name in grid._qubit_names:
-        if qubit_name not in grid._positions:
-            continue
-        
-        row, col = grid._positions[qubit_name]
-        ax = grid._axes[row - 1, col - 1]
-        
-        qubit_info = {
-            "qubit": qubit_name,
-            "row": row - 1,
-            "col": col - 1
-        }
-        
-        yield ax, qubit_info
+
+    # Build position -> qubit_name mapping for quick lookup
+    pos_to_qubit: dict[tuple[int, int], str] = {
+        (row, col): qname for qname, (row, col) in getattr(grid, '_positions', {}).items()
+    }
+
+    if not pos_to_qubit:
+        return
+
+    # Determine grid bounds from positions
+    max_row = max(p[0] for p in pos_to_qubit.keys())
+    max_col = max(p[1] for p in pos_to_qubit.keys())
+
+    # Determine the key name (match old interface using ds.qubit.name when available)
+    key_name = 'qubit'
+    if hasattr(grid, '_ds') and hasattr(grid._ds, 'qubit') and getattr(grid._ds.qubit, 'name', None):
+        key_name = grid._ds.qubit.name  # e.g., 'qubit'
+
+    # Iterate row-major over the axes and yield only used positions (backward-compatible order)
+    for row in range(1, max_row + 1):
+        for col in range(1, max_col + 1):
+            qname = pos_to_qubit.get((row, col))
+            if qname is None:
+                continue
+            ax = grid._axes[row - 1, col - 1]
+            yield ax, {key_name: qname}
