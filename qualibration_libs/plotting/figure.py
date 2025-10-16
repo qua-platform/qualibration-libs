@@ -194,7 +194,8 @@ class QualibrationFigure:
 
             else:
                 var = data_var or next(iter(sel.data_vars))
-                z_vals = np.asarray(sel[var].values)
+                # Transpose the data to match the data storage axis to plotting axis 
+                z_vals = np.asarray(sel[var].values).transpose()
                 x_vals = np.asarray(sel.coords[x].values)
                 y_vals = np.asarray(sel.coords[y].values)
                 # Apply styling to heatmap trace
@@ -210,6 +211,14 @@ class QualibrationFigure:
                     heatmap_kwargs["colorscale"] = style_overrides["colorscale"]
                 if "colorbar" in style_overrides:
                     heatmap_kwargs["colorbar"].update(style_overrides["colorbar"])
+                if "showscale" in style_overrides:
+                    heatmap_kwargs["showscale"] = style_overrides["showscale"]
+                if "robust" in style_overrides and style_overrides["robust"] is True:
+                    zmin, zmax = np.percentile(z_vals, [2, 98])
+                    heatmap_kwargs["zmin"] = zmin
+                    heatmap_kwargs["zmax"] = zmax
+
+
                 self._fig.add_trace(go.Heatmap(**heatmap_kwargs), row=row_main, col=col)
                 xlab = label_from_attrs(x, sel.coords[x].attrs)
                 ylab = label_from_attrs(y, sel.coords[y].attrs)
