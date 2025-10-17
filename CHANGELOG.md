@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+- Removed a safeguard for the first dimension (able to use other than `qubit` and `qubit_pair`)
+- Fix data fetcher not to match the suffix explicitly
 - Add TwoQubitExperimentNodeParameters class
 ### Added
 - New dependencies: lmfit, matplotlib, numpy, qm, quam-builder, qualibrate, scipy, xarray
