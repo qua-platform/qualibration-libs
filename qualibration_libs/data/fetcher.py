@@ -187,10 +187,6 @@ class XarrayDataFetcher:
         axes_shape = tuple(self.axes[dim].size for dim in dims_order)
         logger.debug(f"Axes shape: {axes_shape}")
 
-        # safe guard for non_qubit_shape of _update_qubit_data_arrays
-        if dims_order[0] not in ["qubit", "qubit_pair"]:
-            logger.error("first axis must be either qubit or qubit_pair")
-
         # Determine reference shape from non-None entries.
         data_arrays = [d for d in raw_data_arrays.values() if isinstance(d, np.ndarray)]
         if data_arrays:
