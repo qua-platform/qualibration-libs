@@ -304,10 +304,10 @@ class XarrayDataFetcher:
         for key, data in raw_data.items():
             if not isinstance(data, (np.ndarray, type(None))):
                 continue
-            m = re.match(r"([a-zA-Z_]+?(?:_(c|t)+)?)(\d+)$", key)
+            m = re.match(r"([a-zA-Z_]+)(\d+)$", key)
             if m:
                 base = m.group(1)
-                idx = int(m.group(3))
+                idx = int(m.group(2))
                 filled_data = self._fill_missing_data(data, non_qubit_shape)
                 logger.debug(f"Grouping key '{key}': base '{base}', index {idx}")
                 grouped.setdefault(base, []).append((idx, filled_data))
