@@ -187,6 +187,7 @@ class QualibrationFigure:
         qubit_names: Sequence[str] | None,
         grid: QubitGrid | None,
         residuals: bool,
+        x2: str | None,
     ) -> tuple[Sequence[str], int, int, dict[str, tuple[int, int]]]:
         """Setup subplot grid and create figure with subplots.
 
@@ -196,6 +197,7 @@ class QualibrationFigure:
             qubit_names: Optional list of qubit names
             grid: Optional QubitGrid configuration
             residuals: Whether to include residual subplots
+            x2: Optional secondary x coordinate (increases vertical spacing if present)
 
         Returns:
             tuple: (qubit_names, n_rows, n_cols, positions)
@@ -208,6 +210,9 @@ class QualibrationFigure:
             coords = {name: (0, i) for i, name in enumerate(qubit_names)}
             grid = QubitGrid(coords, shape=(1, len(coords)))
         n_rows, n_cols, positions = grid.resolve(qubit_names)
+
+        # Increase vertical spacing if x2 is present and there are multiple rows
+        vertical_spacing = 0.23 if (x2 and n_rows > 1) else None
 
         if residuals:
             total_rows = n_rows * 2
@@ -223,18 +228,28 @@ class QualibrationFigure:
                 row_main = (r - 1) * 2 + 1
                 idx = (row_main - 1) * n_cols + (c - 1)
                 titles[idx] = name
-            self._fig = make_subplots(
-                rows=total_rows,
-                cols=n_cols,
-                subplot_titles=titles,
-                row_heights=row_heights,
-            )
+            subplot_kwargs = {
+                "rows": total_rows,
+                "cols": n_cols,
+                "subplot_titles": titles,
+                "row_heights": row_heights,
+            }
+            if vertical_spacing is not None:
+                subplot_kwargs["vertical_spacing"] = vertical_spacing
+            self._fig = make_subplots(**subplot_kwargs)
         else:
             titles = [""] * (n_rows * n_cols)
             for name, (r, c) in positions.items():
                 idx = (r - 1) * n_cols + (c - 1)
                 titles[idx] = name
-            self._fig = make_subplots(rows=n_rows, cols=n_cols, subplot_titles=titles)
+            subplot_kwargs = {
+                "rows": n_rows,
+                "cols": n_cols,
+                "subplot_titles": titles,
+            }
+            if vertical_spacing is not None:
+                subplot_kwargs["vertical_spacing"] = vertical_spacing
+            self._fig = make_subplots(**subplot_kwargs)
 
         return qubit_names, n_rows, n_cols, positions
 
@@ -308,6 +323,7 @@ class QualibrationFigure:
         name: str,
         row_main: int,
         col: int,
+        n_rows: int,
         n_cols: int,
         style_overrides: dict[str, Any],
     ) -> tuple[np.ndarray, np.ndarray, str, str]:
@@ -322,6 +338,7 @@ class QualibrationFigure:
             name: Qubit name
             row_main: Main plot row index
             col: Column index
+            n_rows: Total number of rows
             n_cols: Total number of columns
             style_overrides: Style override dictionary
 
@@ -372,16 +389,48 @@ class QualibrationFigure:
         if x2 and x2 in sel.coords:
             xv2 = np.asarray(sel.coords[x2].values)
             tickvals, ticktext = compute_secondary_ticks(x_vals, xv2)
-            idx = (row_main - 1) * n_cols + col
-            if idx == 1 and tickvals and ticktext:
-                self._fig.update_layout(
-                    xaxis2={
-                        "overlaying": "x",
+
+            if tickvals and ticktext:
+                # Calculate axis indices for this subplot
+                idx = (row_main - 1) * n_cols + col
+                total_subplots = n_rows * n_cols
+                axis_idx_secondary = idx + total_subplots
+
+                # Build axis names
+                primary_x_ref = f"x{idx}" if idx > 1 else "x"
+                secondary_x_name = f"xaxis{axis_idx_secondary}"
+                secondary_x_ref = f"x{axis_idx_secondary}"
+                y_axis_ref = f"y{idx}" if idx > 1 else "y"
+
+                # Add dummy trace to activate the secondary axis
+                self._fig.add_trace(
+                    go.Scatter(
+                        x=[min(tickvals), max(tickvals)],
+                        y=[None, None],
+                        xaxis=secondary_x_ref,
+                        yaxis=y_axis_ref,
+                        showlegend=False,
+                        hoverinfo="skip",
+                    )
+                )
+
+                # Create layout configuration for this secondary axis
+                layout_config = {
+                    secondary_x_name: {
+                        "overlaying": primary_x_ref,
                         "side": "top",
                         "tickvals": tickvals,
                         "ticktext": ticktext,
+                        "tickangle": 0,
+                        "showline": True,
+                        "ticks": "outside",
+                        "anchor": y_axis_ref,
+                        "title": dict(
+                            text=label_from_attrs(x2, sel.coords[x2].attrs), standoff=5
+                        ),
                     }
-                )
+                }
+                self._fig.update_layout(**layout_config)
 
         return x_vals, y_vals, xlab, ylab
 
@@ -479,6 +528,7 @@ class QualibrationFigure:
                         "side": "top",
                         "tickvals": tickvals,
                         "ticktext": ticktext,
+                        "tickangle": 0,
                         "showline": True,
                         "ticks": "outside",
                         "anchor": y_axis_ref,
@@ -610,7 +660,12 @@ class QualibrationFigure:
 
         # Setup subplot grid
         qubit_names, n_rows, n_cols, positions = self._setup_subplot_grid(
-            ds, params.qubit_dim, params.qubit_names, params.grid, params.residuals
+            ds,
+            params.qubit_dim,
+            params.qubit_names,
+            params.grid,
+            params.residuals,
+            params.x2,
         )
 
         # Main plotting loop
@@ -643,6 +698,7 @@ class QualibrationFigure:
                     name,
                     row_main,
                     col,
+                    n_rows,
                     n_cols,
                     params.style_overrides,
                 )
