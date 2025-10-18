@@ -392,6 +392,7 @@ class QualibrationFigure:
         y: str,
         data_var: str | None,
         x2: str | None,
+        n_rows: int,
         n_cols: int,
         row_main: int,
         col: int,
@@ -405,6 +406,7 @@ class QualibrationFigure:
             y: Name of y coordinate
             data_var: Name of data variable to plot
             x2: Optional secondary x coordinate
+            n_rows: Total number of rows
             n_cols: Total number of columns
             row_main: Main plot row index
             col: Column index
@@ -443,32 +445,49 @@ class QualibrationFigure:
         if x2 and x2 in sel.coords:
             xv2 = np.asarray(sel.coords[x2].values)
             tickvals, ticktext = compute_secondary_ticks(x_vals, xv2)
-            idx = (row_main - 1) * n_cols + col
-            if idx == 1 and tickvals and ticktext:
-                # add a dummy trace linked to x2 so the top axis shows up
+
+            if tickvals and ticktext:
+                # Calculate axis indices for this subplot
+                # Primary axis index: subplots are numbered from 1
+                idx = (row_main - 1) * n_cols + col
+                # Secondary axis index: after all primary axes
+                total_subplots = n_rows * n_cols
+                axis_idx_secondary = idx + total_subplots
+
+                # Build axis names
+                primary_x_ref = f"x{idx}" if idx > 1 else "x"
+                secondary_x_name = f"xaxis{axis_idx_secondary}"
+                secondary_x_ref = f"x{axis_idx_secondary}"
+                y_axis_ref = f"y{idx}" if idx > 1 else "y"
+
+                # Add dummy trace to activate the secondary axis
                 self._fig.add_trace(
                     go.Scatter(
-                        x=[min(tickvals), max(tickvals)],  # span the axis you want
-                        y=[None, None],  # invisible
-                        xaxis="x2",
+                        x=[min(tickvals), max(tickvals)],
+                        y=[None, None],
+                        xaxis=secondary_x_ref,
+                        yaxis=y_axis_ref,
                         showlegend=False,
                         hoverinfo="skip",
                     )
                 )
-                self._fig.update_layout(
-                    xaxis2={
-                        "overlaying": "x",
+
+                # Create layout configuration for this secondary axis
+                layout_config = {
+                    secondary_x_name: {
+                        "overlaying": primary_x_ref,
                         "side": "top",
                         "tickvals": tickvals,
                         "ticktext": ticktext,
                         "showline": True,
                         "ticks": "outside",
+                        "anchor": y_axis_ref,
                         "title": dict(
                             text=label_from_attrs(x2, sel.coords[x2].attrs), standoff=5
                         ),
                     }
-                )
-                self._fig.layout.annotations[0].update(y=1.2)
+                }
+                self._fig.update_layout(**layout_config)
 
     def _add_overlays(
         self,
@@ -634,6 +653,7 @@ class QualibrationFigure:
                     params.y,
                     params.data_var,
                     params.x2,
+                    n_rows,
                     n_cols,
                     row_main,
                     col,
@@ -671,12 +691,28 @@ class QualibrationFigure:
         _config.apply_theme_to_layout(self._fig.layout)
         if _config.CURRENT_PALETTE:
             self._fig.update_layout(colorway=list(_config.CURRENT_PALETTE))
+
+        # If x2 is present, add top margin and adjust subplot titles
+        if params.x2:
+            # Increase top margin to accommodate secondary x-axis and title
+            self._fig.update_layout(margin=dict(t=120))
+
+            # Adjust all subplot title positions to avoid overlap with secondary axes
+            # This is done after all plotting to ensure all annotations exist
+            for annotation in self._fig.layout.annotations:
+                if annotation.y is not None:
+                    # Move title up slightly relative to its current position
+                    annotation.update(y=annotation.y + 0.08)
+
         if params.title:
-            self._fig.update_layout(
-                title=dict(
-                    text=params.title, font=dict(size=_config.CURRENT_THEME.title_size)
-                )
+            title_config = dict(
+                text=params.title, font=dict(size=_config.CURRENT_THEME.title_size)
             )
+            # If x2 is present, move title up within the expanded margin space
+            if params.x2:
+                title_config["y"] = 0.98
+                title_config["yanchor"] = "top"
+            self._fig.update_layout(title=title_config)
 
         if _config.CURRENT_RC.values.get("showlegend") is not None:
             self._fig.update_layout(

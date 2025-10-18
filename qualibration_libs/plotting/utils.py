@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Tuple, Any, Mapping, Iterable
 
+import numpy as np
 import xarray as xr
 
 
@@ -55,5 +56,15 @@ def compute_secondary_ticks(
     if idxs[-1] != n - 1:
         idxs.append(n - 1)
     tickvals = [p[i] for i in idxs]
-    ticktext = [str(s[i]) for i in idxs]
+
+    # Format tick text - use fewer digits for floating point numbers
+    ticktext = []
+    for i in idxs:
+        val = s[i]
+        if isinstance(val, (float, np.floating)):
+            # Format with 4 significant figures
+            ticktext.append(f"{val:.4g}")
+        else:
+            ticktext.append(str(val))
+
     return tickvals, ticktext
