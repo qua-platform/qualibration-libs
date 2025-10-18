@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence, Callable, Any
+from typing import Any, Callable, Sequence
 
 import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import xarray as xr
+from plotly.subplots import make_subplots
 
 from . import config as _config
+from . import typing as _typing
 from .grid import QubitGrid
 from .overlays import Overlay
-from . import typing as _typing
+from .utils import compute_secondary_ticks, label_from_attrs, map_hue_value
 
 DataLike = _typing.DataLike
-from .utils import label_from_attrs, compute_secondary_ticks, map_hue_value
 
 
 @dataclass
@@ -55,6 +55,78 @@ class PlotParams:
 
 
 class QualibrationFigure:
+    """Interactive Plotly-based figure for qualibrate calibration data visualization.
+
+    This class provides a high-level interface for creating multi-panel plots of qualibrate
+    calibration data, supporting both 1D (line/scatter) and 2D (heatmap) visualizations.
+    It handles qubit grid layouts, dual x-axes, overlays (fit curves, markers), and
+    residual subplots.
+
+    The class is designed to work seamlessly with xarray Datasets containing calibration
+    measurements, automatically managing subplot layouts and axis configurations.
+
+    Examples
+    --------
+    Basic 1D plot with dual x-axes:
+
+    >>> # dataset is an xr.Dataset with dimensions ['qubit', 'amp_prefactor']
+    >>> # and coordinates 'amp_prefactor', 'amp_mV', and data variable 'I'
+    >>> fig = QualibrationFigure.plot(
+    ...     dataset,
+    ...     x='amp_prefactor',
+    ...     x2='amp_mV',
+    ...     data_var='I',
+    ...     qubit_dim='qubit',
+    ...     title='Power Rabi Calibration'
+    ... )
+    >>> fig.figure.show()
+
+    2D heatmap with overlays:
+
+    >>> # dataset is an xr.Dataset with dimensions ['qubit', 'detuning', 'power']
+    >>> # and data variable 'IQ_abs_norm'
+    >>> def create_overlays(qubit_name, qubit_data):
+    ...     return [RefLine(x=optimal_value, name="Optimal")]
+    >>>
+    >>> fig = QualibrationFigure.plot(
+    ...     dataset,
+    ...     x='detuning',
+    ...     y='power',
+    ...     data_var='IQ_abs_norm',
+    ...     overlays=create_overlays,
+    ...     robust=True
+    ... )
+
+    Multiple qubits with custom grid:
+
+    >>> # dataset is an xr.Dataset with dimensions ['qubit', 'amp_prefactor']
+    >>> # and data variable 'state'
+    >>> # grid is a QubitGrid from plotting/grid.py defining the 2D layout
+    >>> grid = QubitGrid(dataset, [q.grid_location for q in qubits])
+    >>> fig = QualibrationFigure.plot(
+    ...     dataset,
+    ...     x='amp_prefactor',
+    ...     data_var='state',
+    ...     grid=grid,
+    ...     qubit_dim='qubit'
+    ... )
+
+    Notes
+    -----
+    - All plots are created using the `plot` classmethod
+    - The class automatically determines whether to create 1D or 2D plots based on the `y` parameter
+    - If `grid` is None, all qubit subplots are arranged in a single row
+    - Secondary x-axes (x2) are supported for showing related coordinates
+    - Overlays can be added via callable, dict, or sequence of Overlay objects
+    - Residuals can be computed automatically if overlays provide fit data
+
+    See Also
+    --------
+    QubitGrid : Grid layout manager for multi-qubit visualizations
+    Overlay : Base class for plot overlays (fit curves, markers, etc.)
+    FitOverlay : Overlay for fitted curves
+    RefLine : Overlay for reference lines
+    """
 
     def __init__(self):
         self._fig = go.Figure()
@@ -85,6 +157,152 @@ class QualibrationFigure:
         title: str | None = None,
         **style_overrides: Any,
     ) -> QualibrationFigure:
+        """Create an interactive calibration data plot with automatic layout.
+
+        This is the main entry point for creating QualibrationFigure plots. It automatically
+        determines whether to create 1D (line/scatter) or 2D (heatmap) plots based on whether
+        the `y` parameter is provided, and handles multi-qubit layouts, dual x-axes, overlays,
+        and residual subplots.
+
+        Parameters
+        ----------
+        data : DataLike
+            Input data to plot. Can be:
+            - xr.Dataset: Multi-dimensional labeled dataset
+            - xr.DataArray: Single data array (converted to Dataset)
+            - dict: Dictionary of arrays (converted to Dataset)
+            - Any object with a `to_xarray()` method
+        x : str
+            Name of the coordinate or variable to use for the x-axis. This is the primary
+            x-axis and is required for all plots.
+        data_var : str, optional
+            Name of the data variable to plot. If None, uses the first data variable found
+            in the dataset. For Datasets with multiple data variables, this should be specified.
+        y : str, optional
+            Name of the coordinate or variable to use for the y-axis. If provided, creates
+            2D heatmap plots. If None (default), creates 1D line/scatter plots.
+        hue : str, optional
+            Name of a dimension to use for color grouping in 1D plots. Each unique value
+            along this dimension will be plotted as a separate series with different colors.
+            Only applicable for 1D plots (when y=None).
+        x2 : str, optional
+            Name of a secondary x-axis coordinate to display on top of the primary x-axis.
+            Useful for showing related units or transformations (e.g., 'amp_prefactor' as
+            primary and 'amp_mV' as secondary). Creates dual x-axes with automatic tick
+            placement. If x2 is present and there are multiple rows of subplots, vertical
+            spacing is automatically increased to prevent overlap.
+        qubit_dim : str, default="qubit"
+            Name of the dimension in the dataset that represents different qubits. This
+            dimension is used to create separate subplots for each qubit.
+        qubit_names : Sequence[str], optional
+            Explicit list of qubit names to plot. If None, all qubits found in the dataset
+            along `qubit_dim` will be plotted. Use this to plot a subset of qubits or to
+            control the plotting order.
+        grid : QubitGrid, optional
+            A QubitGrid instance from plotting/grid.py that defines the 2D layout of qubit
+            subplots. If None, all qubit subplots are arranged in a single row. The grid
+            allows you to arrange qubits in a custom 2D layout matching physical chip topology.
+        overlays : Sequence[Overlay] or dict[str, Sequence[Overlay]] or Callable, optional
+            Overlays to add to the plots (fit curves, reference lines, markers, etc.). Can be:
+            - Sequence[Overlay]: Same overlays applied to all qubits
+            - dict[str, Sequence[Overlay]]: Qubit-specific overlays (keys are qubit names)
+            - Callable[[str, Any], Sequence[Overlay]]: Function that takes (qubit_name, qubit_data)
+              and returns overlays for that qubit
+            Common overlay types include FitOverlay, RefLine, LineOverlay, and ScatterOverlay.
+        residuals : bool, default=False
+            If True, adds residual subplots below each main plot. Residuals are automatically
+            computed if overlays provide fit data (e.g., FitOverlay with y_fit attribute).
+            The residual is calculated as data - fit.
+        title : str, optional
+            Overall title for the entire figure. If x2 is present, the title is automatically
+            positioned higher to avoid overlap with secondary axes.
+        **style_overrides : Any
+            Additional style parameters to customize plot appearance. Common overrides include:
+            - marker_size : int - Size of scatter plot markers
+            - line_width : float - Width of lines
+            - color : str - Color for traces
+            - mode : str - Plotly mode ('markers', 'lines', 'lines+markers')
+            - colorscale : str - Colorscale for heatmaps ('Viridis', 'RdBu', etc.)
+            - showscale : bool - Whether to show colorbar for heatmaps
+            - robust : bool - If True, uses 2nd and 98th percentiles for heatmap color limits
+            - colorbar : dict - Colorbar configuration for heatmaps
+
+        Returns
+        -------
+        QualibrationFigure
+            A QualibrationFigure instance. Access the underlying Plotly figure via the
+            `figure` property to show, save, or further customize the plot.
+
+        Examples
+        --------
+        1D plot with fit overlay:
+
+        >>> def create_fit(qubit_name, qubit_data):
+        ...     fit_curve = compute_fit(qubit_data)
+        ...     return [FitOverlay(y_fit=fit_curve, name="Fit")]
+        >>>
+        >>> fig = QualibrationFigure.plot(
+        ...     dataset,
+        ...     x='amp_prefactor',
+        ...     x2='amp_mV',
+        ...     data_var='I',
+        ...     overlays=create_fit,
+        ...     residuals=True,
+        ...     title='Power Rabi with Fit'
+        ... )
+        >>> fig.figure.write_image('power_rabi.png')
+
+        2D heatmap with custom colorscale:
+
+        >>> fig = QualibrationFigure.plot(
+        ...     dataset,
+        ...     x='detuning',
+        ...     y='power',
+        ...     data_var='IQ_abs_norm',
+        ...     robust=True,
+        ...     colorscale='RdBu',
+        ...     showscale=True
+        ... )
+
+        Multiple qubits with grid layout:
+
+        >>> grid = QubitGrid(dataset, [q.grid_location for q in qubits])
+        >>> fig = QualibrationFigure.plot(
+        ...     dataset,
+        ...     x='nb_of_pulses',
+        ...     data_var='state',
+        ...     grid=grid,
+        ...     qubit_dim='qubit',
+        ...     title='Qubit States'
+        ... )
+
+        Grouped 1D plot with hue:
+
+        >>> # Plot multiple curves per qubit, grouped by 'power' dimension
+        >>> fig = QualibrationFigure.plot(
+        ...     dataset,
+        ...     x='frequency',
+        ...     data_var='I',
+        ...     hue='power',
+        ...     marker_size=3
+        ... )
+
+        Notes
+        -----
+        - The plot type (1D vs 2D) is automatically determined by the presence of `y`
+        - Subplot layouts are automatically configured based on `grid` or default to single row
+        - Axis labels are extracted from coordinate attributes ('long_name' or 'units')
+        - Theme and styling are controlled by the global configuration in plotting/config.py
+        - For dual x-axes, tick positions are computed to evenly span the data range
+
+        See Also
+        --------
+        QubitGrid : Grid layout manager for multi-qubit visualizations
+        FitOverlay : Overlay for fitted curves
+        RefLine : Overlay for reference lines (vertical or horizontal)
+        LineOverlay : Overlay for arbitrary line plots
+        ScatterOverlay : Overlay for scatter points
+        """
         obj = cls()
         obj._build(
             data,
