@@ -8,7 +8,12 @@ from lmfit import Model, Parameter
 from qualibration_libs.analysis.models import *
 
 
-__all__ = ["fit_oscillation", "fit_oscillation_decay_exp", "fit_decay_exp", "unwrap_phase"]
+__all__ = [
+    "fit_oscillation",
+    "fit_oscillation_decay_exp",
+    "fit_decay_exp",
+    "unwrap_phase",
+]
 
 
 def unwrap_phase(da, dim):
@@ -26,6 +31,7 @@ def unwrap_phase(da, dim):
     return xr.apply_ufunc(
         np.unwrap, da, input_core_dims=[[dim]], output_core_dims=[[dim]]
     )
+
 
 def _fix_initial_value(x, da):
     if len(da.dims) == 1:
@@ -240,9 +246,31 @@ def fit_oscillation_decay_exp(da, dim):
 
 
 def fit_oscillation(da, dim):
-    def get_freq(dat):
-        def f(d):
-            return guess.frequency(da[dim], d)
+    """
+    Fits an oscillatory model to data along a specified dimension using FFT-based initial guesses.
+    This function estimates the frequency, amplitude, and phase of an oscillatory signal in the input
+    data array `da` along the given dimension `dim` using the Fast Fourier Transform (FFT) for initial
+    parameter guesses. It then fits the data to an oscillatory model of the form:
+        y(t) = a * cos(2π * f * t + phi) + offset
+    using non-linear least squares optimization.
+    Parameters
+    ----------
+    da : xarray.DataArray
+        The input data array containing the oscillatory signal to be fitted.
+    dim : str
+        The name of the dimension along which to perform the fit.
+    Returns
+    -------
+    xarray.DataArray
+        An array containing the fitted parameters for each slice along the specified dimension.
+        The output has a new dimension 'fit_vals' with coordinates: ['a', 'f', 'phi', 'offset'],
+        corresponding to amplitude, frequency, phase, and offset of the fitted oscillation.
+    Notes
+    -----
+    - The function uses FFT to estimate initial values for frequency, amplitude, and phase.
+    - The fitting is performed using a model function (oscillation) and the lmfit library.
+    - If the fit fails, diagnostic plots are shown for debugging.
+    """
 
     def get_freq_and_amp_and_phase(da, dim):
         def compute_FFT(x, y):
@@ -269,7 +297,10 @@ def fit_oscillation(da, dim):
             for i in range(3)
         ]
         params = [_fix_initial_value(p, da) for p in params]
-        return [p.rename(n) for p, n in zip(params, ["freq guess", "amp guess", "phase guess"])]
+        return [
+            p.rename(n)
+            for p, n in zip(params, ["freq guess", "amp guess", "phase guess"])
+        ]
 
     freq_guess, amp_guess, phase_guess = get_freq_and_amp_and_phase(da, dim)
     offset_guess = da.mean(dim=dim)
