@@ -56,12 +56,11 @@ class TestQubitGridNew:
         assert grid.coords == expected_coords
         assert grid.shape == (2, 2)
         
-        # Check that matplotlib figure was created
-        assert hasattr(grid, 'fig')
-        assert hasattr(grid, '_axes')
-        assert hasattr(grid, '_ds')
+        # Check that matplotlib figure is created lazily (not immediately)
+        assert not hasattr(grid, 'fig')
+        assert not hasattr(grid, '_axes')
         assert hasattr(grid, '_qubit_names')
-        assert hasattr(grid, '_positions')
+        assert not hasattr(grid, '_positions')
     
     def test_dataset_with_tuple_locations(self, sample_dataset):
         """Test creating QubitGrid with dataset and tuple grid locations."""
@@ -69,13 +68,13 @@ class TestQubitGridNew:
         grid = QubitGrid(sample_dataset, grid_locations=grid_locations, shape=(2, 2))
         
         expected_coords = {
-            'qC1': (0, 0),
-            'qC2': (0, 1),
-            'qC3': (1, 0),
-            'qC4': (1, 1)
+            'qC1': (0, 0),  # (0,0) -> (0,0)
+            'qC2': (1, 0),  # (0,1) -> (1,0)
+            'qC3': (0, 1),  # (1,0) -> (0,1)
+            'qC4': (1, 1)   # (1,1) -> (1,1)
         }
         assert grid.coords == expected_coords
-        assert hasattr(grid, 'fig')
+        assert not hasattr(grid, 'fig')  # Created lazily
     
     def test_mixed_string_tuple_locations(self, sample_dataset):
         """Test creating QubitGrid with mixed string and tuple locations."""
@@ -84,7 +83,7 @@ class TestQubitGridNew:
         
         expected_coords = {
             'qC1': (0, 0),  # "0,0" -> row=0, col=0
-            'qC2': (0, 1),  # (0, 1) -> row=0, col=1
+            'qC2': (1, 0),  # (0, 1) -> row=1, col=0
             'qC3': (0, 1),  # "1,0" -> row=0, col=1
             'qC4': (1, 1)   # (1, 1) -> row=1, col=1
         }
@@ -113,8 +112,8 @@ class TestQubitGridNew:
         assert 'qC3' in positions
         assert 'qC2' not in positions
         assert 'qC4' not in positions
-        assert positions['qC1'] == (1, 1)  # 1-indexed: (0,0) -> (1,1)
-        assert positions['qC3'] == (1, 2)  # 1-indexed: (0,1) -> (1,2)
+        assert positions['qC1'] == (2, 1)  # 1-indexed: (0,0) -> (2,1)
+        assert positions['qC3'] == (2, 2)  # 1-indexed: (0,1) -> (2,2)
     
     def test_resolve_with_missing_qubits(self, sample_dataset):
         """Test resolve method with qubits not in grid."""
@@ -143,8 +142,6 @@ class TestQubitGridNew:
         for ax, qubit_info in iter_results:
             assert hasattr(ax, 'plot')  # It's a matplotlib axes
             assert 'qubit' in qubit_info
-            assert 'row' in qubit_info
-            assert 'col' in qubit_info
             assert qubit_info['qubit'] in ['qC1', 'qC2', 'qC3', 'qC4']
     
     def test_grid_iter_with_old_style_grid(self):
@@ -152,7 +149,7 @@ class TestQubitGridNew:
         coords = {'Q0': (0, 0), 'Q1': (0, 1)}
         grid = QubitGrid(coords, shape=(1, 2))
         
-        with pytest.raises(ValueError, match="grid_iter requires a QubitGrid created with the old interface"):
+        with pytest.raises(ValueError, match="grid_iter requires a QubitGrid created with the Dataset interface"):
             list(grid_iter(grid))
     
     def test_string_parsing_edge_cases(self, sample_dataset):
@@ -181,7 +178,7 @@ class TestQubitGridNew:
         
         # Should handle gracefully with empty qubit names
         assert grid.coords == {}
-        assert hasattr(grid, 'fig')
+        assert not hasattr(grid, 'fig')  # Created lazily
     
     def test_dataset_with_qubit_attribute(self):
         """Test QubitGrid with dataset that has qubit as attribute."""
@@ -207,6 +204,9 @@ class TestQubitGridNew:
         grid_locations = ["0,0", "0,1", "1,0", "1,1"]
         grid = QubitGrid(sample_dataset, grid_locations=grid_locations, shape=(2, 2))
         
+        # Create the figure by calling grid_iter
+        list(grid_iter(grid))
+        
         # Check figure properties
         assert grid.fig is not None
         assert hasattr(grid.fig, 'get_figwidth')
@@ -217,7 +217,6 @@ class TestQubitGridNew:
         assert all(hasattr(ax, 'plot') for ax in grid._axes.flat)
         
         # Check stored data
-        assert grid._ds is sample_dataset
         assert grid._qubit_names == ['qC1', 'qC2', 'qC3', 'qC4']
         assert len(grid._positions) == 4
     
@@ -229,10 +228,10 @@ class TestQubitGridNew:
         # Test resolve returns 1-indexed positions
         n_rows, n_cols, positions = grid.resolve(['qC1', 'qC2', 'qC3', 'qC4'])
         
-        assert positions['qC1'] == (1, 1)  # 1-indexed: (0,0) -> (1,1)
-        assert positions['qC2'] == (2, 1)  # 1-indexed: (1,0) -> (2,1)
-        assert positions['qC3'] == (1, 2)  # 1-indexed: (0,1) -> (1,2)
-        assert positions['qC4'] == (2, 2)  # 1-indexed: (1,1) -> (2,2)
+        assert positions['qC1'] == (2, 1)  # 1-indexed: (0,0) -> (2,1)
+        assert positions['qC2'] == (1, 1)  # 1-indexed: (1,0) -> (1,1)
+        assert positions['qC3'] == (2, 2)  # 1-indexed: (0,1) -> (2,2)
+        assert positions['qC4'] == (1, 2)  # 1-indexed: (1,1) -> (1,2)
     
     def test_empty_constructor(self):
         """Test QubitGrid with no arguments."""

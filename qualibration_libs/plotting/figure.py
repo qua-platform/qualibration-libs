@@ -226,6 +226,8 @@ class QualibrationFigure:
             - showscale : bool - Whether to show colorbar for heatmaps
             - robust : bool - If True, uses 2nd and 98th percentiles for heatmap color limits
             - colorbar : dict - Colorbar configuration for heatmaps
+            - x2_top_margin : int - Top margin for plots with secondary x-axis (default: 120)
+            - x2_annotation_offset : float - Vertical offset for qubit name annotations when x2 is present (default: 0.08) NOTE: At present, only subplot titles starting with a q are adjusted upward.
 
         Returns
         -------
@@ -968,15 +970,19 @@ class QualibrationFigure:
 
         # If x2 is present, add top margin and adjust subplot titles
         if params.x2:
+            # Get configurable margin and annotation offset from style_overrides
+            top_margin = params.style_overrides.get('x2_top_margin', 120)
+            annotation_offset = params.style_overrides.get('x2_annotation_offset', 0.08)
+            
             # Increase top margin to accommodate secondary x-axis and title
-            self._fig.update_layout(margin=dict(t=120))
+            self._fig.update_layout(margin=dict(t=top_margin))
 
             # Adjust all subplot title positions to avoid overlap with secondary axes
             # This is done after all plotting to ensure all annotations exist
             for annotation in self._fig.layout.annotations:
-                if annotation.y is not None:
-                    # Move title up slightly relative to its current position
-                    annotation.update(y=annotation.y + 0.08)
+                if annotation.y is not None and annotation.text and annotation.text.startswith('q'):
+                    # Move qubit name titles higher to avoid overlap with secondary x-axis
+                    annotation.update(y=annotation.y + annotation_offset)
 
         if params.title:
             title_config = dict(
