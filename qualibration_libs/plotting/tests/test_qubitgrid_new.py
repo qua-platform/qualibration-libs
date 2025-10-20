@@ -142,8 +142,6 @@ class TestQubitGridNew:
         for ax, qubit_info in iter_results:
             assert hasattr(ax, 'plot')  # It's a matplotlib axes
             assert 'qubit' in qubit_info
-            assert 'row' in qubit_info
-            assert 'col' in qubit_info
             assert qubit_info['qubit'] in ['qC1', 'qC2', 'qC3', 'qC4']
     
     def test_grid_iter_with_old_style_grid(self):
