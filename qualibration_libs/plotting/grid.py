@@ -266,4 +266,4 @@ def grid_iter(grid: QubitGrid) -> Iterator[tuple[Any, dict[str, str]]]:
                 continue
             # Works for both numpy ndarray and list-of-lists
             ax = grid._axes[row - 1][col - 1]
-            yield ax, {key_name: qname}
+            yield ax, {key_name: qname, 'row': row, 'col': col}

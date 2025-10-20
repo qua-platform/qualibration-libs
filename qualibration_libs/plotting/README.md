@@ -364,6 +364,34 @@ fig = qplot.QualibrationFigure.plot(
 )
 ```
 
+#### Customizing Secondary X-Axis Spacing
+
+When using secondary x-axes, you can customize the spacing to prevent text overlap:
+
+```python
+# Custom spacing for secondary x-axis plots
+fig = qplot.QualibrationFigure.plot(
+    data,
+    x='amp_prefactor',
+    x2='amp_mV',        # Secondary x-axis
+    data_var='state',
+    title='Power Rabi Calibration',
+    # Custom spacing parameters
+    x2_top_margin=150,           # Increase top margin (default: 120)
+    x2_annotation_offset=0.025   # Move qubit names higher (default: 0.08)
+)
+
+# Minimal spacing for compact plots
+fig = qplot.QualibrationFigure.plot(
+    data,
+    x='frequency',
+    x2='wavelength',
+    data_var='amplitude',
+    x2_top_margin=100,           # Smaller top margin
+    x2_annotation_offset=0.01    # Smaller annotation offset
+)
+```
+
 ### Hue Dimension
 
 ```python
