@@ -227,7 +227,7 @@ class QualibrationFigure:
             - robust : bool - If True, uses 2nd and 98th percentiles for heatmap color limits
             - colorbar : dict - Colorbar configuration for heatmaps
             - x2_top_margin : int - Top margin for plots with secondary x-axis (default: 120)
-            - x2_annotation_offset : float - Vertical offset for qubit name annotations when x2 is present (default: 0.08)
+            - x2_annotation_offset : float - Vertical offset for qubit name annotations when x2 is present (default: 0.08) NOTE: At present, only subplot titles starting with a q are adjusted upward.
 
         Returns
         -------
