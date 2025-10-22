@@ -1,0 +1,43 @@
+services:
+  qualibration-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qualibration-tests
+    volumes:
+      # Mount the current qualibration-libs directory into the container
+      - .:/app/qualibration-libs
+      # Mount external data directory (configurable via environment variable)
+      - ${DATA_DIR:-../data}:/app/qualibration_graphs/superconducting/data/QPU_project/2025-10-01
+      # Mount plots output directory
+      - ./scripts/plots:/app/qualibration-libs/scripts/plots
+      # Mount any existing quam_state if available
+      - ${QUAM_STATE_DIR:-../quam_state}:/app/qualibration_graphs/superconducting/quam_state
+    environment:
+      - PYTHONPATH=/app/qualibration_graphs/superconducting:/app/qualibration-libs
+    working_dir: /app/qualibration-libs
+    command: >
+      bash -c "
+        echo '🚀 Starting Qualibration Tests Environment...';
+        echo 'Running automated setup...';
+        python /app/qualibration-libs/auto_setup.py;
+        echo '';
+        echo '🎉 Qualibration Tests Environment Ready!';
+        echo '';
+        echo 'Available commands:';
+        echo '  python test_docker.py                                    # Test the environment';
+        echo '  python scripts/plot_02a_resonator_spectroscopy_results.py --save';
+        echo '  python scripts/plot_02b_resonator_spectroscopy_vs_power_results.py --save';
+        echo '  python scripts/plot_02c_resonator_spectroscopy_vs_flux_results.py --save';
+        echo '  python scripts/plot_04b_power_rabi_results.py --save';
+        echo '';
+        echo 'Data directory: /app/qualibration_graphs/superconducting/data/QPU_project/2025-10-01';
+        echo 'Plots will be saved to: /app/qualibration-libs/scripts/plots';
+        echo '';
+        echo 'To run a specific test:';
+        echo '  docker-compose exec qualibration-tests python scripts/plot_02a_resonator_spectroscopy_results.py --save';
+        echo '';
+        bash
+      "
+    stdin_open: true
+    tty: true
