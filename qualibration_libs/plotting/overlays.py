@@ -193,18 +193,24 @@ class LineOverlay(Overlay):
     show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
+        line_cfg = {
+            "dash": self.dash,
+            "width": self.width or theme.line_width,
+            **style.get("line", {}),
+        }
+        # Allow a direct color override via style or class-level line dict
+        if "color" in style:
+            line_cfg["color"] = style["color"]
+
         fig.add_trace(
             go.Scatter(
                 x=self.x,
                 y=self.y,
                 name=self.name,
                 mode="lines",
-                line={
-                    "dash": self.dash,
-                    "width": self.width or theme.line_width,
-                    **style.get("line", {}),
-                },
-                showlegend=self.show_legend,
+                line=line_cfg,
+                legendgroup=style.get("legendgroup"),
+                showlegend=style.get("showlegend", self.show_legend),
             ),
             row=row,
             col=col,
@@ -259,24 +265,11 @@ class RefLine(Overlay):
     width: float | None = None
     color: str | None = None
 
-    def add_to(self, fig: go.Figure, *, row: int, col: int, theme: PlotTheme, **style):
-        """Add the reference line(s) to a specific subplot.
+    def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
+        """Add reference lines to the specified subplot.
 
-        Builds a merged `line` style from overlay attributes and the theme, then
-        draws axis-aware lines using Plotly's `add_vline`/`add_hline`. Lines span
-        the current axes limits of the targeted subplot (no use of paper coords),
-        so they respect zooming, autorange, and explicit axis ranges.
-
-        Parameters:
-        - fig (go.Figure): Target Plotly figure.
-        - row (int): Subplot row index (1-indexed).
-        - col (int): Subplot column index (1-indexed).
-        - theme (PlotTheme): Provides default `line_width` and global styles.
-        - **style: Plot-level overrides. If `style` contains a `line` dict,
-          its values override overlay attributes (including `color`).
-
-        Styling precedence:
-        1) Base from overlay: `{dash, width or theme.line_width}`
+        Styling resolution order:
+        1) Start with base `{dash, width or theme.line_width}`
         2) Include `color` from overlay if provided
         3) Override with `style['line']` if present
 
