@@ -284,9 +284,9 @@ def main():
         if args.save:
             out_dir = plots_root / folder.name
             out_dir.mkdir(parents=True, exist_ok=True)
-            out_path = out_dir / "power_rabi_plotly.png"
+            out_path = out_dir / "power_rabi_plotly.html"
 
-            fig.figure.write_image(str(out_path), width=1500, height=900)
+            fig.figure.write_html(str(out_path))
             print(f"Saved: {out_path}")
         else:
             fig.figure.show()

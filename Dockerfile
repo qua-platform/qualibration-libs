@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir \
     scipy>=1.13.1 \
     qiskit-experiments>=0.9.0 \
     tqdm>=4.67.1 \
+    pexpect>=4.8.0 \
     "qiskit<2.0" \
     "quam-builder@git+https://github.com/qua-platform/quam-builder.git"
 
@@ -36,6 +37,9 @@ RUN pip install --no-cache-dir \
 
 # Copy the automated setup script
 COPY auto_setup.py /app/qualibration-libs/auto_setup.py
+
+# Copy preliminary datasets zip file if it exists (optional)
+COPY preliminary_datasets.zip* /app/
 
 # Make the setup script executable
 RUN chmod +x /app/qualibration-libs/auto_setup.py

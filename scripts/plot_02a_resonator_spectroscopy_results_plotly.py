@@ -221,12 +221,12 @@ def main():
             # Save to scripts/plots/<data-folder-name>/
             out_dir = plots_root / folder.name
             out_dir.mkdir(parents=True, exist_ok=True)
-            out_phase = out_dir / "phase_plotly.png"
-            out_amp = out_dir / "amplitude_fit_plotly.png"
+            out_phase = out_dir / "phase_plotly.html"
+            out_amp = out_dir / "amplitude_fit_plotly.html"
 
-            # Save Plotly figures as PNG
-            fig_phase.figure.write_image(str(out_phase), width=1500, height=900)
-            fig_amp.figure.write_image(str(out_amp), width=1500, height=900)
+            # Save Plotly figures as HTML (interactive)
+            fig_phase.figure.write_html(str(out_phase))
+            fig_amp.figure.write_html(str(out_amp))
 
             print(f"Saved: {out_phase}")
             print(f"Saved: {out_amp}")

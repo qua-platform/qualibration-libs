@@ -34,6 +34,10 @@ services:
         echo 'Data directory: /app/qualibration_graphs/superconducting/data/QPU_project/2025-10-01';
         echo 'Plots will be saved to: /app/qualibration-libs/scripts/plots';
         echo '';
+        echo '📊 Preliminary Data Setup:';
+        echo '  If you have preliminary_datasets.zip in the qualibration-libs directory,';
+        echo '  it will be automatically extracted and organized during setup.';
+        echo '';
         echo 'To run a specific test:';
         echo '  docker-compose exec qualibration-tests python scripts/plot_02a_resonator_spectroscopy_results.py --save';
         echo '';
