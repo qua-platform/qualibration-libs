@@ -174,8 +174,15 @@ def run_setup_qualibrate_config_fallback():
 
 def copy_quam_state():
     """Copy quam_state folder from data directory to superconducting directory."""
-    data_dir = Path("/app/qualibration_graphs/superconducting/data/QPU_project/2025-10-01")
     superconducting_dir = Path("/app/qualibration_graphs/superconducting")
+    
+    # Check if quam_state already exists (from preliminary data setup)
+    quam_state_dst = superconducting_dir / "quam_state"
+    if quam_state_dst.exists():
+        print("quam_state already exists, skipping copy")
+        return True
+    
+    data_dir = Path("/app/qualibration_graphs/superconducting/data/QPU_project/2025-10-01")
     
     # Find any data folder that contains quam_state
     quam_state_found = False
@@ -183,13 +190,20 @@ def copy_quam_state():
         if date_folder.is_dir():
             quam_state_src = date_folder / "quam_state"
             if quam_state_src.exists():
-                quam_state_dst = superconducting_dir / "quam_state"
                 print(f"Copying quam_state from {quam_state_src} to {quam_state_dst}")
                 
-                # Remove existing quam_state if it exists
+                # Remove existing quam_state if it exists (handle busy directory gracefully)
                 if quam_state_dst.exists():
                     import shutil
-                    shutil.rmtree(quam_state_dst)
+                    try:
+                        shutil.rmtree(quam_state_dst)
+                    except OSError as e:
+                        if e.errno == 16:  # Device or resource busy
+                            print(f"WARNING: Cannot remove existing quam_state (directory is busy): {quam_state_dst}")
+                            print("This is normal if quam_state is mounted as a volume. Skipping quam_state copy.")
+                            return quam_state_found
+                        else:
+                            raise
                 
                 # Copy the quam_state folder
                 import shutil
@@ -372,11 +386,11 @@ This package provides calibration utilities for superconducting quantum systems.
         print("You may need to run 'setup-qualibrate-config' manually inside the container.")
         print("Continuing with the rest of the setup...")
     
-    # Copy quam_state folder
-    copy_quam_state()
-    
-    # Setup preliminary data if available
+    # Setup preliminary data if available (this will also handle quam_state)
     setup_preliminary_data()
+    
+    # Copy quam_state folder from existing data (only if preliminary data setup didn't handle it)
+    copy_quam_state()
     
     print("SUCCESS: Setup completed successfully!")
     print("You can now run the test scripts from /app/qualibration-libs/scripts/")

@@ -7,12 +7,8 @@ services:
     volumes:
       # Mount the current qualibration-libs directory into the container
       - .:/app/qualibration-libs
-      # Mount external data directory (configurable via environment variable)
-      - ${DATA_DIR:-../data}:/app/qualibration_graphs/superconducting/data/QPU_project/2025-10-01
-      # Mount plots output directory
+# Mount plots output directory
       - ./scripts/plots:/app/qualibration-libs/scripts/plots
-      # Mount any existing quam_state if available
-      - ${QUAM_STATE_DIR:-../quam_state}:/app/qualibration_graphs/superconducting/quam_state
     environment:
       - PYTHONPATH=/app/qualibration_graphs/superconducting:/app/qualibration-libs
     working_dir: /app/qualibration-libs

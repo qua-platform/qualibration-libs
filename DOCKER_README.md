@@ -46,14 +46,11 @@ This Docker setup provides a complete, reproducible environment for **running qu
 
 ## Environment Variables
 
-You can customize the data source and quam_state location using environment variables:
+You can customize the data source using environment variables:
 
 ```bash
 # Set custom data directory (default: ../data)
 export DATA_DIR=/path/to/your/data
-
-# Set custom quam_state directory (default: ../quam_state)
-export QUAM_STATE_DIR=/path/to/your/quam_state
 
 # Then run docker-compose
 docker-compose up --build
