@@ -25,7 +25,7 @@ This Docker setup provides a complete, reproducible environment for **running qu
 
 3. **Run all test scripts:**
    ```bash
-   docker-compose exec qualibration-tests python scripts/run_all_tests.py --save
+   docker-compose exec qualibration-tests python scripts/run_all_tests.py
    ```
    
    **Or run a specific test script:**
