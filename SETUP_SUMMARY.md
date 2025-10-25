@@ -44,7 +44,10 @@ This Docker setup provides a complete, automated environment for running qualibr
 # Build and start
 docker-compose up --build
 
-# Run a specific test
+# Run all tests
+docker-compose exec qualibration-tests python scripts/run_all_tests.py --save
+
+# Or run a specific test
 docker-compose exec qualibration-tests python scripts/plot_02a_resonator_spectroscopy_results.py --save
 ```
 
@@ -52,11 +55,13 @@ docker-compose exec qualibration-tests python scripts/plot_02a_resonator_spectro
 ```bash
 # Linux/Mac
 ./run_test.sh --build
-./run_test.sh plot_02a_resonator_spectroscopy_results.py
+./run_test.sh run_all_tests.py                    # Run all tests
+./run_test.sh plot_02a_resonator_spectroscopy_results.py  # Run specific test
 
 # Windows
 run_test.bat --build
-run_test.bat plot_02a_resonator_spectroscopy_results.py
+run_test.bat run_all_tests.py                     # Run all tests
+run_test.bat plot_02a_resonator_spectroscopy_results.py   # Run specific test
 ```
 
 ### Custom Data Directory

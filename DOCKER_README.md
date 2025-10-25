@@ -23,7 +23,12 @@ This Docker setup provides a complete, reproducible environment for **running qu
    ```
    The setup will automatically extract and organize your data.
 
-3. **Run a test script:**
+3. **Run all test scripts:**
+   ```bash
+   docker-compose exec qualibration-tests python scripts/run_all_tests.py --save
+   ```
+   
+   **Or run a specific test script:**
    ```bash
    docker-compose exec qualibration-tests python scripts/plot_02a_resonator_spectroscopy_results.py --save
    ```
@@ -38,7 +43,12 @@ This Docker setup provides a complete, reproducible environment for **running qu
    docker-compose up --build
    ```
 
-2. **Run a test script:**
+2. **Run all test scripts:**
+   ```bash
+   docker-compose exec qualibration-tests python scripts/run_all_tests.py --save
+   ```
+   
+   **Or run a specific test script:**
    ```bash
    docker-compose exec qualibration-tests python scripts/plot_02a_resonator_spectroscopy_results.py --save
    ```
@@ -58,6 +68,7 @@ docker-compose up --build
 
 ## Available Test Scripts
 
+- `run_all_tests.py` - Run all plotting tests with --save option
 - `plot_02a_resonator_spectroscopy_results.py` - Resonator spectroscopy plots
 - `plot_02b_resonator_spectroscopy_vs_power_results.py` - Resonator spectroscopy vs power
 - `plot_02c_resonator_spectroscopy_vs_flux_results.py` - Resonator spectroscopy vs flux

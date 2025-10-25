@@ -129,6 +129,7 @@ echo   --shell     Open a shell in the container
 echo   --help      Show this help message
 echo.
 echo Available scripts:
+echo   run_all_tests.py                                 # Run all plotting tests
 echo   plot_02a_resonator_spectroscopy_results.py
 echo   plot_02b_resonator_spectroscopy_vs_power_results.py
 echo   plot_02c_resonator_spectroscopy_vs_flux_results.py
@@ -137,6 +138,7 @@ echo.
 echo Examples:
 echo   %0 --build                                    # Build the environment
 echo   %0 --up                                       # Start environment in background
+echo   %0 run_all_tests.py                           # Run all plotting tests
 echo   %0 plot_02a_resonator_spectroscopy_results.py # Run specific test
 echo   %0 --shell                                    # Open shell in container
 exit /b 0

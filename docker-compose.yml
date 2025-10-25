@@ -22,6 +22,7 @@ services:
         echo '';
         echo 'Available commands:';
         echo '  python test_docker.py                                    # Test the environment';
+        echo '  python scripts/run_all_tests.py --save                  # Run all plotting tests';
         echo '  python scripts/plot_02a_resonator_spectroscopy_results.py --save';
         echo '  python scripts/plot_02b_resonator_spectroscopy_vs_power_results.py --save';
         echo '  python scripts/plot_02c_resonator_spectroscopy_vs_flux_results.py --save';
