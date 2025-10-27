@@ -193,18 +193,24 @@ class LineOverlay(Overlay):
     show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
+        line_cfg = {
+            "dash": self.dash,
+            "width": self.width or theme.line_width,
+            **style.get("line", {}),
+        }
+        # Allow a direct color override via style or class-level line dict
+        if "color" in style:
+            line_cfg["color"] = style["color"]
+
         fig.add_trace(
             go.Scatter(
                 x=self.x,
                 y=self.y,
                 name=self.name,
                 mode="lines",
-                line={
-                    "dash": self.dash,
-                    "width": self.width or theme.line_width,
-                    **style.get("line", {}),
-                },
-                showlegend=self.show_legend,
+                line=line_cfg,
+                legendgroup=style.get("legendgroup"),
+                showlegend=style.get("showlegend", self.show_legend),
             ),
             row=row,
             col=col,
@@ -213,34 +219,43 @@ class LineOverlay(Overlay):
 
 @dataclass
 class RefLine(Overlay):
-    """Add vertical and/or horizontal reference lines to a plot.
+    """Reference line overlay for vertical and/or horizontal lines.
 
-    RefLine uses Plotly's add_vline and add_hline methods to draw reference
-    lines that span the full extent of a subplot. Useful for marking thresholds,
-    target values, or other important reference points.
+    Overview:
+    - Axis-aware lines via Plotly `add_vline` / `add_hline` that span the
+      subplot's axis limits. Lines respect zoom/autorange and explicit axis ranges.
+    - Useful for marking thresholds, target values, crosshairs, or baseline levels.
 
     Attributes:
-        x (float | None): X-coordinate for a vertical reference line. If None,
-            no vertical line is drawn.
-        y (float | None): Y-coordinate for a horizontal reference line. If None,
-            no horizontal line is drawn.
-        name (str | None): Optional name for the reference line (currently unused).
-        dash (str): Line dash style. Options include "solid", "dot", "dash",
-            "longdash", "dashdot", "longdashdot". Default is "dot".
-        width (float | None): Line width in pixels. If None, uses theme.line_width.
-        color (str | None): Line color. Can be a named color (e.g., "red", "blue"),
-            hex color (e.g., "#FF0000"), or RGB/RGBA string. If None, uses the
-            theme's default color.
+    - x (float | None): X-coordinate for a vertical line. If None, no vertical line.
+    - y (float | None): Y-coordinate for a horizontal line. If None, no horizontal line.
+    - name (str | None): Optional name (currently unused in legend).
+    - dash (str): Line dash style (e.g., "solid", "dot", "dash", "longdash"). Default "dot".
+    - width (float | None): Line width in px. If None, uses `theme.line_width`.
+    - color (str | None): Line color string. Accepts any Plotly-compatible color
+      (e.g., "#FF0000", "red", "rgb(255,0,0)"). If None, theme/default color is used.
+
+    Styling and precedence:
+    - Base style: `{dash, width or theme.line_width}`.
+    - If `color` is provided on the overlay, it is included.
+    - Plot-level overrides passed via `style['line']` take precedence over all
+      overlay attributes (including `color`).
+
+    Subplots:
+    - `row` and `col` route the line to the correct subplot created with
+      `plotly.subplots.make_subplots`.
 
     Examples:
-        >>> # Add a vertical reference line at x=5
-        >>> RefLine(x=5.0)
-
-        >>> # Add a horizontal reference line at y=0.5 with custom styling
-        >>> RefLine(y=0.5, dash="dash", width=2, color="red")
-
-        >>> # Add both vertical and horizontal reference lines
-        >>> RefLine(x=3.0, y=0.8, color="#00FF00")
+    >>> # Vertical reference line at x=5 with a hex color
+    >>> RefLine(x=5.0, color="#FF5733")
+    >>>
+    >>> # Override color/width at plot-time (override wins over overlay settings)
+    >>> fig = make_subplots(rows=1, cols=1)
+    >>> RefLine(x=5.0, color="#FF5733").add_to(fig, row=1, col=1, theme=theme,
+    ...     line={"color": "blue", "width": 3})
+    >>>
+    >>> # Draw both vertical and horizontal lines (crosshair)
+    >>> RefLine(x=3.0, y=0.8, dash="dash")
     """
 
     x: float | None = None
@@ -250,24 +265,24 @@ class RefLine(Overlay):
     width: float | None = None
     color: str | None = None
 
-    def add_to(self, fig: go.Figure, *, row: int, col: int, theme: PlotTheme, **style):
-        """Add the reference line(s) to the specified subplot.
+    def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
+        """Add reference lines to the specified subplot.
 
-        Constructs line configuration from instance attributes and theme settings,
-        then uses Plotly's add_vline/add_hline to draw lines that automatically
-        span the full extent of the subplot.
+        Styling resolution order:
+        1) Start with base `{dash, width or theme.line_width}`
+        2) Include `color` from overlay if provided
+        3) Override with `style['line']` if present
 
-        Args:
-            fig (go.Figure): The Plotly figure to add the reference line to.
-            row (int): Subplot row index (1-indexed).
-            col (int): Subplot column index (1-indexed).
-            theme (PlotTheme): Theme object providing default styling values.
-            **style: Additional style overrides. Can include a "line" dict with
-                custom line properties (color, dash, width, etc.).
+        Behavior:
+        - If `x` is set, draws `add_vline(x=...)` in the given (row, col).
+        - If `y` is set, draws `add_hline(y=...)` in the given (row, col).
+        - If both are set, draws a crosshair.
 
-        Note:
-            If both self.x and self.y are set, both vertical and horizontal
-            lines will be drawn, creating a crosshair effect.
+        Returns:
+        - None
+
+        Notes:
+        - Invalid `row`/`col` values or missing subplot grids will raise Plotly errors.
         """
         line_config = {
             "width": self.width or theme.line_width,

@@ -130,10 +130,26 @@ class QualibrationFigure:
 
     def __init__(self):
         self._fig = go.Figure()
+        self._color_index = 0
+        self._legend_shown: set[str] = set()
 
     @property
     def figure(self) -> go.Figure:
         return self._fig
+
+    def reset_color_index(self) -> None:
+        """Reset the internal color cycle index.
+
+        Call this before starting a new logical group (e.g., a new subplot) to
+        ensure colors start from the first palette color again.
+        """
+        self._color_index = 0
+
+    def _next_color(self) -> str:
+        palette = _config.CURRENT_PALETTE or _config.CURRENT_THEME.colorway
+        color = palette[self._color_index % len(palette)]
+        self._color_index += 1
+        return color
 
     @classmethod
     def plot(
@@ -224,87 +240,8 @@ class QualibrationFigure:
             - mode : str - Plotly mode ('markers', 'lines', 'lines+markers')
             - colorscale : str - Colorscale for heatmaps ('Viridis', 'RdBu', etc.)
             - showscale : bool - Whether to show colorbar for heatmaps
-            - robust : bool - If True, uses 2nd and 98th percentiles for heatmap color limits
-            - colorbar : dict - Colorbar configuration for heatmaps
-            - x2_top_margin : int - Top margin for plots with secondary x-axis (default: 120)
-            - x2_annotation_offset : float - Vertical offset for qubit name annotations when x2 is present (default: 0.08) NOTE: At present, only subplot titles starting with a q are adjusted upward.
-
-        Returns
-        -------
-        QualibrationFigure
-            A QualibrationFigure instance. Access the underlying Plotly figure via the
-            `figure` property to show, save, or further customize the plot.
-
-        Examples
-        --------
-        1D plot with fit overlay:
-
-        >>> def create_fit(qubit_name, qubit_data):
-        ...     fit_curve = compute_fit(qubit_data)
-        ...     return [FitOverlay(y_fit=fit_curve, name="Fit")]
-        >>>
-        >>> fig = QualibrationFigure.plot(
-        ...     dataset,
-        ...     x='amp_prefactor',
-        ...     x2='amp_mV',
-        ...     data_var='I',
-        ...     overlays=create_fit,
-        ...     residuals=True,
-        ...     title='Power Rabi with Fit'
-        ... )
-        >>> fig.figure.write_image('power_rabi.png')
-
-        2D heatmap with custom colorscale:
-
-        >>> fig = QualibrationFigure.plot(
-        ...     dataset,
-        ...     x='detuning',
-        ...     y='power',
-        ...     data_var='IQ_abs_norm',
-        ...     robust=True,
-        ...     colorscale='RdBu',
-        ...     showscale=True
-        ... )
-
-        Multiple qubits with grid layout:
-
-        >>> grid = QubitGrid(dataset, [q.grid_location for q in qubits])
-        >>> fig = QualibrationFigure.plot(
-        ...     dataset,
-        ...     x='nb_of_pulses',
-        ...     data_var='state',
-        ...     grid=grid,
-        ...     qubit_dim='qubit',
-        ...     title='Qubit States'
-        ... )
-
-        Grouped 1D plot with hue:
-
-        >>> # Plot multiple curves per qubit, grouped by 'power' dimension
-        >>> fig = QualibrationFigure.plot(
-        ...     dataset,
-        ...     x='frequency',
-        ...     data_var='I',
-        ...     hue='power',
-        ...     marker_size=3
-        ... )
-
-        Notes
-        -----
-        - The plot type (1D vs 2D) is automatically determined by the presence of `y`
-        - Subplot layouts are automatically configured based on `grid` or default to single row
-        - Axis labels are extracted from coordinate attributes ('long_name' or 'units')
-        - Theme and styling are controlled by the global configuration in plotting/config.py
-        - For dual x-axes, tick positions are computed to evenly span the data range
-
-        See Also
-        --------
-        QubitGrid : Grid layout manager for multi-qubit visualizations
-        FitOverlay : Overlay for fitted curves
-        RefLine : Overlay for reference lines (vertical or horizontal)
-        LineOverlay : Overlay for arbitrary line plots
-        ScatterOverlay : Overlay for scatter points
         """
+
         obj = cls()
         obj._build(
             data,
@@ -323,6 +260,56 @@ class QualibrationFigure:
         )
         return obj
 
+    # ---------------------------------------------------------------------
+    # Internal helpers
+    # ---------------------------------------------------------------------
+    def _extract_plot_params(
+        self,
+        *,
+        x: str,
+        data_var: str | None = None,
+        y: str | None = None,
+        hue: str | None = None,
+        x2: str | None = None,
+        qubit_dim: str = "qubit",
+        qubit_names: Sequence[str] | None = None,
+        grid: QubitGrid | None = None,
+        overlays: (
+            Sequence[Overlay]
+            | dict[str, Sequence[Overlay]]
+            | Callable[[str, Any], Sequence[Overlay]]
+        ) | None = None,
+        residuals: bool = False,
+        title: str | None = None,
+        **style_overrides: Any,
+    ) -> PlotParams:
+        """Extract and validate plotting parameters into a structured container.
+
+        Returns a PlotParams dataclass instance, handling defaults and passing
+        through style overrides. This centralizes parameter handling for the
+        builder and keeps the plot() API thin.
+        """
+        if not isinstance(x, str) or not x:
+            raise KeyError("x coordinate must be provided")
+
+        # Normalize style overrides to a plain dict
+        style = dict(style_overrides) if style_overrides else {}
+
+        return PlotParams(
+            x=x,
+            data_var=data_var,
+            y=y,
+            hue=hue,
+            x2=x2,
+            qubit_dim=qubit_dim,
+            qubit_names=qubit_names,
+            grid=grid,
+            overlays=overlays,
+            residuals=bool(residuals),
+            title=title,
+            style_overrides=style,
+        )
+
     def _normalize_data(self, data: DataLike) -> xr.Dataset:
         """Convert various data types to xarray.Dataset.
 
@@ -337,68 +324,15 @@ class QualibrationFigure:
         """
         if isinstance(data, xr.Dataset):
             return data
-        elif isinstance(data, xr.DataArray):
+        if isinstance(data, xr.DataArray):
             return data.to_dataset(name=data.name or "value")
-        elif hasattr(data, "to_xarray"):
+        if isinstance(data, dict):
+            # Assume single data_var keyed by the first key
+            key = next(iter(data.keys()))
+            return xr.Dataset({key: ("index", np.asarray(data[key]))})
+        if hasattr(data, "to_xarray"):
             return data.to_xarray()
-        elif isinstance(data, dict):
-            return xr.Dataset({k: ("index", np.asarray(v)) for k, v in data.items()})
-        else:
-            raise TypeError("Unsupported data type for QualibrationFigure.plot")
-
-    def _extract_plot_params(self, **kwargs) -> PlotParams:
-        """Extract and validate plot parameters from kwargs.
-
-        Args:
-            **kwargs: Plot configuration parameters
-
-        Returns:
-            PlotParams: Container with all extracted plot parameters
-        """
-        x = kwargs.get("x")
-        data_var = kwargs.get("data_var")
-        y = kwargs.get("y")
-        hue = kwargs.get("hue")
-        x2 = kwargs.get("x2")
-        qubit_dim = kwargs.get("qubit_dim", "qubit")
-        qubit_names = kwargs.get("qubit_names")
-        grid: QubitGrid = kwargs.get("grid")
-        overlays = kwargs.get("overlays")
-        residuals = kwargs.get("residuals", False)
-        title = kwargs.get("title")
-        style_overrides = {
-            k: v
-            for k, v in kwargs.items()
-            if k
-            not in {
-                "x",
-                "data_var",
-                "y",
-                "hue",
-                "x2",
-                "qubit_dim",
-                "qubit_names",
-                "grid",
-                "overlays",
-                "residuals",
-                "title",
-            }
-        }
-
-        return PlotParams(
-            x=x,
-            data_var=data_var,
-            y=y,
-            hue=hue,
-            x2=x2,
-            qubit_dim=qubit_dim,
-            qubit_names=qubit_names,
-            grid=grid,
-            overlays=overlays,
-            residuals=residuals,
-            title=title,
-            style_overrides=style_overrides,
-        )
+        raise TypeError("Unsupported data type for plotting")
 
     def _setup_subplot_grid(
         self,
@@ -409,72 +343,35 @@ class QualibrationFigure:
         residuals: bool,
         x2: str | None,
     ) -> tuple[Sequence[str], int, int, dict[str, tuple[int, int]]]:
-        """Setup subplot grid and create figure with subplots.
+        # Determine qubit names
+        if qubit_names is None:
+            if qubit_dim in ds.dims:
+                qubit_names = [str(q) for q in ds[qubit_dim].values]
+            else:
+                qubit_names = ["q0"]
 
-        Args:
-            ds: Dataset to extract qubit names from
-            qubit_dim: Name of qubit dimension
-            qubit_names: Optional list of qubit names
-            grid: Optional QubitGrid configuration
-            residuals: Whether to include residual subplots
-            x2: Optional secondary x coordinate (increases vertical spacing if present)
-
-        Returns:
-            tuple: (qubit_names, n_rows, n_cols, positions)
-        """
-        if qubit_names is None and qubit_dim in ds.dims:
-            qubit_names = list(map(str, ds.coords[qubit_dim].values))
-        qubit_names = qubit_names or ["qubit"]
-
+        # Determine grid shape
         if grid is None:
-            coords = {name: (0, i) for i, name in enumerate(qubit_names)}
-            grid = QubitGrid(coords, shape=(1, len(coords)))
-        n_rows, n_cols, positions = grid.resolve(qubit_names)
-
-        # Increase vertical spacing if x2 is present and there are multiple rows
-        vertical_spacing = 0.23 if (x2 and n_rows > 1) else None
-
-        if residuals:
-            total_rows = n_rows * 2
-            rratio = float(
-                getattr(_config.CURRENT_THEME, "residuals_height_ratio", 0.35)
-            )
-            main_h = max(0.0, min(1.0, 1.0 - rratio))
-            row_heights = []
-            for _ in range(n_rows):
-                row_heights.extend([main_h, rratio])
-            titles = [""] * (total_rows * n_cols)
-            for name, (r, c) in positions.items():
-                row_main = (r - 1) * 2 + 1
-                idx = (row_main - 1) * n_cols + (c - 1)
-                titles[idx] = name
-            subplot_kwargs = {
-                "rows": total_rows,
-                "cols": n_cols,
-                "subplot_titles": titles,
-                "row_heights": row_heights,
-            }
-            if vertical_spacing is not None:
-                subplot_kwargs["vertical_spacing"] = vertical_spacing
-            self._fig = make_subplots(**subplot_kwargs)
+            n_cols = len(qubit_names)
+            n_rows = 1
+            positions = {q: (1, i + 1) for i, q in enumerate(qubit_names)}
         else:
-            titles = [""] * (n_rows * n_cols)
-            for name, (r, c) in positions.items():
-                idx = (r - 1) * n_cols + (c - 1)
-                titles[idx] = name
-            subplot_kwargs = {
-                "rows": n_rows,
-                "cols": n_cols,
-                "subplot_titles": titles,
-            }
-            if vertical_spacing is not None:
-                subplot_kwargs["vertical_spacing"] = vertical_spacing
-            self._fig = make_subplots(**subplot_kwargs)
+            # Use QubitGrid.resolve to normalize to 1-based positions and compute shape
+            n_rows, n_cols, positions = grid.resolve(qubit_names)
 
+        # Adjust vertical spacing if secondary x-axis is present
+        vspace = 0.2 if (x2 and n_rows > 1) else 0.1
+        self._fig = make_subplots(
+            rows=n_rows * (2 if residuals else 1),
+            cols=n_cols,
+            subplot_titles=list(qubit_names),
+            vertical_spacing=vspace,
+            horizontal_spacing=0.05,
+        )
         return qubit_names, n_rows, n_cols, positions
 
     def _get_row_indices(self, row: int, residuals: bool) -> tuple[int, int | None]:
-        """Calculate row indices for main plot and residuals subplot.
+        """Get main and residual row indices for a given subplot row.
 
         Args:
             row: Original row number
@@ -516,8 +413,14 @@ class QualibrationFigure:
                 kwargs["line"]["width"] = style_overrides["line_width"]
             if "color" in style_overrides:
                 kwargs["marker"]["color"] = style_overrides["color"]
+                kwargs["line"]["color"] = style_overrides["color"]
             if "mode" in style_overrides:
                 kwargs["mode"] = style_overrides["mode"]
+            # Legend control if provided
+            if "legendgroup" in style_overrides:
+                kwargs["legendgroup"] = style_overrides["legendgroup"]
+            if "showlegend" in style_overrides:
+                kwargs["showlegend"] = style_overrides["showlegend"]
         elif trace_type == "heatmap":
             if "colorscale" in style_overrides:
                 kwargs["colorscale"] = style_overrides["colorscale"]
@@ -569,30 +472,39 @@ class QualibrationFigure:
         var = data_var or next(iter(sel.data_vars))
         y_vals = np.asarray(sel[var].values)
 
+        # Reset color cycle at the start of each subplot to keep colors consistent
+        self.reset_color_index()
+
         if hue and hue in sel.dims:
             for hv in sel.coords[hue].values:
                 y_h = np.asarray(sel[var].sel({hue: hv}).values)
                 label = map_hue_value(hue, hv)
+                color = self._next_color()
+                show_lgd = label not in self._legend_shown
+                self._legend_shown.add(label)
                 scatter_kwargs = {
                     "x": x_vals,
                     "y": y_h,
                     "name": label,
                     "mode": "markers",
-                    "marker": dict(size=_config.CURRENT_THEME.marker_size),
-                    "line": dict(width=_config.CURRENT_THEME.line_width),
+                    "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
+                    "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
+                    "legendgroup": label,
+                    "showlegend": show_lgd,
                 }
                 scatter_kwargs = self._apply_style_overrides(
                     scatter_kwargs, style_overrides, "scatter"
                 )
                 self._fig.add_trace(go.Scatter(**scatter_kwargs), row=row_main, col=col)
         else:
+            color = self._next_color()
             scatter_kwargs = {
                 "x": x_vals,
                 "y": y_vals,
                 "name": name,
                 "mode": "markers",
-                "marker": dict(size=_config.CURRENT_THEME.marker_size),
-                "line": dict(width=_config.CURRENT_THEME.line_width),
+                "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
+                "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
             }
             scatter_kwargs = self._apply_style_overrides(
                 scatter_kwargs, style_overrides, "scatter"
@@ -795,13 +707,26 @@ class QualibrationFigure:
             panel_overlays = overlays
 
         for ov in panel_overlays:
+            # Deduplicate legend entries across subplots by legendgroup
+            group_label = getattr(ov, "name", None) or "overlay"
+            show_lgd = group_label not in self._legend_shown
+            self._legend_shown.add(group_label)
+
+            # Assign a color if not overridden by style
+            ov_style = dict(style_overrides)
+            if "color" not in ov_style:
+                ov_style["color"] = self._next_color()
+            # Pass legend grouping to overlay implementation
+            ov_style["legendgroup"] = group_label
+            ov_style["showlegend"] = show_lgd
+
             ov.add_to(
                 self._fig,
                 row=row_main,
                 col=col,
                 theme=_config.CURRENT_THEME,
                 x=x_vals,
-                **style_overrides,
+                **ov_style,
             )
 
             # Check if this overlay provides fit data for residuals
@@ -854,13 +779,14 @@ class QualibrationFigure:
         # Plot residuals if we have fit data
         if fit_data is not None:
             residual_vals = y_vals - fit_data
+            color = self._next_color()
             residual_kwargs = {
                 "x": fit_x_vals if fit_x_vals is not None else x_vals,
                 "y": residual_vals,
                 "name": f"{name} residuals",
                 "mode": "markers",
-                "marker": dict(size=_config.CURRENT_THEME.marker_size),
-                "line": dict(width=_config.CURRENT_THEME.line_width),
+                "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
+                "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
             }
             residual_kwargs = self._apply_style_overrides(
                 residual_kwargs, style_overrides, "scatter"

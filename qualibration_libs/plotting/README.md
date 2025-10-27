@@ -404,6 +404,9 @@ fig = qplot.QualibrationFigure.plot(
 )
 ```
 
+Note: In multi-qubit/multi-subplot figures, the color cycle resets at the start of each subplot so hue colors are consistent panel-to-panel. Legend entries are deduplicated across the entire figure using `legendgroup`, so each hue value appears only once in the legend on the right.
+
+See demo: `demos/legend_color_reset_demo.py` which saves `legend_color_reset_demo.html` for interactive preview.
 ### xarray Accessor
 
 ```python
