@@ -64,6 +64,9 @@ class QualibrationFigure:
         return obj
 
     def _build(self, data: DataLike, **kwargs) -> None:
+        # Initialize color tracking per subplot
+        self._subplot_color_counters = {}
+        
         if isinstance(data, xr.Dataset):
             ds = data
         elif isinstance(data, xr.DataArray):
@@ -155,6 +158,10 @@ class QualibrationFigure:
                             scatter_kwargs["line"]["width"] = style_overrides["line_width"]
                         if "color" in style_overrides:
                             scatter_kwargs["marker"]["color"] = style_overrides["color"]
+                        else:
+                            # Assign consistent color per subplot
+                            color = self._get_next_color(row_main, col)
+                            scatter_kwargs["marker"]["color"] = color
                         if "mode" in style_overrides:
                             scatter_kwargs["mode"] = style_overrides["mode"]
                         self._fig.add_trace(go.Scatter(**scatter_kwargs), row=row_main, col=col)
@@ -175,6 +182,10 @@ class QualibrationFigure:
                         scatter_kwargs["line"]["width"] = style_overrides["line_width"]
                     if "color" in style_overrides:
                         scatter_kwargs["marker"]["color"] = style_overrides["color"]
+                    else:
+                        # Assign consistent color per subplot
+                        color = self._get_next_color(row_main, col)
+                        scatter_kwargs["marker"]["color"] = color
                     if "mode" in style_overrides:
                         scatter_kwargs["mode"] = style_overrides["mode"]
                     self._fig.add_trace(go.Scatter(**scatter_kwargs), row=row_main, col=col)
@@ -231,7 +242,13 @@ class QualibrationFigure:
                 for ov in panel_overlays:
                     # Pass x values for fit overlays
                     x_vals_for_overlay = x_vals if 'x_vals' in locals() else None
-                    ov.add_to(self._fig, row=row_main, col=col, theme=_config.CURRENT_THEME, x=x_vals_for_overlay, **style_overrides)
+                    
+                    # Add color to style overrides for consistent coloring
+                    overlay_style = style_overrides.copy()
+                    if "color" not in overlay_style:
+                        overlay_style["color"] = self._get_next_color(row_main, col)
+                    
+                    ov.add_to(self._fig, row=row_main, col=col, theme=_config.CURRENT_THEME, x=x_vals_for_overlay, **overlay_style)
                     
                     # Check if this overlay provides fit data for residuals
                     if hasattr(ov, 'y_fit') and ov.y_fit is not None:
@@ -263,6 +280,10 @@ class QualibrationFigure:
                         residual_kwargs["line"]["width"] = style_overrides["line_width"]
                     if "color" in style_overrides:
                         residual_kwargs["marker"]["color"] = style_overrides["color"]
+                    else:
+                        # Assign consistent color per subplot
+                        color = self._get_next_color(row_resid, col)
+                        residual_kwargs["marker"]["color"] = color
                     if "mode" in style_overrides:
                         residual_kwargs["mode"] = style_overrides["mode"]
                     
@@ -280,3 +301,17 @@ class QualibrationFigure:
 
         if _config.CURRENT_RC.values.get("showlegend") is not None:
             self._fig.update_layout(showlegend=bool(_config.CURRENT_RC.values["showlegend"]))
+
+    def _get_next_color(self, row: int, col: int) -> str:
+        """Get the next color in the sequence for the given subplot."""
+        subplot_key = f"{row},{col}"
+        palette = list(_config.CURRENT_PALETTE) if _config.CURRENT_PALETTE else list(_config.CURRENT_THEME.colorway)
+        
+        if subplot_key not in self._subplot_color_counters:
+            self._subplot_color_counters[subplot_key] = 0
+        
+        color_idx = self._subplot_color_counters[subplot_key] % len(palette)
+        color = palette[color_idx]
+        self._subplot_color_counters[subplot_key] += 1
+        
+        return color

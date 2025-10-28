@@ -23,13 +23,17 @@ class LineOverlay(Overlay):
     show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
+        line_style = {"dash": self.dash, "width": self.width or theme.line_width, **style.get("line", {})}
+        if "color" in style:
+            line_style["color"] = style["color"]
+            
         fig.add_trace(
             go.Scatter(
                 x=self.x,
                 y=self.y,
                 name=self.name,
                 mode="lines",
-                line={"dash": self.dash, "width": self.width or theme.line_width, **style.get("line", {})},
+                line=line_style,
                 showlegend=self.show_legend,
             ),
             row=row,
@@ -82,13 +86,17 @@ class ScatterOverlay(Overlay):
     marker_size: Optional[float] = None
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
+        marker_style = {"size": self.marker_size or theme.marker_size, **style.get("marker", {})}
+        if "color" in style:
+            marker_style["color"] = style["color"]
+            
         fig.add_trace(
             go.Scatter(
                 x=self.x,
                 y=self.y,
                 name=self.name,
                 mode="markers",
-                marker={"size": self.marker_size or theme.marker_size, **style.get("marker", {})},
+                marker=marker_style,
             ),
             row=row,
             col=col,
@@ -117,13 +125,17 @@ class FitOverlay(Overlay):
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, x=None, **style):
         if self.y_fit is not None and x is not None:
+            line_style = {"dash": self.dash, "width": self.width or theme.line_width, **style.get("line", {})}
+            if "color" in style:
+                line_style["color"] = style["color"]
+                
             fig.add_trace(
                 go.Scatter(
                     x=x,
                     y=self.y_fit,
                     name=self.name,
                     mode="lines",
-                    line={"dash": self.dash, "width": self.width or theme.line_width, **style.get("line", {})},
+                    line=line_style,
                 ),
                 row=row,
                 col=col,
