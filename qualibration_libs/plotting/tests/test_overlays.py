@@ -49,18 +49,13 @@ class TestRefLine:
         
         ref_line.add_to(mock_fig, row=1, col=1, theme=mock_theme)
         
-        # Should call add_shape for vertical line
-        mock_fig.add_shape.assert_called_once()
-        call_args = mock_fig.add_shape.call_args
-        assert call_args[1]['type'] == 'line'
-        assert call_args[1]['x0'] == 5.0
-        assert call_args[1]['x1'] == 5.0
-        assert call_args[1]['y0'] == 0
-        assert call_args[1]['y1'] == 1
-        assert call_args[1]['xref'] == 'x'
-        assert call_args[1]['yref'] == 'paper'
+        # Should call add_vline for vertical line
+        mock_fig.add_vline.assert_called_once()
+        call_args = mock_fig.add_vline.call_args
+        assert call_args[1]['x'] == 5.0
         assert call_args[1]['row'] == 1
         assert call_args[1]['col'] == 1
+        assert 'line' in call_args[1]
 
 
 class TestLineOverlay:

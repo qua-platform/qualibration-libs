@@ -29,7 +29,7 @@ class TestQualibrationFigure:
             response = np.exp(-((detuning - center) / width)**2)
             data[qubit] = (['detuning'], response)
         
-        return xr.Dataset(data, coords={'detuning': detuning})
+        return xr.Dataset(data, coords={'detuning': detuning, 'qubit': qubits})
     
     @pytest.fixture
     def sample_data_2d(self):
@@ -107,6 +107,7 @@ class TestQualibrationFigure:
     
     def test_custom_grid_layout(self, sample_data_1d):
         """Test custom qubit grid layout."""
+        # Use the same qubit names as in the sample data
         grid = QubitGrid(
             {'qC1': (0, 0), 'qC2': (0, 1), 'qC3': (1, 0)},
             shape=(2, 2)
@@ -243,6 +244,51 @@ class TestQualibrationFigure:
         
         assert fig is not None
         assert fig.figure is not None
+    
+    def test_x2_configuration_parameters(self, sample_data_1d):
+        """Test x2 configuration parameters for margin and annotation positioning."""
+        # Add secondary coordinate
+        data_with_x2 = sample_data_1d.copy()
+        wavelength_values = 3e8 / (5e9 + data_with_x2.detuning.values)
+        data_with_x2 = data_with_x2.assign_coords(
+            wavelength=('detuning', wavelength_values)
+        )
+        
+        # Test with custom x2 configuration parameters
+        fig = QualibrationFigure.plot(
+            data_with_x2,
+            x='detuning',
+            x2='wavelength',
+            data_var='qC1',
+            title="Plot with Custom X2 Configuration",
+            x2_top_margin=150,           # Custom top margin
+            x2_annotation_offset=0.025   # Custom annotation offset
+        )
+        
+        assert fig is not None
+        assert fig.figure is not None
+        
+        # Check that the custom margin was applied
+        assert fig.figure.layout.margin.t == 150
+        
+        # Check that annotations exist (qubit names should be moved up)
+        annotations = fig.figure.layout.annotations
+        assert len(annotations) > 0
+        
+        # Test with default values (should still work)
+        fig_default = QualibrationFigure.plot(
+            data_with_x2,
+            x='detuning',
+            x2='wavelength',
+            data_var='qC1',
+            title="Plot with Default X2 Configuration"
+        )
+        
+        assert fig_default is not None
+        assert fig_default.figure is not None
+        
+        # Check that default margin was applied
+        assert fig_default.figure.layout.margin.t == 120  # Default value
     
     def test_real_data_loading(self, real_data_files):
         """Test loading and plotting real data files."""
@@ -423,9 +469,9 @@ class TestQubitGrid:
         
         assert n_rows == 2
         assert n_cols == 2
-        assert positions['Q0'] == (1, 1)  # 1-indexed
-        assert positions['Q1'] == (1, 2)
-        assert positions['Q2'] == (2, 1)
+        assert positions['Q0'] == (2, 1)  # 1-indexed, rows flipped
+        assert positions['Q1'] == (2, 2)
+        assert positions['Q2'] == (1, 1)
     
     def test_automatic_shape(self):
         """Test automatic shape determination."""

@@ -210,7 +210,10 @@ def demo_plotly_integration(ds_1d):
     # Demonstrate grid iteration
     print("\nGrid iteration:")
     for ax, qubit_info in grid_iter(custom_grid):
-        print(f"  {qubit_info['qubit']}: row={qubit_info['row']}, col={qubit_info['col']}")
+        # Get row/col from the grid positions
+        n_rows, n_cols, positions = custom_grid.resolve([qubit_info['qubit']])
+        qubit_pos = positions[qubit_info['qubit']]
+        print(f"  {qubit_info['qubit']}: row={qubit_pos[0]}, col={qubit_pos[1]}")
     
     # Use the grid with QualibrationFigure
     print("\nCreating Plotly figure with custom QubitGrid...")
@@ -310,7 +313,10 @@ def demo_sparse_3x3_grid():
     # Demonstrate grid iteration (only iterates over positioned qubits)
     print("\nGrid iteration (only positioned qubits):")
     for ax, qubit_info in grid_iter(sparse_grid):
-        print(f"  {qubit_info['qubit']}: row={qubit_info['row']}, col={qubit_info['col']}")
+        # Get row/col from the grid positions
+        n_rows, n_cols, positions = sparse_grid.resolve([qubit_info['qubit']])
+        qubit_pos = positions[qubit_info['qubit']]
+        print(f"  {qubit_info['qubit']}: row={qubit_pos[0]}, col={qubit_pos[1]}")
     
     # Create Plotly figure with sparse grid
     print("\nCreating Plotly figure with sparse 3x3 QubitGrid...")
@@ -383,7 +389,10 @@ def demo_real_data_grid():
     # Demonstrate grid iteration
     print("\nGrid iteration:")
     for ax, qubit_info in grid_iter(real_grid):
-        print(f"  {qubit_info['qubit']}: row={qubit_info['row']}, col={qubit_info['col']}")
+        # Get row/col from the grid positions
+        n_rows, n_cols, positions = real_grid.resolve([qubit_info['qubit']])
+        qubit_pos = positions[qubit_info['qubit']]
+        print(f"  {qubit_info['qubit']}: row={qubit_pos[0]}, col={qubit_pos[1]}")
     
     # Create Plotly figure with real data
     print("\nCreating Plotly figure with real data and logical grid...")
