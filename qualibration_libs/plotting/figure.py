@@ -490,7 +490,7 @@ class QualibrationFigure:
                     "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
                     "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
                     "legendgroup": label,
-                    "showlegend": show_lgd,
+                    "showlegend": False,  # Hide data traces from legend - only show overlays
                 }
                 scatter_kwargs = self._apply_style_overrides(
                     scatter_kwargs, style_overrides, "scatter"
@@ -505,6 +505,7 @@ class QualibrationFigure:
                 "mode": "markers",
                 "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
                 "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
+                "showlegend": False,  # Hide data traces from legend - only show overlays
             }
             scatter_kwargs = self._apply_style_overrides(
                 scatter_kwargs, style_overrides, "scatter"
@@ -832,8 +833,10 @@ class QualibrationFigure:
             return  # No optimization needed for single heatmap
         
         # Check if all heatmaps have the same scaling (within tolerance)
-        tolerance = 1e-6
+        # Use a more reasonable tolerance for real data (1% of the range)
         first_z_min, first_z_max = scaling_info[0][:2]
+        range_size = first_z_max - first_z_min
+        tolerance = max(0.01 * range_size, 1e-6)  # 1% of range or 1e-6, whichever is larger
         
         all_same_scaling = all(
             abs(z_min - first_z_min) < tolerance and abs(z_max - first_z_max) < tolerance
@@ -842,16 +845,11 @@ class QualibrationFigure:
         
         if all_same_scaling:
             # Same scaling: show only one colorbar (on the last subplot)
-            for i, (_, _, row, col) in enumerate(scaling_info):
-                show_colorbar = (i == len(scaling_info) - 1)  # Only last subplot shows colorbar
-                
-                # Find the heatmap trace for this subplot
-                for trace in self._fig.data:
-                    if (hasattr(trace, 'xaxis') and hasattr(trace, 'yaxis') and
-                        trace.xaxis == f'x{col}' if col > 1 else 'x' and
-                        trace.yaxis == f'y{row}' if row > 1 else 'y'):
-                        trace.showscale = show_colorbar
-                        break
+            # Get all heatmap traces and show colorbar only on the last one
+            heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
+            for i, trace in enumerate(heatmap_traces):
+                show_colorbar = (i == len(heatmap_traces) - 1)
+                trace.showscale = show_colorbar
         else:
             # Different scaling: hide all colorbars
             for trace in self._fig.data:
