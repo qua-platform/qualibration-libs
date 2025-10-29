@@ -327,9 +327,24 @@ class QualibrationFigure:
         if isinstance(data, xr.DataArray):
             return data.to_dataset(name=data.name or "value")
         if isinstance(data, dict):
-            # Assume single data_var keyed by the first key
-            key = next(iter(data.keys()))
-            return xr.Dataset({key: ("index", np.asarray(data[key]))})
+            # Convert dict to xarray Dataset
+            # All arrays should have the same length for proper conversion
+            arrays = {k: np.asarray(v) for k, v in data.items()}
+            
+            # Find the length of the first array to use as dimension
+            first_key = next(iter(arrays.keys()))
+            length = len(arrays[first_key])
+            
+            # Create dataset with all arrays as 1D data variables
+            data_vars = {}
+            for key, arr in arrays.items():
+                if len(arr) == length:
+                    data_vars[key] = ("index", arr)
+                else:
+                    # If lengths don't match, treat as coordinate
+                    data_vars[key] = arr
+            
+            return xr.Dataset(data_vars)
         if hasattr(data, "to_xarray"):
             return data.to_xarray()
         raise TypeError("Unsupported data type for plotting")
@@ -490,7 +505,7 @@ class QualibrationFigure:
                     "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
                     "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
                     "legendgroup": label,
-                    "showlegend": show_lgd,
+                    "showlegend": False,  # Hide data traces from legend - only show overlays
                 }
                 scatter_kwargs = self._apply_style_overrides(
                     scatter_kwargs, style_overrides, "scatter"
@@ -505,6 +520,7 @@ class QualibrationFigure:
                 "mode": "markers",
                 "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
                 "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
+                "showlegend": False,  # Hide data traces from legend - only show overlays
             }
             scatter_kwargs = self._apply_style_overrides(
                 scatter_kwargs, style_overrides, "scatter"
@@ -578,7 +594,7 @@ class QualibrationFigure:
         row_main: int,
         col: int,
         style_overrides: dict[str, Any],
-    ) -> None:
+    ) -> tuple[float, float]:
         """Plot 2D data (heatmap).
 
         Args:
@@ -670,6 +686,11 @@ class QualibrationFigure:
                     }
                 }
                 self._fig.update_layout(**layout_config)
+        
+        # Calculate and return scaling information for colorbar optimization
+        z_min = float(np.min(z_vals))
+        z_max = float(np.max(z_vals))
+        return z_min, z_max
 
     def _add_overlays(
         self,
@@ -706,6 +727,9 @@ class QualibrationFigure:
         else:
             panel_overlays = overlays
 
+        # Track overlay index per subplot for consistent color assignment
+        overlay_index = 0
+        
         for ov in panel_overlays:
             # Deduplicate legend entries across subplots by legendgroup
             group_label = getattr(ov, "name", None) or "overlay"
@@ -715,7 +739,24 @@ class QualibrationFigure:
             # Assign a color if not overridden by style
             ov_style = dict(style_overrides)
             if "color" not in ov_style:
-                ov_style["color"] = self._next_color()
+                # Use a distinct color for overlays by using a different color scheme
+                # For small palettes, use darker/lighter variants or different colors
+                palette = _config.CURRENT_PALETTE or _config.CURRENT_THEME.colorway
+                
+                if len(palette) >= 4:
+                    # Large palette: skip data colors and use subsequent colors
+                    self.reset_color_index()
+                    for _ in range(2):  # Skip first 2 colors (data traces)
+                        self._next_color()
+                    ov_style["color"] = self._next_color()  # Use 3rd color
+                else:
+                    # Small palette: use distinct colors that won't conflict with data
+                    # Use colors from a different part of the palette or fallback colors
+                    overlay_colors = ["#2ca02c", "#ff7f0e", "#d62728", "#9467bd"]  # Green, Orange, Red, Purple
+                    ov_style["color"] = overlay_colors[overlay_index % len(overlay_colors)]
+            
+            # Increment overlay index for next overlay in this subplot
+            overlay_index += 1
             # Pass legend grouping to overlay implementation
             ov_style["legendgroup"] = group_label
             ov_style["showlegend"] = show_lgd
@@ -797,6 +838,39 @@ class QualibrationFigure:
             # Update x-axis label for residuals (should match main plot)
             self._fig.update_xaxes(title_text=xlab, row=row_resid, col=col)
 
+    def _optimize_colorbars(self, scaling_info: list[tuple[float, float, int, int]]) -> None:
+        """Optimize colorbar display for multiple heatmaps.
+        
+        Args:
+            scaling_info: List of (z_min, z_max, row, col) tuples for each heatmap
+        """
+        if len(scaling_info) <= 1:
+            return  # No optimization needed for single heatmap
+        
+        # Check if all heatmaps have the same scaling (within tolerance)
+        # Use a more reasonable tolerance for real data (1% of the range)
+        first_z_min, first_z_max = scaling_info[0][:2]
+        range_size = first_z_max - first_z_min
+        tolerance = max(0.01 * range_size, 1e-6)  # 1% of range or 1e-6, whichever is larger
+        
+        all_same_scaling = all(
+            abs(z_min - first_z_min) < tolerance and abs(z_max - first_z_max) < tolerance
+            for z_min, z_max, _, _ in scaling_info
+        )
+        
+        if all_same_scaling:
+            # Same scaling: show only one colorbar (on the last subplot)
+            # Get all heatmap traces and show colorbar only on the last one
+            heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
+            for i, trace in enumerate(heatmap_traces):
+                show_colorbar = (i == len(heatmap_traces) - 1)
+                trace.showscale = show_colorbar
+        else:
+            # Different scaling: hide all colorbars
+            for trace in self._fig.data:
+                if trace.type == 'heatmap':
+                    trace.showscale = False
+
     def _build(self, data: DataLike, **kwargs) -> None:
         # Normalize data to xarray.Dataset
         ds = self._normalize_data(data)
@@ -815,6 +889,8 @@ class QualibrationFigure:
         )
 
         # Main plotting loop
+        scaling_info = []  # Collect scaling information for colorbar optimization
+        
         for name in qubit_names:
             if name not in positions:
                 continue
@@ -849,7 +925,7 @@ class QualibrationFigure:
                     params.style_overrides,
                 )
             else:
-                self._plot_2d_data(
+                z_min, z_max = self._plot_2d_data(
                     sel,
                     params.x,
                     params.y,
@@ -861,6 +937,7 @@ class QualibrationFigure:
                     col,
                     params.style_overrides,
                 )
+                scaling_info.append((z_min, z_max, row_main, col))
 
             # Add overlays if specified
             if params.overlays:
@@ -889,6 +966,10 @@ class QualibrationFigure:
                     col,
                     params.style_overrides,
                 )
+
+        # Optimize colorbar display for 2D heatmaps
+        if scaling_info:
+            self._optimize_colorbars(scaling_info)
 
         _config.apply_theme_to_layout(self._fig.layout)
         if _config.CURRENT_PALETTE:

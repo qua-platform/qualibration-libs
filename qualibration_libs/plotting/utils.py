@@ -30,7 +30,24 @@ def label_from_attrs(name: str, attrs: Mapping[str, Any]) -> str:
     long_name = attrs.get("long_name")
     units = attrs.get("units")
     base = long_name or name
-    return f"{base} [{units}]" if units else base
+    
+    # Check if the label contains LaTeX syntax (starts and ends with $)
+    if isinstance(base, str) and base.startswith('$') and base.endswith('$'):
+        # Return as-is for LaTeX rendering
+        label = base
+    else:
+        # Regular text formatting
+        label = base
+    
+    if units:
+        if isinstance(units, str) and units.startswith('$') and units.endswith('$'):
+            # LaTeX units
+            return f"{label} {units}"
+        else:
+            # Regular units
+            return f"{label} [{units}]"
+    else:
+        return label
 
 
 def map_hue_value(dim_name: str, value: Any) -> str:

@@ -201,7 +201,6 @@ class LineOverlay(Overlay):
         # Allow a direct color override via style or class-level line dict
         if "color" in style:
             line_cfg["color"] = style["color"]
-
         fig.add_trace(
             go.Scatter(
                 x=self.x,
@@ -394,6 +393,10 @@ class ScatterOverlay(Overlay):
 
         # Apply style overrides on top (allowing them to override marker_symbol)
         marker_config.update(style.get("marker", {}))
+        
+        # Allow a direct color override via style
+        if "color" in style:
+            marker_config["color"] = style["color"]
 
         fig.add_trace(
             go.Scatter(
@@ -402,6 +405,8 @@ class ScatterOverlay(Overlay):
                 name=self.name,
                 mode="markers",
                 marker=marker_config,
+                legendgroup=style.get("legendgroup"),
+                showlegend=style.get("showlegend", True),
             ),
             row=row,
             col=col,
@@ -533,17 +538,24 @@ class FitOverlay(Overlay):
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, x=None, **style):
         if self.y_fit is not None and x is not None:
+            line_cfg = {
+                "dash": self.dash,
+                "width": self.width or theme.line_width,
+                **style.get("line", {}),
+            }
+            # Allow a direct color override via style
+            if "color" in style:
+                line_cfg["color"] = style["color"]
+            
             fig.add_trace(
                 go.Scatter(
                     x=x,
                     y=self.y_fit,
                     name=self.name,
                     mode="lines",
-                    line={
-                        "dash": self.dash,
-                        "width": self.width or theme.line_width,
-                        **style.get("line", {}),
-                    },
+                    line=line_cfg,
+                    legendgroup=style.get("legendgroup"),
+                    showlegend=style.get("showlegend", True),
                 ),
                 row=row,
                 col=col,
