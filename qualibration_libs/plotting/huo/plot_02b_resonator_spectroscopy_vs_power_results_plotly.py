@@ -169,7 +169,7 @@ def plot_resonator_spectroscopy_vs_power_plotly(ds_raw: xr.Dataset, qubits, ds_f
         title=f"Resonator spectroscopy vs power - {folder_name}",
         colorscale='Viridis_r',  # Reversed colorscale for darker dips
         colorbar={'title': 'IQ Amplitude (mV)'},  # Smart colorbar logic
-        colorbar_tolerance=0.20  # 20% tolerance for real data variations
+        colorbar_tolerance=3.0  # 300% tolerance for testing - always show colorbars
     )
     
     # Fix subplot titles to match grid positions

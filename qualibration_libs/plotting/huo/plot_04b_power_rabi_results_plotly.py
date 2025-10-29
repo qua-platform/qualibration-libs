@@ -255,7 +255,7 @@ def plot_power_rabi_2d_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, fo
         overlays=create_overlays,
         title=f"Power Rabi (2D) - {folder_name}",
         colorbar={'title': colorbar_title},  # Smart colorbar optimization
-        colorbar_tolerance=0.20  # 20% tolerance for real data variations
+        colorbar_tolerance=3.0  # 300% tolerance for testing - always show colorbars
     )
     
     return fig
