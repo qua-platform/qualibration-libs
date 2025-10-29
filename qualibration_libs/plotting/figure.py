@@ -883,8 +883,12 @@ class QualibrationFigure:
             # Get all heatmap traces and show colorbar only on the last one
             heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
             for i, trace in enumerate(heatmap_traces):
-                show_colorbar = (i == len(heatmap_traces) - 1)
-                trace.showscale = show_colorbar
+                # For very high tolerance (testing), show colorbars on all subplots
+                if tolerance >= 2.0:  # 200% or higher = testing mode
+                    trace.showscale = True
+                else:
+                    show_colorbar = (i == len(heatmap_traces) - 1)
+                    trace.showscale = show_colorbar
         else:
             # Different scaling: hide all colorbars
             for trace in self._fig.data:
