@@ -327,9 +327,24 @@ class QualibrationFigure:
         if isinstance(data, xr.DataArray):
             return data.to_dataset(name=data.name or "value")
         if isinstance(data, dict):
-            # Assume single data_var keyed by the first key
-            key = next(iter(data.keys()))
-            return xr.Dataset({key: ("index", np.asarray(data[key]))})
+            # Convert dict to xarray Dataset
+            # All arrays should have the same length for proper conversion
+            arrays = {k: np.asarray(v) for k, v in data.items()}
+            
+            # Find the length of the first array to use as dimension
+            first_key = next(iter(arrays.keys()))
+            length = len(arrays[first_key])
+            
+            # Create dataset with all arrays as 1D data variables
+            data_vars = {}
+            for key, arr in arrays.items():
+                if len(arr) == length:
+                    data_vars[key] = ("index", arr)
+                else:
+                    # If lengths don't match, treat as coordinate
+                    data_vars[key] = arr
+            
+            return xr.Dataset(data_vars)
         if hasattr(data, "to_xarray"):
             return data.to_xarray()
         raise TypeError("Unsupported data type for plotting")
