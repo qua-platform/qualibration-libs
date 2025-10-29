@@ -170,7 +170,7 @@ def plot_resonator_spectroscopy_vs_flux_plotly(ds_raw: xr.Dataset, qubits, ds_fi
         overlays=create_overlays,
         title=f"Resonator spectroscopy vs flux - {folder_name}",
         colorbar={'title': 'IQ Amplitude (mV)'},  # Smart colorbar logic
-        colorbar_tolerance=3.0  # 300% tolerance for testing - always show colorbars
+        colorbar_tolerance=100.0  # 10000% tolerance for testing - always show colorbars
     )
     
     return fig

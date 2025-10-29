@@ -240,6 +240,42 @@ qplot.set_theme(rc={
 })
 ```
 
+### Palette Decorator
+
+The `with_palette` decorator allows you to temporarily set a color palette for specific plotting functions, automatically restoring the original palette afterward:
+
+```python
+from qualibration_libs.plotting import with_palette
+
+# Using predefined palette names
+@with_palette('viridis')
+def plot_with_viridis(data):
+    return qplot.QualibrationFigure.plot(data, x='freq', data_var='amp')
+
+# Using custom color lists
+@with_palette(['#ff0000', '#00ff00', '#0000ff', '#ffff00'])
+def plot_with_custom_colors(data):
+    return qplot.QualibrationFigure.plot(data, x='freq', data_var='amp')
+
+# Using named colors
+@with_palette(['red', 'green', 'blue', 'orange'])
+def plot_with_named_colors(data):
+    return qplot.QualibrationFigure.plot(data, x='freq', data_var='amp')
+```
+
+**Available predefined palettes:**
+- `viridis`, `plasma`, `tab10`, `tab20`
+- `set1`, `set2`, `set3`, `pastel1`, `pastel2`
+- `dark2`, `paired`, `accent`, `spectral`
+- `coolwarm`, `rdylbu`, `rdbu`, `piyg`, `prgn`
+- `brbg`, `puor`, `rdgy`, `terrain`, `ocean`, `rainbow`
+
+**Key features:**
+- Automatically restores original palette after function execution
+- Supports nested decorators (inner decorator takes precedence)
+- Works with any plotting function that uses the global palette
+- Thread-safe and exception-safe
+
 ## Grid Layouts
 
 ### Automatic Layout

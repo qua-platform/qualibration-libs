@@ -878,22 +878,33 @@ class QualibrationFigure:
                 for z_min, z_max, _, _ in scaling_info
             )
         
+        # Get all heatmap traces (in order they were added)
+        heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
+        
+        if not heatmap_traces:
+            # No heatmaps found, nothing to do
+            return
+        
         if all_same_scaling:
             # Same scaling: show only one colorbar (on the last subplot)
-            # Get all heatmap traces and show colorbar only on the last one
-            heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
             for i, trace in enumerate(heatmap_traces):
-                # For very high tolerance (testing), show colorbars on all subplots
-                if tolerance >= 2.0:  # 200% or higher = testing mode
-                    trace.showscale = True
-                else:
-                    show_colorbar = (i == len(heatmap_traces) - 1)
-                    trace.showscale = show_colorbar
+                # Show colorbar only on the last heatmap trace
+                show_colorbar = (i == len(heatmap_traces) - 1)
+                trace.showscale = show_colorbar
+                
+                # For the last trace with colorbar, ensure it's positioned correctly
+                if show_colorbar:
+                    # Position colorbar to the right of the plot area
+                    trace.colorbar.x = 1.02
+                    trace.colorbar.xanchor = "left"
+                    trace.colorbar.y = 0.5
+                    trace.colorbar.yanchor = "middle"
+            
+            # Note: Margin adjustment moved to end of _build method
         else:
             # Different scaling: hide all colorbars
-            for trace in self._fig.data:
-                if trace.type == 'heatmap':
-                    trace.showscale = False
+            for trace in heatmap_traces:
+                trace.showscale = False
 
     def _build(self, data: DataLike, **kwargs) -> None:
         # Normalize data to xarray.Dataset
@@ -1029,3 +1040,21 @@ class QualibrationFigure:
             self._fig.update_layout(
                 showlegend=bool(_config.CURRENT_RC.values["showlegend"])
             )
+        
+        # Final margin adjustment for colorbar (if needed)
+        # Check if any heatmap traces have showscale=True and adjust margin accordingly
+        heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
+        if heatmap_traces and any(trace.showscale for trace in heatmap_traces):
+            # Get current margin settings and add right margin for colorbar
+            current_margin = self._fig.layout.margin
+            if current_margin:
+                # Preserve existing margins and add right margin for colorbar
+                margin_dict = dict(
+                    t=current_margin.t or 60,
+                    b=current_margin.b or 60, 
+                    l=current_margin.l or 60,
+                    r=100  # Right margin for colorbar
+                )
+            else:
+                margin_dict = dict(r=100)
+            self._fig.update_layout(margin=margin_dict)
