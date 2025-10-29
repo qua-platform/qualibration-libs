@@ -848,10 +848,10 @@ class QualibrationFigure:
             return  # No optimization needed for single heatmap
         
         # Check if all heatmaps have the same scaling (within tolerance)
-        # Use a more reasonable tolerance for real data (1% of the range)
+        # Use a more reasonable tolerance for real data (5% of the range)
         first_z_min, first_z_max = scaling_info[0][:2]
         range_size = first_z_max - first_z_min
-        tolerance = max(0.01 * range_size, 1e-6)  # 1% of range or 1e-6, whichever is larger
+        tolerance = max(0.05 * range_size, 1e-6)  # 5% of range or 1e-6, whichever is larger
         
         all_same_scaling = all(
             abs(z_min - first_z_min) < tolerance and abs(z_max - first_z_max) < tolerance
