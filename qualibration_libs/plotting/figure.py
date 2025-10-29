@@ -857,7 +857,11 @@ class QualibrationFigure:
             tolerance: Fraction of data range for determining same scaling (default: 0.05 = 5%)
         """
         if len(scaling_info) <= 1:
-            return  # No optimization needed for single heatmap
+            # For single heatmap, ensure colorbar is shown
+            heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
+            for trace in heatmap_traces:
+                trace.showscale = True
+            return
         
         # Check if all heatmaps have the same scaling (within tolerance)
         # Use a more reasonable tolerance for real data (5% of the range)
