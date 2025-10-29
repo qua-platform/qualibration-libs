@@ -3,7 +3,6 @@ from pathlib import Path
 import argparse
 from typing import Optional
 import xarray as xr
-import numpy as np
 
 # Paths derived relative to this script's location
 scripts_dir = Path(__file__).resolve().parent
@@ -22,14 +21,14 @@ from qualibrate import QualibrationNode  # noqa: E402
 from qualibration_libs.parameters import get_qubits  # noqa: E402
 import qualibration_libs.plotting as qplot  # noqa: E402
 from qualibration_libs.plotting import QubitGrid  # noqa: E402
-from qualibration_libs.plotting.overlays import FitOverlay, RefLine  # noqa: E402
-from qualibration_libs.analysis import oscillation  # noqa: E402
+from qualibration_libs.plotting.overlays import FitOverlay  # noqa: E402
+from qualibration_libs.analysis import lorentzian_dip  # noqa: E402
 
 
 def extract_node_id_from_folder_name(name: str) -> Optional[int]:
     """Extract numeric id between '#' and first '_' in folder name.
 
-    Example: '#123_04b_power_rabi_...' -> 123
+    Example: '#659_02a_resonator_spectroscopy_182214' -> 659
     """
     try:
         if not name.startswith("#"):
@@ -44,15 +43,19 @@ def extract_node_id_from_folder_name(name: str) -> Optional[int]:
 
 
 def load_qubits_from_folder(folder: Path):
+    """Load the original qubits (with grid locations) using QualibrationNode.load_from_id."""
     node_id = extract_node_id_from_folder_name(folder.name)
     if node_id is None:
         return None
+    # Base path is the storage root containing date folders
     base_path = folder.parent.parent
     try:
         loaded = QualibrationNode.load_from_id(node_id=node_id, base_path=base_path)
         if loaded is None:
             return None
-        return get_qubits(loaded)
+        # Reconstruct qubits exactly like the node's load_data action
+        qubits = get_qubits(loaded)
+        return qubits
     except Exception:
         # Fallback: create simple qubit objects from dataset
         ds_raw_path = folder / "ds_raw.h5"
@@ -77,14 +80,15 @@ def load_qubits_from_folder(folder: Path):
 
 
 def load_dataset(path: Path) -> xr.Dataset:
+    # Let xarray auto-detect the engine; h5netcdf is typically used
     return xr.load_dataset(path)
 
 
-def plot_power_rabi_1d_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, folder_name: str):
-    """Plot 1D power rabi with fit overlay using new Plotly interface."""
-    # Create QubitGrid from qubits
+def plot_phase_plotly(ds_raw: xr.Dataset, qubits, folder_name: str):
+    """Plot phase data using new Plotly interface."""
+    # Create QubitGrid from qubits  
     # Note: grid_location format is "col,row" but QubitGrid expects (row, col), so we swap
-    # Also, the old matplotlib code reverses rows and normalizes both rows and columns
+    # The old matplotlib code flips rows and normalizes both rows and columns
     coords = {}
     max_row = max(int(q.grid_location.split(',')[1]) for q in qubits)
     min_row = min(int(q.grid_location.split(',')[1]) for q in qubits)
@@ -92,7 +96,8 @@ def plot_power_rabi_1d_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, fo
     
     for q in qubits:
         col, row = map(int, q.grid_location.split(','))
-        # Reverse row order to match matplotlib layout (higher rows appear at top)
+        # Flip: higher rows (qD=3) → lower positions (top)
+        # max_row - row: qD(3)→0, qC(2)→1, so qD appears above qC
         flipped_row = max_row - row
         # Normalize column to start at 0
         normalized_col = col - min_col
@@ -104,80 +109,22 @@ def plot_power_rabi_1d_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, fo
     # Sort qubit names by their grid position (row, col) to ensure correct plotting order
     sorted_qubit_names = sorted(coords.keys(), key=lambda q: coords[q])
     
-    # Determine which data variable to use (I or state)
-    if 'I' in ds_raw:
-        data_var = 'I'
-    elif 'state' in ds_raw:
-        data_var = 'state'
-    else:
-        raise RuntimeError("The dataset must contain either 'I' or 'state' for the plotting function to work.")
-    
-    # For 1D case, select the single nb_of_pulses value to reduce dimensionality
-    ds_raw_1d = ds_raw.sel(nb_of_pulses=ds_raw.nb_of_pulses[0])
-    
-    # Create per-qubit fit overlays
-    def create_fit_overlay(qubit_name, qubit_data):
-        """Create fit overlay for each qubit."""
-        overlays = []
-        
-        try:
-            # Get fit data for this qubit
-            fit_data = ds_fit.sel(qubit=qubit_name)
-            
-            if 'fit' not in fit_data or 'amp_prefactor' not in fit_data:
-                return overlays
-            
-            # Extract fit parameters
-            a = float(fit_data['fit'].sel(fit_vals='a').values)
-            f = float(fit_data['fit'].sel(fit_vals='f').values)
-            phi = float(fit_data['fit'].sel(fit_vals='phi').values)
-            offset = float(fit_data['fit'].sel(fit_vals='offset').values)
-            amp_prefactor = fit_data['amp_prefactor'].values
-            
-            # Compute fitted curve using oscillation function
-            fitted_curve = oscillation(amp_prefactor, a, f, phi, offset)
-            # Convert to mV only if using I quadrature
-            if data_var == 'I':
-                fitted_curve = fitted_curve * 1e3
-            
-            # Create FitOverlay without params to avoid cluttering the plot
-            fit_overlay = FitOverlay(
-                y_fit=fitted_curve,
-                name="Fit"
-            )
-            
-            overlays.append(fit_overlay)
-                
-        except Exception as e:
-            print(f"Warning: Could not create fit overlay for {qubit_name}: {e}")
-        
-        return overlays
-    
-    # Convert data to mV to match matplotlib plots (if using I quadrature)
-    ds_raw_mV = ds_raw_1d.copy()
-    if data_var == 'I':
-        ds_raw_mV[data_var] = ds_raw_1d[data_var] * 1000  # Convert V to mV
-        ds_raw_mV[data_var].attrs['units'] = 'mV'
-        ds_raw_mV[data_var].attrs['long_name'] = 'Rotated I quadrature'
-    # For 'state', no conversion needed as it's already dimensionless
-    
-    # Plot 1D power rabi with fit
+    # Plot phase vs detuning
     fig = qplot.QualibrationFigure.plot(
-        ds_raw_mV,
-        x='amp_prefactor',
-        data_var=data_var,
+        ds_raw,
+        x='detuning',
+        data_var='phase',
         grid=grid,
         qubit_dim='qubit',
         qubit_names=sorted_qubit_names,
-        overlays=create_fit_overlay,
-        title=f"Power Rabi (1D) - {folder_name}"
+        title=f"Resonator spectroscopy (phase) - {folder_name}"
     )
     
     return fig
 
 
-def plot_power_rabi_2d_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, folder_name: str):
-    """Plot 2D power rabi with optimal amplitude marker using new Plotly interface."""
+def plot_amplitude_with_fit_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, folder_name: str):
+    """Plot amplitude with fit overlay using new Plotly interface."""
     # Create QubitGrid from qubits
     # Note: grid_location format is "col,row" but QubitGrid expects (row, col), so we swap
     # Also, the old matplotlib code reverses rows and normalizes both rows and columns
@@ -200,69 +147,63 @@ def plot_power_rabi_2d_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, fo
     # Sort qubit names by their grid position (row, col) to ensure correct plotting order
     sorted_qubit_names = sorted(coords.keys(), key=lambda q: coords[q])
     
-    # Determine which data variable to use (I or state)
-    if 'I' in ds_raw:
-        data_var = 'I'
-    elif 'state' in ds_raw:
-        data_var = 'state'
-    else:
-        raise RuntimeError("The dataset must contain either 'I' or 'state' for the plotting function to work.")
-    
-    # Create per-qubit overlays
-    def create_overlays(qubit_name, qubit_data):
-        """Create overlays for each qubit."""
-        overlays = []
-        
+    # Create per-qubit fit overlays
+    # We need to re-create the fitted curve here because it is not stored in the dataset
+    def create_fit_overlay(qubit_name, qubit_data):
+        """Create fit overlay for each qubit."""
         try:
             # Get fit data for this qubit
             fit_data = ds_fit.sel(qubit=qubit_name)
             
-            # Add vertical line for optimal amplitude (green)
-            if 'opt_amp_prefactor' in fit_data and fit_data['success'].values:
-                opt_amp_prefactor = float(fit_data['opt_amp_prefactor'].values)
-                overlays.append(
-                    RefLine(
-                        x=opt_amp_prefactor,
-                        name="Optimal amplitude",
-                        dash="solid"
-                    )
-                )
-                
+            # Check if fit was successful (has valid parameters)
+            if 'amplitude' not in fit_data or 'position' not in fit_data or 'width' not in fit_data:
+                return []
+            
+            amplitude = float(fit_data['amplitude'].values)
+            position = float(fit_data['position'].values)
+            width = float(fit_data['width'].values)
+            baseline = float(fit_data['base_line'].mean().values)
+            
+            # Compute fitted curve using lorentzian_dip
+            detuning = ds_raw.coords['detuning'].values
+            fitted_curve = lorentzian_dip(detuning, amplitude, position, width / 2, baseline)
+            # Convert fit curve to mV to match data
+            fitted_curve_mV = fitted_curve * 1000
+            
+            # Create FitOverlay without text parameters to avoid cluttering the plot
+            fit_overlay = FitOverlay(
+                y_fit=fitted_curve_mV,
+                name="Fit"
+            )
+            
+            return [fit_overlay]
         except Exception as e:
-            print(f"Warning: Could not create overlays for {qubit_name}: {e}")
-        
-        return overlays
+            print(f"Warning: Could not create fit overlay for {qubit_name}: {e}")
+            return []
     
-    # Convert data to mV to match matplotlib plots (if using I quadrature)
+    # Convert IQ_abs to mV to match matplotlib plots
     ds_raw_mV = ds_raw.copy()
-    if data_var == 'I':
-        ds_raw_mV[data_var] = ds_raw[data_var] * 1000  # Convert V to mV
-        ds_raw_mV[data_var].attrs['units'] = 'mV'
-        ds_raw_mV[data_var].attrs['long_name'] = 'Rotated I quadrature'
-    # For 'state', no conversion needed as it's already dimensionless
+    ds_raw_mV['IQ_abs'] = ds_raw['IQ_abs'] * 1000  # Convert V to mV
+    ds_raw_mV['IQ_abs'].attrs['units'] = 'mV'
+    ds_raw_mV['IQ_abs'].attrs['long_name'] = r'$R=\sqrt{I^2 + Q^2}$'
     
-    # Plot 2D heatmap with overlays
-    # Colorbar title depends on data variable
-    colorbar_title = 'Rotated I quadrature (mV)' if data_var == 'I' else 'State'
+    # Plot amplitude vs detuning with fits
     fig = qplot.QualibrationFigure.plot(
         ds_raw_mV,
-        x='amp_prefactor',
-        y='nb_of_pulses',
-        data_var=data_var,
+        x='detuning',
+        data_var='IQ_abs',
         grid=grid,
         qubit_dim='qubit',
         qubit_names=sorted_qubit_names,
-        overlays=create_overlays,
-        title=f"Power Rabi (2D) - {folder_name}",
-        colorbar={'title': colorbar_title},  # Smart colorbar optimization
-        colorbar_tolerance=0.20  # 20% tolerance for real data variations
+        overlays=create_fit_overlay,
+        title=f"Resonator spectroscopy (amplitude + fit) - {folder_name}"
     )
     
     return fig
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot 04b power rabi results using Plotly.")
+    parser = argparse.ArgumentParser(description="Plot 02a resonator spectroscopy results using Plotly.")
     parser.add_argument("--date-dir", default=DEFAULT_DATE_DIR, help="Path to the date directory to scan.")
     parser.add_argument("--save", action="store_true", help="Save figures to PNG files instead of showing.")
     args = parser.parse_args()
@@ -271,21 +212,22 @@ def main():
     if not date_path.exists():
         raise FileNotFoundError(f"Date directory not found: {args.date_dir}")
 
-    # Find all result folders for node 04b
+    # Find all result folders for node 02a
     candidates = [
         p
         for p in date_path.iterdir()
-        if p.is_dir() and "04b_power_rabi" in p.name
+        if p.is_dir() and "02a_resonator_spectroscopy" in p.name
     ]
 
     if not candidates:
-        print("No matching 04b_power_rabi result folders found.")
+        print("No matching 02a_resonator_spectroscopy result folders found.")
         return
 
     print("Found result folders:")
     for p in candidates:
         print(f" - {p}")
 
+    scripts_dir = Path(__file__).resolve().parent
     plots_root = scripts_dir / "plots"
     plots_root.mkdir(parents=True, exist_ok=True)
 
@@ -300,30 +242,37 @@ def main():
         ds_raw = load_dataset(ds_raw_path)
         ds_fit = load_dataset(ds_fit_path)
 
+        # Reconstruct original qubits (with grid locations) from stored node id
         qubits = load_qubits_from_folder(folder)
         if qubits is None:
             raise RuntimeError(
                 f"Failed to load qubits for folder {folder.name}. "
-                "Ensure the folder name encodes the node id (e.g., #123_...) and data is complete."
+                "Ensure the folder name encodes the node id (e.g., #659_...) and data is complete."
             )
 
-        # Determine if 1D or 2D based on nb_of_pulses dimension
-        if len(ds_raw.nb_of_pulses) == 1:
-            # 1D case
-            fig = plot_power_rabi_1d_plotly(ds_raw, qubits, ds_fit, folder.name)
-        else:
-            # 2D case
-            fig = plot_power_rabi_2d_plotly(ds_raw, qubits, ds_fit, folder.name)
+        # Plot phase
+        fig_phase = plot_phase_plotly(ds_raw, qubits, folder.name)
+        
+        # Plot amplitude with fit
+        fig_amp = plot_amplitude_with_fit_plotly(ds_raw, qubits, ds_fit, folder.name)
 
         if args.save:
+            # Save to scripts/plots/<data-folder-name>/
             out_dir = plots_root / folder.name
             out_dir.mkdir(parents=True, exist_ok=True)
-            out_path = out_dir / "power_rabi_plotly.png"
+            out_phase = out_dir / "phase_plotly.png"
+            out_amp = out_dir / "amplitude_fit_plotly.png"
             
-            fig.figure.write_image(str(out_path), width=1500, height=900)
-            print(f"Saved: {out_path}")
+            # Save Plotly figures as PNG
+            fig_phase.figure.write_image(str(out_phase), width=1500, height=900)
+            fig_amp.figure.write_image(str(out_amp), width=1500, height=900)
+            
+            print(f"Saved: {out_phase}")
+            print(f"Saved: {out_amp}")
         else:
-            fig.figure.show()
+            # Show figures
+            fig_phase.figure.show()
+            fig_amp.figure.show()
 
 
 if __name__ == "__main__":
