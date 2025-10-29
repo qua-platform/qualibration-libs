@@ -578,7 +578,7 @@ class QualibrationFigure:
         row_main: int,
         col: int,
         style_overrides: dict[str, Any],
-    ) -> None:
+    ) -> tuple[float, float]:
         """Plot 2D data (heatmap).
 
         Args:
@@ -670,6 +670,11 @@ class QualibrationFigure:
                     }
                 }
                 self._fig.update_layout(**layout_config)
+        
+        # Calculate and return scaling information for colorbar optimization
+        z_min = float(np.min(z_vals))
+        z_max = float(np.max(z_vals))
+        return z_min, z_max
 
     def _add_overlays(
         self,
@@ -817,6 +822,42 @@ class QualibrationFigure:
             # Update x-axis label for residuals (should match main plot)
             self._fig.update_xaxes(title_text=xlab, row=row_resid, col=col)
 
+    def _optimize_colorbars(self, scaling_info: list[tuple[float, float, int, int]]) -> None:
+        """Optimize colorbar display for multiple heatmaps.
+        
+        Args:
+            scaling_info: List of (z_min, z_max, row, col) tuples for each heatmap
+        """
+        if len(scaling_info) <= 1:
+            return  # No optimization needed for single heatmap
+        
+        # Check if all heatmaps have the same scaling (within tolerance)
+        tolerance = 1e-6
+        first_z_min, first_z_max = scaling_info[0][:2]
+        
+        all_same_scaling = all(
+            abs(z_min - first_z_min) < tolerance and abs(z_max - first_z_max) < tolerance
+            for z_min, z_max, _, _ in scaling_info
+        )
+        
+        if all_same_scaling:
+            # Same scaling: show only one colorbar (on the last subplot)
+            for i, (_, _, row, col) in enumerate(scaling_info):
+                show_colorbar = (i == len(scaling_info) - 1)  # Only last subplot shows colorbar
+                
+                # Find the heatmap trace for this subplot
+                for trace in self._fig.data:
+                    if (hasattr(trace, 'xaxis') and hasattr(trace, 'yaxis') and
+                        trace.xaxis == f'x{col}' if col > 1 else 'x' and
+                        trace.yaxis == f'y{row}' if row > 1 else 'y'):
+                        trace.showscale = show_colorbar
+                        break
+        else:
+            # Different scaling: hide all colorbars
+            for trace in self._fig.data:
+                if trace.type == 'heatmap':
+                    trace.showscale = False
+
     def _build(self, data: DataLike, **kwargs) -> None:
         # Normalize data to xarray.Dataset
         ds = self._normalize_data(data)
@@ -835,6 +876,8 @@ class QualibrationFigure:
         )
 
         # Main plotting loop
+        scaling_info = []  # Collect scaling information for colorbar optimization
+        
         for name in qubit_names:
             if name not in positions:
                 continue
@@ -869,7 +912,7 @@ class QualibrationFigure:
                     params.style_overrides,
                 )
             else:
-                self._plot_2d_data(
+                z_min, z_max = self._plot_2d_data(
                     sel,
                     params.x,
                     params.y,
@@ -881,6 +924,7 @@ class QualibrationFigure:
                     col,
                     params.style_overrides,
                 )
+                scaling_info.append((z_min, z_max, row_main, col))
 
             # Add overlays if specified
             if params.overlays:
@@ -909,6 +953,10 @@ class QualibrationFigure:
                     col,
                     params.style_overrides,
                 )
+
+        # Optimize colorbar display for 2D heatmaps
+        if scaling_info:
+            self._optimize_colorbars(scaling_info)
 
         _config.apply_theme_to_layout(self._fig.layout)
         if _config.CURRENT_PALETTE:
