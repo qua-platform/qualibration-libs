@@ -864,15 +864,19 @@ class QualibrationFigure:
             return
         
         # Check if all heatmaps have the same scaling (within tolerance)
-        # Use a more reasonable tolerance for real data (5% of the range)
-        first_z_min, first_z_max = scaling_info[0][:2]
-        range_size = first_z_max - first_z_min
-        tolerance_value = max(tolerance * range_size, 1e-6)  # tolerance% of range or 1e-6, whichever is larger
-        
-        all_same_scaling = all(
-            abs(z_min - first_z_min) < tolerance_value and abs(z_max - first_z_max) < tolerance_value
-            for z_min, z_max, _, _ in scaling_info
-        )
+        # For tolerance >= 1.0, always consider as same scaling (force colorbars)
+        if tolerance >= 1.0:
+            all_same_scaling = True
+        else:
+            # Use a more reasonable tolerance for real data (tolerance% of the range)
+            first_z_min, first_z_max = scaling_info[0][:2]
+            range_size = first_z_max - first_z_min
+            tolerance_value = max(tolerance * range_size, 1e-6)  # tolerance% of range or 1e-6, whichever is larger
+            
+            all_same_scaling = all(
+                abs(z_min - first_z_min) < tolerance_value and abs(z_max - first_z_max) < tolerance_value
+                for z_min, z_max, _, _ in scaling_info
+            )
         
         if all_same_scaling:
             # Same scaling: show only one colorbar (on the last subplot)
