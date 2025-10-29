@@ -33,6 +33,7 @@ class PlotParams:
         overlays: Optional overlays specification
         residuals: Whether to include residual subplots
         title: Optional plot title
+        colorbar_tolerance: Tolerance for heatmap colorbar optimization
         style_overrides: Dictionary of style overrides
     """
 
@@ -51,6 +52,7 @@ class PlotParams:
     ) | None
     residuals: bool
     title: str | None
+    colorbar_tolerance: float
     style_overrides: dict[str, Any]
 
 
@@ -171,6 +173,7 @@ class QualibrationFigure:
         ) | None = None,
         residuals: bool = False,
         title: str | None = None,
+        colorbar_tolerance: float = 0.05,
         **style_overrides: Any,
     ) -> QualibrationFigure:
         """Create an interactive calibration data plot with automatic layout.
@@ -232,6 +235,11 @@ class QualibrationFigure:
         title : str, optional
             Overall title for the entire figure. If x2 is present, the title is automatically
             positioned higher to avoid overlap with secondary axes.
+        colorbar_tolerance : float, default=0.05
+            Tolerance for determining if multiple heatmaps have the same scaling for colorbar
+            optimization. Heatmaps with min/max values differing by less than this fraction of
+            the data range are considered to have "same scaling" and will share a single colorbar.
+            The tolerance is calculated as max(colorbar_tolerance * range_size, 1e-6).
         **style_overrides : Any
             Additional style parameters to customize plot appearance. Common overrides include:
             - marker_size : int - Size of scatter plot markers
@@ -256,6 +264,7 @@ class QualibrationFigure:
             overlays=overlays,
             residuals=residuals,
             title=title,
+            colorbar_tolerance=colorbar_tolerance,
             **style_overrides,
         )
         return obj
@@ -281,6 +290,7 @@ class QualibrationFigure:
         ) | None = None,
         residuals: bool = False,
         title: str | None = None,
+        colorbar_tolerance: float = 0.05,
         **style_overrides: Any,
     ) -> PlotParams:
         """Extract and validate plotting parameters into a structured container.
@@ -307,6 +317,7 @@ class QualibrationFigure:
             overlays=overlays,
             residuals=bool(residuals),
             title=title,
+            colorbar_tolerance=colorbar_tolerance,
             style_overrides=style,
         )
 
@@ -838,11 +849,12 @@ class QualibrationFigure:
             # Update x-axis label for residuals (should match main plot)
             self._fig.update_xaxes(title_text=xlab, row=row_resid, col=col)
 
-    def _optimize_colorbars(self, scaling_info: list[tuple[float, float, int, int]]) -> None:
+    def _optimize_colorbars(self, scaling_info: list[tuple[float, float, int, int]], tolerance: float = 0.05) -> None:
         """Optimize colorbar display for multiple heatmaps.
         
         Args:
             scaling_info: List of (z_min, z_max, row, col) tuples for each heatmap
+            tolerance: Fraction of data range for determining same scaling (default: 0.05 = 5%)
         """
         if len(scaling_info) <= 1:
             return  # No optimization needed for single heatmap
@@ -851,10 +863,10 @@ class QualibrationFigure:
         # Use a more reasonable tolerance for real data (5% of the range)
         first_z_min, first_z_max = scaling_info[0][:2]
         range_size = first_z_max - first_z_min
-        tolerance = max(0.05 * range_size, 1e-6)  # 5% of range or 1e-6, whichever is larger
+        tolerance_value = max(tolerance * range_size, 1e-6)  # tolerance% of range or 1e-6, whichever is larger
         
         all_same_scaling = all(
-            abs(z_min - first_z_min) < tolerance and abs(z_max - first_z_max) < tolerance
+            abs(z_min - first_z_min) < tolerance_value and abs(z_max - first_z_max) < tolerance_value
             for z_min, z_max, _, _ in scaling_info
         )
         
@@ -969,7 +981,7 @@ class QualibrationFigure:
 
         # Optimize colorbar display for 2D heatmaps
         if scaling_info:
-            self._optimize_colorbars(scaling_info)
+            self._optimize_colorbars(scaling_info, params.colorbar_tolerance)
 
         _config.apply_theme_to_layout(self._fig.layout)
         if _config.CURRENT_PALETTE:
