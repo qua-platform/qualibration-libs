@@ -276,6 +276,35 @@ def plot_with_named_colors(data):
 - Works with any plotting function that uses the global palette
 - Thread-safe and exception-safe
 
+### Palette Parameter Decorator
+
+The `with_palette_param` decorator allows you to add palette parameter support to any plotting function, making it even more convenient to use:
+
+```python
+from qualibration_libs.plotting import with_palette_param
+
+# Apply decorator to your plotting function
+@with_palette_param
+def plot_data(data, x='x', data_var='y', palette=None):
+    return QualibrationFigure.plot(data, x=x, data_var=data_var)
+
+# Use palette as a regular parameter
+fig = plot_data(data, palette='viridis')  # Predefined palette
+fig = plot_data(data, palette=['#ff0000', '#00ff00', '#0000ff'])  # Custom colors
+fig = plot_data(data)  # Uses current global palette
+```
+
+**Benefits over `@with_palette` decorator:**
+- Pass palette as a regular function parameter
+- No need to create separate decorated functions
+- Works with any function signature
+- More intuitive for function calls
+- Automatic palette restoration
+
+**Both decorators are available:**
+- `@with_palette('palette_name')` - For function-level palette setting
+- `@with_palette_param` - For parameter-based palette setting
+
 ## Grid Layouts
 
 ### Automatic Layout
