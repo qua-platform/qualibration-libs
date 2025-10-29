@@ -393,6 +393,10 @@ class ScatterOverlay(Overlay):
 
         # Apply style overrides on top (allowing them to override marker_symbol)
         marker_config.update(style.get("marker", {}))
+        
+        # Allow a direct color override via style
+        if "color" in style:
+            marker_config["color"] = style["color"]
 
         fig.add_trace(
             go.Scatter(
@@ -401,6 +405,8 @@ class ScatterOverlay(Overlay):
                 name=self.name,
                 mode="markers",
                 marker=marker_config,
+                legendgroup=style.get("legendgroup"),
+                showlegend=style.get("showlegend", True),
             ),
             row=row,
             col=col,
