@@ -170,7 +170,8 @@ def plot_power_rabi_1d_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, fo
         qubit_dim='qubit',
         qubit_names=sorted_qubit_names,
         overlays=create_fit_overlay,
-        title=f"Power Rabi (1D) - {folder_name}"
+        title=f"Power Rabi (1D) - {folder_name}",
+        palette='set3'  # Purple-based palette
     )
     
     return fig
@@ -255,7 +256,8 @@ def plot_power_rabi_2d_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, fo
         overlays=create_overlays,
         title=f"Power Rabi (2D) - {folder_name}",
         colorbar={'title': colorbar_title},  # Smart colorbar optimization
-        colorbar_tolerance=3.0  # 300% tolerance for testing - always show colorbars
+        colorbar_tolerance=3.0,  # 300% tolerance for testing - always show colorbars
+        palette='set3'  # Purple-based palette
     )
     
     return fig

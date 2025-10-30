@@ -117,7 +117,8 @@ def plot_phase_plotly(ds_raw: xr.Dataset, qubits, folder_name: str):
         grid=grid,
         qubit_dim='qubit',
         qubit_names=sorted_qubit_names,
-        title=f"Resonator spectroscopy (phase) - {folder_name}"
+        title=f"Resonator spectroscopy (phase) - {folder_name}",
+        palette='tab10'  # Blue-based palette
     )
     
     return fig
@@ -196,7 +197,8 @@ def plot_amplitude_with_fit_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Datase
         qubit_dim='qubit',
         qubit_names=sorted_qubit_names,
         overlays=create_fit_overlay,
-        title=f"Resonator spectroscopy (amplitude + fit) - {folder_name}"
+        title=f"Resonator spectroscopy (amplitude + fit) - {folder_name}",
+        palette='tab10'  # Blue-based palette
     )
     
     return fig
