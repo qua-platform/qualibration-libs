@@ -8,6 +8,8 @@ import xarray as xr
 from typing import Any, Dict, List, Optional, Union
 from qm.jobs.qm_job import QmJob
 
+from qualibration_libs.core.exceptions import format_available_items
+
 __all__ = ["XarrayDataFetcher"]
 
 logger = logging.getLogger(__name__)
@@ -81,11 +83,8 @@ class XarrayDataFetcher:
         try:
             return self.data[key]
         except KeyError as e:
-            keys = list(self.data.keys())
-            key_string = "', '".join(keys[0:10])
-            if len(keys) > 10:
-                key_string += "', ..."
-            raise KeyError(f"Data key '{key}' not found in XarrayDataFetcher. Possible keys: '{key_string}'.") from e
+            keys_list = format_available_items(self.data, item_type="keys")
+            raise KeyError(f"Data key '{key}' not found in XarrayDataFetcher. {keys_list}") from e
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)

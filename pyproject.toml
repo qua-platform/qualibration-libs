@@ -26,3 +26,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 packages = ["qualibration_libs"]
+
+[tool.pytest.ini_options]
+testpaths = ["qualibration_libs/tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
