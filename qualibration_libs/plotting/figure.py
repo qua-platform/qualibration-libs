@@ -374,12 +374,20 @@ class QualibrationFigure:
             # Use QubitGrid.resolve to normalize to 1-based positions and compute shape
             n_rows, n_cols, positions = grid.resolve(qubit_names)
 
+        subplot_titles = [["" for _ in range(n_cols)] for _ in range(n_rows)]
+        
+        for qubit_name in qubit_names:
+            if qubit_name in positions:
+                row, col = positions[qubit_name]
+                subplot_titles[row - 1][col - 1] = qubit_name
+        flat_titles = [title for row in subplot_titles for title in row]
+
         # Adjust vertical spacing if secondary x-axis is present
         vspace = 0.2 if (x2 and n_rows > 1) else 0.1
         self._fig = make_subplots(
             rows=n_rows * (2 if residuals else 1),
             cols=n_cols,
-            subplot_titles=list(qubit_names),
+            subplot_titles=flat_titles,
             vertical_spacing=vspace,
             horizontal_spacing=0.05,
         )
