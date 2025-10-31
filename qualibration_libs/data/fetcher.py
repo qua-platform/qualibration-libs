@@ -78,7 +78,14 @@ class XarrayDataFetcher:
         logger.debug("XarrayDataFetcher initialized.")
 
     def __getitem__(self, key: str) -> Any:
-        return self.data[key]
+        try:
+            return self.data[key]
+        except KeyError as e:
+            keys = list(self.data.keys())
+            key_string = "', '".join(keys[0:10])
+            if len(keys) > 10:
+                key_string += "', ..."
+            raise KeyError(f"Data key '{key}' not found in XarrayDataFetcher. Possible keys: '{key_string}'.") from e
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
