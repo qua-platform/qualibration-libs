@@ -278,10 +278,12 @@ def plot_with_named_colors(data):
 
 ### Palette Parameter Decorator
 
-The `with_palette_param` decorator allows you to add palette parameter support to any plotting function, making it even more convenient to use:
+The `with_palette_param` decorator allows you to add palette parameter support to any plotting function, making it even more convenient to use. This decorator automatically handles palette setting and restoration, allowing you to pass the palette as a regular function parameter.
+
+#### Basic Usage
 
 ```python
-from qualibration_libs.plotting import with_palette_param
+from qualibration_libs.plotting import with_palette_param, QualibrationFigure
 
 # Apply decorator to your plotting function
 @with_palette_param
@@ -291,19 +293,239 @@ def plot_data(data, x='x', data_var='y', palette=None):
 # Use palette as a regular parameter
 fig = plot_data(data, palette='viridis')  # Predefined palette
 fig = plot_data(data, palette=['#ff0000', '#00ff00', '#0000ff'])  # Custom colors
-fig = plot_data(data)  # Uses current global palette
+fig = plot_data(data)  # Uses current global palette (when palette=None)
 ```
 
-**Benefits over `@with_palette` decorator:**
-- Pass palette as a regular function parameter
-- No need to create separate decorated functions
-- Works with any function signature
-- More intuitive for function calls
-- Automatic palette restoration
+#### Advanced Usage with Multiple Parameters
+
+The decorator works seamlessly with complex function signatures:
+
+```python
+@with_palette_param
+def plot_spectroscopy(data, x='frequency', y='power', data_var='amplitude',
+                     qubit_dim='qubit', qubit_names=None, 
+                     title="Spectroscopy", colorbar_title="Amplitude (a.u.)",
+                     palette=None):
+    """Plot spectroscopy data with optional palette parameter."""
+    return QualibrationFigure.plot(
+        data,
+        x=x,
+        y=y,
+        data_var=data_var,
+        qubit_dim=qubit_dim,
+        qubit_names=qubit_names or ['Q1', 'Q2', 'Q3', 'Q4'],
+        title=title,
+        colorbar={'title': colorbar_title},
+        colorbar_tolerance=100.0
+    )
+
+# Use with all parameters
+fig = plot_spectroscopy(
+    data,
+    palette='set1',
+    colorbar_title='IQ Amplitude (mV)',
+    title="Custom Title"
+)
+```
+
+#### Direct Usage with QualibrationFigure.plot()
+
+**Note**: `QualibrationFigure.plot()` accepts a `palette` parameter directly, so you don't need to use a decorator when calling it:
+
+```python
+# Pass palette directly to QualibrationFigure.plot()
+fig = QualibrationFigure.plot(
+    data,
+    x='frequency',
+    data_var='amplitude',
+    qubit_dim='qubit',
+    qubit_names=['Q1', 'Q2', 'Q3', 'Q4'],
+    title="My Plot",
+    palette='viridis'  # Palette as regular parameter
+)
+
+# Works with all palette types
+fig = QualibrationFigure.plot(data, x='x', data_var='y', palette='tab10')
+fig = QualibrationFigure.plot(data, x='x', data_var='y', palette=['#ff0000', '#00ff00'])
+```
+
+The palette is temporarily set during plot creation and automatically restored afterward, so it doesn't affect subsequent plots.
+
+#### Real-World Example: HUO Scripts
+
+The HUO (High-Level User Operations) scripts demonstrate practical usage by passing the palette directly to `QualibrationFigure.plot()`:
+
+```python
+# plot_02a_resonator_spectroscopy_results_plotly.py
+# Uses tab10 (blue-based palette) for professional appearance
+fig = qplot.QualibrationFigure.plot(
+    ds_raw,
+    x='detuning',
+    data_var='phase',
+    grid=grid,
+    qubit_dim='qubit',
+    qubit_names=sorted_qubit_names,
+    title=f"Resonator spectroscopy (phase) - {folder_name}",
+    palette='tab10'  # Blue-based palette
+)
+
+# plot_02b_resonator_spectroscopy_vs_power_results_plotly.py
+# Uses set1 (red-based palette) for high contrast
+fig = qplot.QualibrationFigure.plot(
+    ds_raw_plot,
+    x='detuning_MHz',
+    y='power',
+    data_var='IQ_abs',
+    grid=grid,
+    overlays=create_overlays,
+    title=f"Resonator spectroscopy vs power - {folder_name}",
+    palette='set1'  # Red-based palette
+)
+
+# plot_02c_resonator_spectroscopy_vs_flux_results_plotly.py
+# Uses set2 (green-based palette) for natural appearance
+fig = qplot.QualibrationFigure.plot(
+    ds_raw,
+    x='flux_bias',
+    y='full_freq',
+    data_var='IQ_abs',
+    grid=grid,
+    overlays=create_overlays,
+    title=f"Resonator spectroscopy vs flux - {folder_name}",
+    palette='set2'  # Green-based palette
+)
+
+# plot_04b_power_rabi_results_plotly.py
+# Uses set3 (purple-based palette) for distinctive appearance
+fig = qplot.QualibrationFigure.plot(
+    ds_raw_mV,
+    x='amp_prefactor',
+    data_var=data_var,
+    grid=grid,
+    overlays=create_fit_overlay,
+    title=f"Power Rabi (1D) - {folder_name}",
+    palette='set3'  # Purple-based palette
+)
+```
+
+Each HUO script uses a different palette to make plots visually distinct and easy to identify:
+- **tab10**: Professional, scientific look (blue-based)
+- **set1**: High contrast, attention-grabbing (red-based)
+- **set2**: Natural, easy on the eyes (green-based)
+- **set3**: Creative, distinctive (purple-based)
+
+#### Palette Types Supported
+
+The decorator accepts the same palette types as `@with_palette`:
+
+1. **Predefined palette names** (string):
+   ```python
+   palette='viridis'  # Smooth color transition
+   palette='plasma'   # High contrast
+   palette='tab10'    # Distinct colors
+   palette='set1'     # Bold colors
+   ```
+
+2. **Custom color lists** (list/tuple of hex codes):
+   ```python
+   palette=['#ff0000', '#00ff00', '#0000ff', '#ffff00']
+   ```
+
+3. **Named colors** (list/tuple of color names):
+   ```python
+   palette=['red', 'green', 'blue', 'orange']
+   ```
+
+4. **None** (uses current global palette):
+   ```python
+   palette=None  # or omit the parameter entirely
+   ```
+
+#### Benefits Over `@with_palette` Decorator
+
+| Feature | `@with_palette` | `@with_palette_param` |
+|---------|----------------|----------------------|
+| **Syntax** | Decorator with palette at definition | Parameter at call time |
+| **Flexibility** | Fixed palette per function | Dynamic palette per call |
+| **Use Case** | Function always uses same palette | Different palettes for same function |
+| **Code Reuse** | Create separate functions for each palette | One function, multiple palette calls |
+| **Convenience** | Must create decorated functions | Pass as regular parameter |
+
+#### When to Use Which Decorator
+
+- **Use `@with_palette_param`** when:
+  - You want to change palettes dynamically at call time
+  - You want to reuse the same function with different palettes
+  - You prefer passing palette as a parameter
+  - You're building flexible plotting utilities
+
+- **Use `@with_palette`** when:
+  - A function always uses the same palette
+  - You want to ensure consistent styling across calls
+  - You're creating specialized plotting functions with fixed styles
+
+#### Error Handling
+
+The decorator provides clear error messages for invalid palettes:
+
+```python
+@with_palette_param
+def plot_data(data, palette=None):
+    return QualibrationFigure.plot(data, x='x', data_var='y')
+
+# Invalid palette name
+try:
+    fig = plot_data(data, palette='invalid_palette')
+except ValueError as e:
+    print(e)  # "Unknown palette name: invalid_palette. Available palettes: [...]"
+```
+
+#### Thread Safety and Exception Safety
+
+Both decorators are:
+- **Thread-safe**: Multiple threads can use them concurrently
+- **Exception-safe**: Palette is always restored even if the function raises an exception
+- **Nested-safe**: Works correctly with nested function calls
+
+#### Complete Example
+
+```python
+from qualibration_libs.plotting import with_palette_param, QualibrationFigure
+import xarray as xr
+
+@with_palette_param
+def create_resonator_plot(data, qubits, title="Resonator Plot", palette=None):
+    """Create resonator spectroscopy plot with optional palette."""
+    return QualibrationFigure.plot(
+        data,
+        x='frequency',
+        data_var='amplitude',
+        qubit_dim='qubit',
+        qubit_names=qubits,
+        title=title,
+        colorbar={'title': 'Amplitude (mV)'},
+        colorbar_tolerance=100.0
+    )
+
+# Create plots with different palettes
+fig1 = create_resonator_plot(data, qubits, palette='viridis')
+fig2 = create_resonator_plot(data, qubits, palette='plasma')
+fig3 = create_resonator_plot(data, qubits, palette='tab10')
+
+# Or use custom colors
+fig4 = create_resonator_plot(
+    data, qubits, 
+    palette=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+)
+
+# Save or display
+fig1.figure.write_html("viridis_plot.html")
+fig2.figure.write_html("plasma_plot.html")
+```
 
 **Both decorators are available:**
 - `@with_palette('palette_name')` - For function-level palette setting
-- `@with_palette_param` - For parameter-based palette setting
+- `@with_palette_param` - For parameter-based palette setting (recommended for flexibility)
 
 ## Grid Layouts
 
