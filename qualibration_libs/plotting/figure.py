@@ -17,6 +17,50 @@ from .utils import compute_secondary_ticks, label_from_attrs, map_hue_value
 DataLike = _typing.DataLike
 
 
+def _set_palette_from_value(palette):
+    """Helper function to set palette from string name or color list.
+    
+    Args:
+        palette: Palette name (string) or color list/tuple
+    """
+    if isinstance(palette, str):
+        # Handle predefined palette names
+        palette_map = {
+            'viridis': ('#440154', '#482777', '#3f4a8a', '#31678e', '#26838f', '#1f9d8a', '#6cce5a', '#b6de2b', '#fee825'),
+            'plasma': ('#0d0887', '#46039f', '#7201a8', '#9c179e', '#bd3786', '#d8576b', '#ed7953', '#fb9f3a', '#f0f921'),
+            'tab10': ('#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'),
+            'tab20': ('#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5', '#8c564b', '#c49c94', '#e377c2', '#f7b6d3', '#7f7f7f', '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5'),
+            'set1': ('#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#ffff33', '#a65628', '#f781bf', '#999999'),
+            'set2': ('#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#ffd92f', '#e5c494', '#b3b3b3'),
+            'set3': ('#8dd3c7', '#ffffb3', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9', '#bc80bd', '#ccebc5', '#ffed6f'),
+            'pastel1': ('#fbb4ae', '#b3cde3', '#ccebc5', '#decbe4', '#fed9a6', '#ffffcc', '#e5d8bd', '#fddaec', '#f2f2f2'),
+            'pastel2': ('#b3e2cd', '#fdcdac', '#cbd5e8', '#f4cae4', '#e6f5c9', '#fff2ae', '#f1e2cc', '#cccccc'),
+            'dark2': ('#1b9e77', '#d95f02', '#7570b3', '#e7298a', '#66a61e', '#e6ab02', '#a6761d', '#666666'),
+            'paired': ('#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6', '#6a3d9a', '#ffff99', '#b15928'),
+            'accent': ('#7fc97f', '#beaed4', '#fdc086', '#ffff99', '#386cb0', '#f0027f', '#bf5b17', '#666666'),
+            'spectral': ('#9e0142', '#d53e4f', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#e6f598', '#abdda4', '#66c2a5', '#3288bd', '#5e4fa2'),
+            'coolwarm': ('#3b4cc0', '#6884d1', '#8fa3e0', '#b5c2ed', '#d9e0f7', '#f0f2fa', '#f7f8fc', '#fefefe', '#fef7f7', '#fce8e8', '#f5d0d0', '#e8b8b8', '#d6a0a0', '#c08888', '#a87070', '#905858', '#784040', '#602828', '#481010', '#300000'),
+            'rdylbu': ('#a50026', '#d73027', '#f46d43', '#fdae61', '#fee090', '#ffffbf', '#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695'),
+            'rdylgn': ('#a50026', '#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9641', '#006837'),
+            'rdbu': ('#67001f', '#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#f7f7f7', '#d1e5f0', '#92c5de', '#4393c3', '#2166ac', '#053061'),
+            'piyg': ('#8e0152', '#c51b7d', '#de77ae', '#f1b6da', '#fde0ef', '#f7f7f7', '#e6f5d0', '#b8e186', '#7fbc41', '#4d9221', '#276419'),
+            'prgn': ('#40004b', '#762a83', '#9970ab', '#c2a5cf', '#e7d4e8', '#f7f7f7', '#d9f0d3', '#a6dba0', '#5aae61', '#1b7837', '#00441b'),
+            'brbg': ('#543005', '#8c510a', '#bf812d', '#dfc27d', '#f6e8c3', '#f5f5f5', '#c7eae5', '#80cdc1', '#35978f', '#01665e', '#003c30'),
+            'puor': ('#7f3b08', '#b35806', '#e08214', '#fdb863', '#fee0b6', '#f7f7f7', '#d8daeb', '#b2abd2', '#8073ac', '#542788', '#2d004b'),
+            'rdgy': ('#67001f', '#b2182b', '#d6604d', '#f4a582', '#fddbc7', '#ffffff', '#e0e0e0', '#bababa', '#878787', '#4d4d4d', '#1a1a1a'),
+            'terrain': ('#00a2ed', '#00c4ed', '#00e6ed', '#00ffed', '#00ffcc', '#00ffaa', '#00ff88', '#00ff66', '#00ff44', '#00ff22', '#00ff00', '#22ff00', '#44ff00', '#66ff00', '#88ff00', '#aaff00', '#ccff00', '#eeff00', '#ffff00', '#ffcc00', '#ff9900', '#ff6600', '#ff3300', '#ff0000'),
+            'ocean': ('#000080', '#0000aa', '#0000d4', '#0000ff', '#1a1aff', '#3333ff', '#4d4dff', '#6666ff', '#8080ff', '#9999ff', '#b3b3ff', '#ccccff', '#e6e6ff', '#ffffff'),
+            'rainbow': ('#ff0000', '#ff8000', '#ffff00', '#80ff00', '#00ff00', '#00ff80', '#00ffff', '#0080ff', '#0000ff', '#8000ff', '#ff00ff', '#ff0080'),
+        }
+        if palette.lower() in palette_map:
+            _config.CURRENT_PALETTE = palette_map[palette.lower()]
+        else:
+            raise ValueError(f"Unknown palette name: {palette}. Available palettes: {list(palette_map.keys())}")
+    else:
+        # Handle tuple/list of colors
+        _config.CURRENT_PALETTE = tuple(palette) if isinstance(palette, list) else palette
+
+
 @dataclass
 class PlotParams:
     """Container for plot parameters extracted from kwargs.
@@ -33,6 +77,7 @@ class PlotParams:
         overlays: Optional overlays specification
         residuals: Whether to include residual subplots
         title: Optional plot title
+        colorbar_tolerance: Tolerance for heatmap colorbar optimization
         style_overrides: Dictionary of style overrides
     """
 
@@ -51,6 +96,7 @@ class PlotParams:
     ) | None
     residuals: bool
     title: str | None
+    colorbar_tolerance: float
     style_overrides: dict[str, Any]
 
 
@@ -171,6 +217,7 @@ class QualibrationFigure:
         ) | None = None,
         residuals: bool = False,
         title: str | None = None,
+        colorbar_tolerance: float = 0.05,
         **style_overrides: Any,
     ) -> QualibrationFigure:
         """Create an interactive calibration data plot with automatic layout.
@@ -232,6 +279,18 @@ class QualibrationFigure:
         title : str, optional
             Overall title for the entire figure. If x2 is present, the title is automatically
             positioned higher to avoid overlap with secondary axes.
+        colorbar_tolerance : float, default=0.05
+            Tolerance for determining if multiple heatmaps have the same scaling for colorbar
+            optimization. Heatmaps with min/max values differing by less than this fraction of
+            the data range are considered to have "same scaling" and will share a single colorbar.
+            The tolerance is calculated as max(colorbar_tolerance * range_size, 1e-6).
+        palette : str, list, tuple, optional
+            Color palette to use for the plot. Can be:
+            - A predefined palette name (e.g., 'viridis', 'plasma', 'tab10', 'set1', 'set2', 'set3')
+            - A list/tuple of color strings (hex codes or named colors)
+            - None (uses current global palette)
+            The palette is temporarily set during plot creation and automatically restored afterward.
+            See the README for a complete list of available predefined palettes.
         **style_overrides : Any
             Additional style parameters to customize plot appearance. Common overrides include:
             - marker_size : int - Size of scatter plot markers
@@ -242,23 +301,40 @@ class QualibrationFigure:
             - showscale : bool - Whether to show colorbar for heatmaps
         """
 
-        obj = cls()
-        obj._build(
-            data,
-            x=x,
-            data_var=data_var,
-            y=y,
-            hue=hue,
-            x2=x2,
-            qubit_dim=qubit_dim,
-            qubit_names=qubit_names,
-            grid=grid,
-            overlays=overlays,
-            residuals=residuals,
-            title=title,
-            **style_overrides,
-        )
-        return obj
+        # Extract palette from style_overrides if provided
+        palette = style_overrides.pop('palette', None)
+        
+        # Temporarily set palette if provided
+        original_palette = None
+        if palette is not None:
+            import qualibration_libs.plotting.config as _config
+            original_palette = _config.CURRENT_PALETTE
+            _set_palette_from_value(palette)
+        
+        try:
+            obj = cls()
+            obj._build(
+                data,
+                x=x,
+                data_var=data_var,
+                y=y,
+                hue=hue,
+                x2=x2,
+                qubit_dim=qubit_dim,
+                qubit_names=qubit_names,
+                grid=grid,
+                overlays=overlays,
+                residuals=residuals,
+                title=title,
+                colorbar_tolerance=colorbar_tolerance,
+                **style_overrides,
+            )
+            return obj
+        finally:
+            # Restore original palette
+            if original_palette is not None:
+                import qualibration_libs.plotting.config as _config
+                _config.CURRENT_PALETTE = original_palette
 
     # ---------------------------------------------------------------------
     # Internal helpers
@@ -281,6 +357,7 @@ class QualibrationFigure:
         ) | None = None,
         residuals: bool = False,
         title: str | None = None,
+        colorbar_tolerance: float = 0.05,
         **style_overrides: Any,
     ) -> PlotParams:
         """Extract and validate plotting parameters into a structured container.
@@ -307,6 +384,7 @@ class QualibrationFigure:
             overlays=overlays,
             residuals=bool(residuals),
             title=title,
+            colorbar_tolerance=colorbar_tolerance,
             style_overrides=style,
         )
 
@@ -327,9 +405,24 @@ class QualibrationFigure:
         if isinstance(data, xr.DataArray):
             return data.to_dataset(name=data.name or "value")
         if isinstance(data, dict):
-            # Assume single data_var keyed by the first key
-            key = next(iter(data.keys()))
-            return xr.Dataset({key: ("index", np.asarray(data[key]))})
+            # Convert dict to xarray Dataset
+            # All arrays should have the same length for proper conversion
+            arrays = {k: np.asarray(v) for k, v in data.items()}
+            
+            # Find the length of the first array to use as dimension
+            first_key = next(iter(arrays.keys()))
+            length = len(arrays[first_key])
+            
+            # Create dataset with all arrays as 1D data variables
+            data_vars = {}
+            for key, arr in arrays.items():
+                if len(arr) == length:
+                    data_vars[key] = ("index", arr)
+                else:
+                    # If lengths don't match, treat as coordinate
+                    data_vars[key] = arr
+            
+            return xr.Dataset(data_vars)
         if hasattr(data, "to_xarray"):
             return data.to_xarray()
         raise TypeError("Unsupported data type for plotting")
@@ -359,12 +452,20 @@ class QualibrationFigure:
             # Use QubitGrid.resolve to normalize to 1-based positions and compute shape
             n_rows, n_cols, positions = grid.resolve(qubit_names)
 
+        subplot_titles = [["" for _ in range(n_cols)] for _ in range(n_rows)]
+        
+        for qubit_name in qubit_names:
+            if qubit_name in positions:
+                row, col = positions[qubit_name]
+                subplot_titles[row - 1][col - 1] = qubit_name
+        flat_titles = [title for row in subplot_titles for title in row]
+
         # Adjust vertical spacing if secondary x-axis is present
         vspace = 0.2 if (x2 and n_rows > 1) else 0.1
         self._fig = make_subplots(
             rows=n_rows * (2 if residuals else 1),
             cols=n_cols,
-            subplot_titles=list(qubit_names),
+            subplot_titles=flat_titles,
             vertical_spacing=vspace,
             horizontal_spacing=0.05,
         )
@@ -490,7 +591,7 @@ class QualibrationFigure:
                     "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
                     "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
                     "legendgroup": label,
-                    "showlegend": show_lgd,
+                    "showlegend": False,  # Hide data traces from legend - only show overlays
                 }
                 scatter_kwargs = self._apply_style_overrides(
                     scatter_kwargs, style_overrides, "scatter"
@@ -505,6 +606,7 @@ class QualibrationFigure:
                 "mode": "markers",
                 "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
                 "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
+                "showlegend": False,  # Hide data traces from legend - only show overlays
             }
             scatter_kwargs = self._apply_style_overrides(
                 scatter_kwargs, style_overrides, "scatter"
@@ -578,7 +680,7 @@ class QualibrationFigure:
         row_main: int,
         col: int,
         style_overrides: dict[str, Any],
-    ) -> None:
+    ) -> tuple[float, float]:
         """Plot 2D data (heatmap).
 
         Args:
@@ -670,6 +772,11 @@ class QualibrationFigure:
                     }
                 }
                 self._fig.update_layout(**layout_config)
+        
+        # Calculate and return scaling information for colorbar optimization
+        z_min = float(np.min(z_vals))
+        z_max = float(np.max(z_vals))
+        return z_min, z_max
 
     def _add_overlays(
         self,
@@ -706,6 +813,9 @@ class QualibrationFigure:
         else:
             panel_overlays = overlays
 
+        # Track overlay index per subplot for consistent color assignment
+        overlay_index = 0
+        
         for ov in panel_overlays:
             # Deduplicate legend entries across subplots by legendgroup
             group_label = getattr(ov, "name", None) or "overlay"
@@ -715,7 +825,24 @@ class QualibrationFigure:
             # Assign a color if not overridden by style
             ov_style = dict(style_overrides)
             if "color" not in ov_style:
-                ov_style["color"] = self._next_color()
+                # Use a distinct color for overlays by using a different color scheme
+                # For small palettes, use darker/lighter variants or different colors
+                palette = _config.CURRENT_PALETTE or _config.CURRENT_THEME.colorway
+                
+                if len(palette) >= 4:
+                    # Large palette: skip data colors and use subsequent colors
+                    self.reset_color_index()
+                    for _ in range(2):  # Skip first 2 colors (data traces)
+                        self._next_color()
+                    ov_style["color"] = self._next_color()  # Use 3rd color
+                else:
+                    # Small palette: use distinct colors that won't conflict with data
+                    # Use colors from a different part of the palette or fallback colors
+                    overlay_colors = ["#2ca02c", "#ff7f0e", "#d62728", "#9467bd"]  # Green, Orange, Red, Purple
+                    ov_style["color"] = overlay_colors[overlay_index % len(overlay_colors)]
+            
+            # Increment overlay index for next overlay in this subplot
+            overlay_index += 1
             # Pass legend grouping to overlay implementation
             ov_style["legendgroup"] = group_label
             ov_style["showlegend"] = show_lgd
@@ -797,6 +924,63 @@ class QualibrationFigure:
             # Update x-axis label for residuals (should match main plot)
             self._fig.update_xaxes(title_text=xlab, row=row_resid, col=col)
 
+    def _optimize_colorbars(self, scaling_info: list[tuple[float, float, int, int]], tolerance: float = 0.05) -> None:
+        """Optimize colorbar display for multiple heatmaps.
+        
+        Args:
+            scaling_info: List of (z_min, z_max, row, col) tuples for each heatmap
+            tolerance: Fraction of data range for determining same scaling (default: 0.05 = 5%)
+        """
+        if len(scaling_info) <= 1:
+            # For single heatmap, ensure colorbar is shown
+            heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
+            for trace in heatmap_traces:
+                trace.showscale = True
+            return
+        
+        # Check if all heatmaps have the same scaling (within tolerance)
+        # For tolerance >= 1.0, always consider as same scaling (force colorbars)
+        if tolerance >= 1.0:
+            all_same_scaling = True
+        else:
+            # Use a more reasonable tolerance for real data (tolerance% of the range)
+            first_z_min, first_z_max = scaling_info[0][:2]
+            range_size = first_z_max - first_z_min
+            tolerance_value = max(tolerance * range_size, 1e-6)  # tolerance% of range or 1e-6, whichever is larger
+            
+            all_same_scaling = all(
+                abs(z_min - first_z_min) < tolerance_value and abs(z_max - first_z_max) < tolerance_value
+                for z_min, z_max, _, _ in scaling_info
+            )
+        
+        # Get all heatmap traces (in order they were added)
+        heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
+        
+        if not heatmap_traces:
+            # No heatmaps found, nothing to do
+            return
+        
+        if all_same_scaling:
+            # Same scaling: show only one colorbar (on the last subplot)
+            for i, trace in enumerate(heatmap_traces):
+                # Show colorbar only on the last heatmap trace
+                show_colorbar = (i == len(heatmap_traces) - 1)
+                trace.showscale = show_colorbar
+                
+                # For the last trace with colorbar, ensure it's positioned correctly
+                if show_colorbar:
+                    # Position colorbar to the right of the plot area
+                    trace.colorbar.x = 1.02
+                    trace.colorbar.xanchor = "left"
+                    trace.colorbar.y = 0.5
+                    trace.colorbar.yanchor = "middle"
+            
+            # Note: Margin adjustment moved to end of _build method
+        else:
+            # Different scaling: hide all colorbars
+            for trace in heatmap_traces:
+                trace.showscale = False
+
     def _build(self, data: DataLike, **kwargs) -> None:
         # Normalize data to xarray.Dataset
         ds = self._normalize_data(data)
@@ -815,6 +999,8 @@ class QualibrationFigure:
         )
 
         # Main plotting loop
+        scaling_info = []  # Collect scaling information for colorbar optimization
+        
         for name in qubit_names:
             if name not in positions:
                 continue
@@ -849,7 +1035,7 @@ class QualibrationFigure:
                     params.style_overrides,
                 )
             else:
-                self._plot_2d_data(
+                z_min, z_max = self._plot_2d_data(
                     sel,
                     params.x,
                     params.y,
@@ -861,6 +1047,7 @@ class QualibrationFigure:
                     col,
                     params.style_overrides,
                 )
+                scaling_info.append((z_min, z_max, row_main, col))
 
             # Add overlays if specified
             if params.overlays:
@@ -889,6 +1076,10 @@ class QualibrationFigure:
                     col,
                     params.style_overrides,
                 )
+
+        # Optimize colorbar display for 2D heatmaps
+        if scaling_info:
+            self._optimize_colorbars(scaling_info, params.colorbar_tolerance)
 
         _config.apply_theme_to_layout(self._fig.layout)
         if _config.CURRENT_PALETTE:
@@ -924,3 +1115,21 @@ class QualibrationFigure:
             self._fig.update_layout(
                 showlegend=bool(_config.CURRENT_RC.values["showlegend"])
             )
+        
+        # Final margin adjustment for colorbar (if needed)
+        # Check if any heatmap traces have showscale=True and adjust margin accordingly
+        heatmap_traces = [trace for trace in self._fig.data if trace.type == 'heatmap']
+        if heatmap_traces and any(trace.showscale for trace in heatmap_traces):
+            # Get current margin settings and add right margin for colorbar
+            current_margin = self._fig.layout.margin
+            if current_margin:
+                # Preserve existing margins and add right margin for colorbar
+                margin_dict = dict(
+                    t=current_margin.t or 60,
+                    b=current_margin.b or 60, 
+                    l=current_margin.l or 60,
+                    r=100  # Right margin for colorbar
+                )
+            else:
+                margin_dict = dict(r=100)
+            self._fig.update_layout(margin=margin_dict)
