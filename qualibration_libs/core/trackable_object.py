@@ -1,8 +1,7 @@
 from copy import deepcopy
-
-
 from contextlib import contextmanager
 
+from qualibration_libs.core.exceptions import format_available_items
 
 __all__ = ["tracked_updates", "TrackableObject"]
 
@@ -43,7 +42,14 @@ class TrackableObject:
         self._nested_trackables = {}
 
     def __getattr__(self, attr):
-        original_attr = getattr(self._obj, attr)
+        try:
+            original_attr = getattr(self._obj, attr)
+        except AttributeError as e:
+            obj_type = type(self._obj).__name__
+            available_attrs = [a for a in dir(self._obj) if not a.startswith('_')]
+            attrs_list = format_available_items(available_attrs, item_type="attributes")
+            raise AttributeError(f"Attribute '{attr}' not found in tracked object of type '{obj_type}'. {attrs_list}") from e
+
         if attr not in self._nested_trackables:
             if callable(original_attr):
                 # this means it's an instance method
@@ -76,7 +82,16 @@ class TrackableObject:
                 setattr(self._obj, attr, value)
 
     def __getitem__(self, key):
-        original_item = self._obj[key]
+        try:
+            original_item = self._obj[key]
+        except (KeyError, IndexError, TypeError) as e:
+            if isinstance(e, KeyError) and hasattr(self._obj, 'keys'):
+                keys_list = format_available_items(self._obj, item_type="keys")
+                raise KeyError(f"Key '{key}' not found in tracked object. {keys_list}") from e
+            elif isinstance(e, IndexError):
+                raise IndexError(f"Index {key} out of range for tracked object with length {len(self._obj)}.") from e
+            raise e
+
         if key not in self._nested_trackables:
             # Recursively wrap dicts and objects if not already wrapped
             self._nested_trackables[key] = TrackableObject(
