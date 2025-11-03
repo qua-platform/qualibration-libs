@@ -28,10 +28,10 @@ def format_available_items(
     str
         Formatted string like "Available keys: 'key1', 'key2', 'key3', ..."
     """
-    items = list(items.keys()) if isinstance(items, dict) else list(items)
-    if items:
-        items_str = "'" + "', '".join(str(item) for item in items[:max_items])
-        items_str += "', ..." if len(items) > max_items else "'."
+    item_keys = list(items.keys()) if isinstance(items, dict) else list(items)
+    if item_keys:
+        items_str = "'" + "', '".join(str(item) for item in item_keys[:max_items])
+        items_str += "', ..." if len(item_keys) > max_items else "'."
     else:
         items_str = "None."
 
