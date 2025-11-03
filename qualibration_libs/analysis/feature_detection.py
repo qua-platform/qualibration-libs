@@ -5,6 +5,8 @@ import xarray as xr
 from scipy.signal import find_peaks, peak_widths
 from scipy.sparse.linalg import spsolve
 
+from qualibration_libs.core.exceptions import format_available_items
+
 __all__ = ["peaks_dips"]
 
 
@@ -43,6 +45,10 @@ def peaks_dips(
     - The function identifies the most prominent peak or dip in the data array along the specified dimension.
     - The baseline is smoothed and subtracted if `remove_baseline` is True.
     """
+
+    if dim not in da.coords:
+        coords_list = format_available_items(da.coords, item_type="coordinates")
+        raise KeyError(f"Coordinate '{dim}' not found in DataArray. {coords_list}")
 
     def _baseline_als(y, lam, p, niter=10):
         L = len(y)
