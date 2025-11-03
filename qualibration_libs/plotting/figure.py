@@ -1097,8 +1097,8 @@ class QualibrationFigure:
             # Adjust all subplot title positions to avoid overlap with secondary axes
             # This is done after all plotting to ensure all annotations exist
             for annotation in self._fig.layout.annotations:
-                if annotation.y is not None and annotation.text and annotation.text.startswith('q'):
-                    # Move qubit name titles higher to avoid overlap with secondary x-axis
+                if annotation.y is not None and annotation.text:
+                    # Move all subplot title annotations higher to avoid overlap with secondary x-axis
                     annotation.update(y=annotation.y + annotation_offset)
 
         if params.title:

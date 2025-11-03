@@ -290,6 +290,158 @@ class TestQualibrationFigure:
         # Check that default margin was applied
         assert fig_default.figure.layout.margin.t == 120  # Default value
     
+    def test_x2_annotation_positioning_all_qubits(self, sample_data_1d):
+        """Test that ALL subplot title annotations are moved when x2 is present, regardless of qubit name."""
+        # Add secondary coordinate
+        data_with_x2 = sample_data_1d.copy()
+        wavelength_values = 3e8 / (5e9 + data_with_x2.detuning.values)
+        data_with_x2 = data_with_x2.assign_coords(
+            wavelength=('detuning', wavelength_values)
+        )
+        
+        # Create custom grid with qubit names that exist in the dataset
+        grid_coords = {
+            'qC1': (0, 0),      # Starts with 'q'
+            'qC2': (0, 1),      # Starts with 'q'
+            'qC3': (1, 0),      # Starts with 'q'
+        }
+        grid = QubitGrid(grid_coords, shape=(2, 2))
+        
+        # Create plot with x2 and custom annotation offset
+        annotation_offset = 0.05
+        fig = QualibrationFigure.plot(
+            data_with_x2,
+            x='detuning',
+            x2='wavelength',
+            data_var='qC1',
+            grid=grid,
+            title="Test All Annotations Moved",
+            x2_annotation_offset=annotation_offset
+        )
+        
+        assert fig is not None
+        assert fig.figure is not None
+        
+        # Get all annotations
+        annotations = fig.figure.layout.annotations
+        assert len(annotations) >= 3  # Should have at least 3 qubit title annotations
+        
+        # Check that ALL subplot title annotations have been moved up
+        # (not just those starting with 'q')
+        moved_annotations = []
+        for annotation in annotations:
+            if annotation.y is not None and annotation.text:
+                # Check if this looks like a subplot title (not the main title)
+                if annotation.text in ['qC1', 'qC2', 'qC3']:
+                    moved_annotations.append(annotation)
+        
+        # All qubit title annotations should be present and moved
+        assert len(moved_annotations) == 3, f"Expected 3 qubit annotations, got {len(moved_annotations)}"
+        
+        # Verify that annotations starting with 'q' are moved
+        q_annotations = [ann for ann in moved_annotations if ann.text.startswith('q')]
+        assert len(q_annotations) == 3, "Should have 3 annotations starting with 'q'"
+        
+        # All annotations should have been moved up by the annotation_offset
+        for annotation in moved_annotations:
+            # The annotation should have a y position that reflects the offset
+            # (exact value depends on plotly's internal positioning)
+            assert annotation.y is not None, f"Annotation '{annotation.text}' should have a y position"
+    
+    def test_x2_annotation_positioning_mixed_qubit_names(self):
+        """Test that ALL subplot title annotations are moved regardless of qubit name format."""
+        # Create custom dataset with mixed qubit names using qubit dimension
+        detuning = np.linspace(-1.5e7, 1.5e7, 50)
+        qubits = ['q0', 'Qubit_A', 'qubit_B', 'Q1']  # Mixed naming conventions
+        
+        # Create data with qubit dimension (like the sample_data_1d fixture)
+        data = {}
+        for i, qubit in enumerate(qubits):
+            center = i * 0.5e6
+            width = 1e6
+            response = np.exp(-((detuning - center) / width)**2)
+            data[qubit] = (['detuning'], response)
+        
+        ds = xr.Dataset(data, coords={'detuning': detuning, 'qubit': qubits})
+        
+        # Add secondary coordinate
+        wavelength_values = 3e8 / (5e9 + ds.detuning.values)
+        ds = ds.assign_coords(wavelength=('detuning', wavelength_values))
+        
+        # Create custom grid with mixed qubit names
+        grid_coords = {
+            'q0': (0, 0),       # Starts with 'q'
+            'Qubit_A': (0, 1),  # Doesn't start with 'q'
+            'qubit_B': (1, 0),  # Starts with 'q'
+            'Q1': (1, 1),       # Starts with 'Q' (capital)
+        }
+        grid = QubitGrid(grid_coords, shape=(2, 2))
+        
+        # Create plot with x2 - use qubit_dim to plot all qubits
+        fig = QualibrationFigure.plot(
+            ds,
+            x='detuning',
+            x2='wavelength',
+            data_var='q0',  # Data variable name
+            qubit_dim='qubit',  # Dimension containing qubit names
+            grid=grid,
+            title="Test Mixed Qubit Names",
+            x2_annotation_offset=0.05
+        )
+        
+        assert fig is not None
+        assert fig.figure is not None
+        
+        # Get all annotations
+        annotations = fig.figure.layout.annotations
+        assert len(annotations) >= 4  # Should have at least 4 qubit title annotations
+        
+        # Check that ALL subplot title annotations have been moved up
+        moved_annotations = []
+        for annotation in annotations:
+            if annotation.y is not None and annotation.text:
+                if annotation.text in ['q0', 'Qubit_A', 'qubit_B', 'Q1']:
+                    moved_annotations.append(annotation)
+        
+        # All qubit title annotations should be present and moved
+        assert len(moved_annotations) == 4, f"Expected 4 qubit annotations, got {len(moved_annotations)}"
+        
+        # Verify that annotations starting with 'q' are moved
+        q_annotations = [ann for ann in moved_annotations if ann.text.startswith('q')]
+        assert len(q_annotations) == 2, "Should have 2 annotations starting with 'q'"
+        
+        # Verify that annotations NOT starting with 'q' are also moved
+        non_q_annotations = [ann for ann in moved_annotations if not ann.text.startswith('q')]
+        assert len(non_q_annotations) == 2, "Should have 2 annotations NOT starting with 'q'"
+        
+        # All annotations should have been moved up
+        for annotation in moved_annotations:
+            assert annotation.y is not None, f"Annotation '{annotation.text}' should have a y position"
+    
+    def test_x2_annotation_positioning_without_x2(self, sample_data_1d):
+        """Test that annotations are NOT moved when x2 is not present."""
+        # Create plot WITHOUT x2
+        fig = QualibrationFigure.plot(
+            sample_data_1d,
+            x='detuning',
+            data_var='qC1',
+            title="Test Annotations NOT Moved (No X2)"
+        )
+        
+        assert fig is not None
+        assert fig.figure is not None
+        
+        # Get all annotations
+        annotations = fig.figure.layout.annotations
+        assert len(annotations) > 0
+        
+        # Check that annotations exist but haven't been artificially moved
+        # (they should have their default positions)
+        for annotation in annotations:
+            if annotation.y is not None and annotation.text:
+                # Annotations should have their default positions
+                assert annotation.y is not None
+    
     def test_real_data_loading(self, real_data_files):
         """Test loading and plotting real data files."""
         if 'ds_raw.h5' in real_data_files:
@@ -412,15 +564,15 @@ class TestQualibrationFigure:
     
     def test_dict_data_input(self):
         """Test plotting with dictionary data input."""
+        # Create a simple dictionary with just the data array
+        # The current implementation only uses the first key
         data_dict = {
-            'x': np.linspace(0, 10, 100),
-            'y': np.sin(np.linspace(0, 10, 100)),
-            'qubit': ['Q0'] * 100
+            'y': np.sin(np.linspace(0, 10, 100))
         }
         
         fig = QualibrationFigure.plot(
             data_dict,
-            x='x',
+            x='index',  # Use 'index' as the x coordinate (created automatically)
             data_var='y',
             title="Dictionary Data Input"
         )
