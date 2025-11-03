@@ -1,25 +1,15 @@
 import sys
 from pathlib import Path
 import argparse
+from typing import Optional
 import xarray as xr
-from qualang_tools.units import unit
-
-u = unit(coerce_to_integer=True)
 
 # Paths derived relative to this script's location
 scripts_dir = Path(__file__).resolve().parent
-# Handle both cases: running from scripts/ or from qualibration-libs/
-if scripts_dir.name == "scripts":
-    repo_root = scripts_dir.parent.parent  # Go up two levels from scripts/
-else:
-    repo_root = scripts_dir.parent  # Go up one level
-SUPERCONDUCTING_DIR = str(
-    repo_root / "qualibration_graphs" / "superconducting"
-)
+repo_root = scripts_dir.parent
+SUPERCONDUCTING_DIR = str(repo_root / "qua-libs" / "qualibration_graphs" / "superconducting")
 QUALIBRATION_LIBS_DIR = str(repo_root / "qualibration-libs")
-DEFAULT_DATE_DIR = str(
-    Path(SUPERCONDUCTING_DIR) / "data" / "QPU_project" / "2025-10-01"
-)
+DEFAULT_DATE_DIR = "/Users/itayabar/Downloads/preliminary_datasets"
 
 # Add paths for imports
 if SUPERCONDUCTING_DIR not in sys.path:
@@ -35,7 +25,7 @@ from qualibration_libs.plotting.overlays import FitOverlay  # noqa: E402
 from qualibration_libs.analysis import lorentzian_dip  # noqa: E402
 
 
-def extract_node_id_from_folder_name(name: str) -> int | None:
+def extract_node_id_from_folder_name(name: str) -> Optional[int]:
     """Extract numeric id between '#' and first '_' in folder name.
 
     Example: '#659_02a_resonator_spectroscopy_182214' -> 659
@@ -67,6 +57,25 @@ def load_qubits_from_folder(folder: Path):
         qubits = get_qubits(loaded)
         return qubits
     except Exception:
+        # Fallback: create simple qubit objects from dataset
+        ds_raw_path = folder / "ds_raw.h5"
+        if ds_raw_path.exists():
+            try:
+                ds_raw = xr.open_dataset(ds_raw_path)
+                if 'qubit' in ds_raw.coords:
+                    qubit_names = list(ds_raw.coords['qubit'].values)
+                    # Create simple qubit objects with default grid locations
+                    from types import SimpleNamespace
+                    qubits = []
+                    for i, name in enumerate(qubit_names):
+                        qubit = SimpleNamespace()
+                        qubit.name = name
+                        # Create a simple grid layout
+                        qubit.grid_location = f"{i % 2},{i // 2}"  # col,row format
+                        qubits.append(qubit)
+                    return qubits
+            except Exception:
+                pass
         return None
 
 
@@ -77,32 +86,68 @@ def load_dataset(path: Path) -> xr.Dataset:
 
 def plot_phase_plotly(ds_raw: xr.Dataset, qubits, folder_name: str):
     """Plot phase data using new Plotly interface."""
-    grid = QubitGrid(ds_raw, [q.grid_location for q in qubits])
-    qubit_names = [q.name for q in qubits]
-    ds_raw = ds_raw.assign_coords(full_freq_GHz=ds_raw.full_freq / u.GHz)
-    ds_raw.full_freq_GHz.attrs["long_name"] = "RF frequency [GHz]"
+    # Create QubitGrid from qubits  
+    # Note: grid_location format is "col,row" but QubitGrid expects (row, col), so we swap
+    # The old matplotlib code flips rows and normalizes both rows and columns
+    coords = {}
+    max_row = max(int(q.grid_location.split(',')[1]) for q in qubits)
+    min_row = min(int(q.grid_location.split(',')[1]) for q in qubits)
+    min_col = min(int(q.grid_location.split(',')[0]) for q in qubits)
+    
+    for q in qubits:
+        col, row = map(int, q.grid_location.split(','))
+        # Flip: higher rows (qD=3) → lower positions (top)
+        # max_row - row: qD(3)→0, qC(2)→1, so qD appears above qC
+        flipped_row = max_row - row
+        # Normalize column to start at 0
+        normalized_col = col - min_col
+        coords[q.name] = (flipped_row, normalized_col)
+    
+    # Let QubitGrid auto-detect the shape based on the coordinates
+    grid = QubitGrid(coords)
+    
+    # Sort qubit names by their grid position (row, col) to ensure correct plotting order
+    sorted_qubit_names = sorted(coords.keys(), key=lambda q: coords[q])
+    
     # Plot phase vs detuning
     fig = qplot.QualibrationFigure.plot(
         ds_raw,
-        x="detuning",
-        x2="full_freq_GHz",
-        data_var="phase",
+        x='detuning',
+        data_var='phase',
         grid=grid,
-        qubit_dim="qubit",
-        qubit_names=qubit_names,
+        qubit_dim='qubit',
+        qubit_names=sorted_qubit_names,
         title=f"Resonator spectroscopy (phase) - {folder_name}",
+        palette='tab10'  # Blue-based palette
     )
-
+    
     return fig
 
 
-def plot_amplitude_with_fit_plotly(
-    ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, folder_name: str
-):
+def plot_amplitude_with_fit_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, folder_name: str):
     """Plot amplitude with fit overlay using new Plotly interface."""
-    grid = QubitGrid(ds_raw, [q.grid_location for q in qubits])
-    qubit_names = [q.name for q in qubits]
-
+    # Create QubitGrid from qubits
+    # Note: grid_location format is "col,row" but QubitGrid expects (row, col), so we swap
+    # Also, the old matplotlib code reverses rows and normalizes both rows and columns
+    coords = {}
+    max_row = max(int(q.grid_location.split(',')[1]) for q in qubits)
+    min_row = min(int(q.grid_location.split(',')[1]) for q in qubits)
+    min_col = min(int(q.grid_location.split(',')[0]) for q in qubits)
+    
+    for q in qubits:
+        col, row = map(int, q.grid_location.split(','))
+        # Reverse row order to match matplotlib layout (higher rows appear at top)
+        flipped_row = max_row - row
+        # Normalize column to start at 0
+        normalized_col = col - min_col
+        coords[q.name] = (flipped_row, normalized_col)
+    
+    # Let QubitGrid auto-detect the shape based on the coordinates
+    grid = QubitGrid(coords)
+    
+    # Sort qubit names by their grid position (row, col) to ensure correct plotting order
+    sorted_qubit_names = sorted(coords.keys(), key=lambda q: coords[q])
+    
     # Create per-qubit fit overlays
     # We need to re-create the fitted curve here because it is not stored in the dataset
     def create_fit_overlay(qubit_name, qubit_data):
@@ -110,63 +155,59 @@ def plot_amplitude_with_fit_plotly(
         try:
             # Get fit data for this qubit
             fit_data = ds_fit.sel(qubit=qubit_name)
-            fitted_curve = lorentzian_dip(
-                ds_raw.detuning,
-                float(fit_data.amplitude.values),
-                float(fit_data.position.values),
-                float(fit_data.width.values) / 2,
-                float(fit_data.base_line.mean().values),
-            )
-
+            
+            # Check if fit was successful (has valid parameters)
+            if 'amplitude' not in fit_data or 'position' not in fit_data or 'width' not in fit_data:
+                return []
+            
+            amplitude = float(fit_data['amplitude'].values)
+            position = float(fit_data['position'].values)
+            width = float(fit_data['width'].values)
+            baseline = float(fit_data['base_line'].mean().values)
+            
+            # Compute fitted curve using lorentzian_dip
+            detuning = ds_raw.coords['detuning'].values
+            fitted_curve = lorentzian_dip(detuning, amplitude, position, width / 2, baseline)
             # Convert fit curve to mV to match data
-            fitted_curve_mV = fitted_curve / u.mV
-
+            fitted_curve_mV = fitted_curve * 1000
+            
             # Create FitOverlay without text parameters to avoid cluttering the plot
-            fit_overlay = FitOverlay(y_fit=fitted_curve_mV, name="Fit")
-
+            fit_overlay = FitOverlay(
+                y_fit=fitted_curve_mV,
+                name="Fit"
+            )
+            
             return [fit_overlay]
         except Exception as e:
             print(f"Warning: Could not create fit overlay for {qubit_name}: {e}")
             return []
-
+    
     # Convert IQ_abs to mV to match matplotlib plots
     ds_raw_mV = ds_raw.copy()
-    ds_raw_mV["IQ_abs"] = ds_raw["IQ_abs"] / u.mV  # Convert V to mV
-    ds_raw_mV["IQ_abs"].attrs["units"] = "mV"
-    ds_raw_mV["IQ_abs"].attrs["long_name"] = r"$R=\sqrt{I^2 + Q^2}$"
-    ds_raw_mV = ds_raw_mV.assign_coords(full_freq_GHz=ds_raw_mV.full_freq / u.GHz)
-    ds_raw_mV.full_freq_GHz.attrs["long_name"] = "RF frequency [GHz]"
-
+    ds_raw_mV['IQ_abs'] = ds_raw['IQ_abs'] * 1000  # Convert V to mV
+    ds_raw_mV['IQ_abs'].attrs['units'] = 'mV'
+    ds_raw_mV['IQ_abs'].attrs['long_name'] = r'$R=\sqrt{I^2 + Q^2}$'
+    
     # Plot amplitude vs detuning with fits
     fig = qplot.QualibrationFigure.plot(
         ds_raw_mV,
-        x="detuning",
-        x2="full_freq_GHz",
-        data_var="IQ_abs",
+        x='detuning',
+        data_var='IQ_abs',
         grid=grid,
-        qubit_dim="qubit",
-        qubit_names=qubit_names,
+        qubit_dim='qubit',
+        qubit_names=sorted_qubit_names,
         overlays=create_fit_overlay,
         title=f"Resonator spectroscopy (amplitude + fit) - {folder_name}",
+        palette='tab10'  # Blue-based palette
     )
-
+    
     return fig
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Plot 02a resonator spectroscopy results using Plotly."
-    )
-    parser.add_argument(
-        "--date-dir",
-        default=DEFAULT_DATE_DIR,
-        help="Path to the date directory to scan.",
-    )
-    parser.add_argument(
-        "--save",
-        action="store_true",
-        help="Save figures to PNG files instead of showing.",
-    )
+    parser = argparse.ArgumentParser(description="Plot 02a resonator spectroscopy results using Plotly.")
+    parser.add_argument("--date-dir", default=DEFAULT_DATE_DIR, help="Path to the date directory to scan.")
+    parser.add_argument("--save", action="store_true", help="Save figures to PNG files instead of showing.")
     args = parser.parse_args()
 
     date_path = Path(args.date_dir)
@@ -213,7 +254,7 @@ def main():
 
         # Plot phase
         fig_phase = plot_phase_plotly(ds_raw, qubits, folder.name)
-
+        
         # Plot amplitude with fit
         fig_amp = plot_amplitude_with_fit_plotly(ds_raw, qubits, ds_fit, folder.name)
 
@@ -221,13 +262,13 @@ def main():
             # Save to scripts/plots/<data-folder-name>/
             out_dir = plots_root / folder.name
             out_dir.mkdir(parents=True, exist_ok=True)
-            out_phase = out_dir / "phase_plotly.html"
-            out_amp = out_dir / "amplitude_fit_plotly.html"
-
-            # Save Plotly figures as HTML (interactive)
-            fig_phase.figure.write_html(str(out_phase))
-            fig_amp.figure.write_html(str(out_amp))
-
+            out_phase = out_dir / "phase_plotly.png"
+            out_amp = out_dir / "amplitude_fit_plotly.png"
+            
+            # Save Plotly figures as PNG
+            fig_phase.figure.write_image(str(out_phase), width=1500, height=900)
+            fig_amp.figure.write_image(str(out_amp), width=1500, height=900)
+            
             print(f"Saved: {out_phase}")
             print(f"Saved: {out_amp}")
         else:
@@ -238,3 +279,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
