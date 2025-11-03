@@ -2,6 +2,7 @@ from .grid import QubitGrid, grid_iter
 from .figure import QualibrationFigure
 from .api import set_theme, set_palette, theme_context
 from .accessors import XrQualPlotAccessor
+from .config import with_palette, with_palette_param
 
 
 def register_accessors() -> str:
@@ -16,5 +17,7 @@ __all__ = [
     "set_theme",
     "set_palette",
     "theme_context",
+    "with_palette",
+    "with_palette_param",
     "register_accessors",
 ]
