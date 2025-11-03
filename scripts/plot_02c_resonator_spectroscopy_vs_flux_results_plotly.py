@@ -1,16 +1,23 @@
 import sys
 from pathlib import Path
 import argparse
-from typing import Optional
 import xarray as xr
 import numpy as np
 
 # Paths derived relative to this script's location
 scripts_dir = Path(__file__).resolve().parent
-repo_root = scripts_dir.parent
-SUPERCONDUCTING_DIR = str(repo_root / "qua-libs" / "qualibration_graphs" / "superconducting")
+# Handle both cases: running from scripts/ or from qualibration-libs/
+if scripts_dir.name == "scripts":
+    repo_root = scripts_dir.parent.parent  # Go up two levels from scripts/
+else:
+    repo_root = scripts_dir.parent  # Go up one level
+SUPERCONDUCTING_DIR = str(
+    repo_root / "qualibration_graphs" / "superconducting"
+)
 QUALIBRATION_LIBS_DIR = str(repo_root / "qualibration-libs")
-DEFAULT_DATE_DIR = "/Users/itayabar/Downloads/preliminary_datasets"
+DEFAULT_DATE_DIR = str(
+    Path(SUPERCONDUCTING_DIR) / "data" / "QPU_project" / "2025-10-01"
+)
 
 # Add paths for imports
 if SUPERCONDUCTING_DIR not in sys.path:
@@ -25,7 +32,7 @@ from qualibration_libs.plotting import QubitGrid  # noqa: E402
 from qualibration_libs.plotting.overlays import RefLine, ScatterOverlay  # noqa: E402
 
 
-def extract_node_id_from_folder_name(name: str) -> Optional[int]:
+def extract_node_id_from_folder_name(name: str) -> int | None:
     try:
         if not name.startswith("#"):
             return None
@@ -49,25 +56,6 @@ def load_qubits_from_folder(folder: Path):
             return None
         return get_qubits(loaded)
     except Exception:
-        # Fallback: create simple qubit objects from dataset
-        ds_raw_path = folder / "ds_raw.h5"
-        if ds_raw_path.exists():
-            try:
-                ds_raw = xr.open_dataset(ds_raw_path)
-                if 'qubit' in ds_raw.coords:
-                    qubit_names = list(ds_raw.coords['qubit'].values)
-                    # Create simple qubit objects with default grid locations
-                    from types import SimpleNamespace
-                    qubits = []
-                    for i, name in enumerate(qubit_names):
-                        qubit = SimpleNamespace()
-                        qubit.name = name
-                        # Create a simple grid layout
-                        qubit.grid_location = f"{i % 2},{i // 2}"  # col,row format
-                        qubits.append(qubit)
-                    return qubits
-            except Exception:
-                pass
         return None
 
 
@@ -75,112 +63,82 @@ def load_dataset(path: Path) -> xr.Dataset:
     return xr.load_dataset(path)
 
 
-def plot_resonator_spectroscopy_vs_flux_plotly(ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, folder_name: str):
+def plot_resonator_spectroscopy_vs_flux_plotly(
+    ds_raw: xr.Dataset, qubits, ds_fit: xr.Dataset, folder_name: str
+):
     """Plot 2D heatmap (frequency vs flux) with fit overlay using new Plotly interface."""
-    # Create QubitGrid from qubits
-    # Note: grid_location format is "col,row" but QubitGrid expects (row, col), so we swap
-    # Also, the old matplotlib code reverses rows and normalizes both rows and columns
-    coords = {}
-    max_row = max(int(q.grid_location.split(',')[1]) for q in qubits)
-    min_row = min(int(q.grid_location.split(',')[1]) for q in qubits)
-    min_col = min(int(q.grid_location.split(',')[0]) for q in qubits)
-    
-    for q in qubits:
-        col, row = map(int, q.grid_location.split(','))
-        # Reverse row order to match matplotlib layout (higher rows appear at top)
-        flipped_row = max_row - row
-        # Normalize column to start at 0
-        normalized_col = col - min_col
-        coords[q.name] = (flipped_row, normalized_col)
-    
-    # Let QubitGrid auto-detect the shape based on the coordinates
-    grid = QubitGrid(coords)
-    
-    # Sort qubit names by their grid position (row, col) to ensure correct plotting order
-    sorted_qubit_names = sorted(coords.keys(), key=lambda q: coords[q])
-    
+    grid = QubitGrid(ds_raw, [q.grid_location for q in qubits])
+    qubit_names = [q.name for q in qubits]
+    ds_raw = ds_raw.assign_coords(freq_GHz=ds_raw.full_freq / 1e9)
+    ds_raw.freq_GHz.attrs["long_name"] = "Frequency [GHz]"
+    ds_raw.attenuated_current.attrs["long_name"] = "Current [A]"
+
     # Create per-qubit overlays
     def create_overlays(qubit_name, qubit_data):
         """Create overlays for each qubit."""
         overlays = []
-        
+
         try:
             # Get fit data for this qubit
             fit_data = ds_fit.sel(qubit=qubit_name)
-            
-            # Check if fit was successful
-            if 'fit_results' not in fit_data:
-                return overlays
-            
-            fit_results = fit_data['fit_results']
-            if 'success' not in fit_results or not fit_results['success'].values:
-                return overlays
-            
+
             # Add vertical line for idle offset (red dashed)
-            if 'idle_offset' in fit_results:
-                idle_offset = float(fit_results['idle_offset'].values)
-                overlays.append(
-                    RefLine(
-                        x=idle_offset,
-                        name="Idle offset",
-                        dash="dash"
-                    )
-                )
-            
+            idle_offset = float(fit_data.fit_results.idle_offset.values)
+            overlays.append(RefLine(x=idle_offset, name="Idle offset", dash="dash"))
+
             # Add vertical line for flux minimum (orange dashed)
-            if 'flux_min' in fit_results:
-                flux_min = float(fit_results['flux_min'].values)
-                overlays.append(
-                    RefLine(
-                        x=flux_min,
-                        name="Min offset",
-                        dash="dash"
-                    )
+            flux_min = float(fit_data.fit_results.flux_min.values)
+            overlays.append(RefLine(x=flux_min, name="Min offset", dash="dash"))
+
+            sweet_spot_freq = fit_data.fit_results.sweet_spot_frequency.values * 1e-9
+
+            overlays.append(
+                ScatterOverlay(
+                    x=np.array([idle_offset]),
+                    y=np.array([sweet_spot_freq]),
+                    name="Sweet spot",
+                    marker_size=15,
                 )
-            
-            # Add scatter point for sweet spot frequency (red star)
-            if 'idle_offset' in fit_results and 'sweet_spot_frequency' in fit_results:
-                idle_offset = float(fit_results['idle_offset'].values)
-                sweet_spot_freq = float(fit_results['sweet_spot_frequency'].values) * 1e-9  # Convert to GHz
-                
-                overlays.append(
-                    ScatterOverlay(
-                        x=np.array([idle_offset]),
-                        y=np.array([sweet_spot_freq]),
-                        name="Sweet spot",
-                        marker_size=15
-                    )
-                )
-                
+            )
+
         except Exception as e:
             print(f"Warning: Could not create overlays for {qubit_name}: {e}")
-        
+
         return overlays
-    
+
     # Plot 2D heatmap with overlays
-    # Use individual colormaps to avoid overlapping colorbars
     fig = qplot.QualibrationFigure.plot(
         ds_raw,
-        x='flux_bias',
-        y='full_freq',
-        data_var='IQ_abs',
+        x="flux_bias",
+        x2="attenuated_current",
+        y="freq_GHz",
+        data_var="IQ_abs",
         grid=grid,
-        qubit_dim='qubit',
-        qubit_names=sorted_qubit_names,
+        qubit_dim="qubit",
+        qubit_names=qubit_names,
         overlays=create_overlays,
+        showscale=False,
+        robust=True,
         title=f"Resonator spectroscopy vs flux - {folder_name}",
-        colorbar={'title': 'IQ Amplitude (mV)'},  # Smart colorbar logic
-        colorbar_tolerance=100.0,  # 10000% tolerance for testing - always show colorbars
-        palette='set2'  # Green-based palette
     )
-    
+
     return fig
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot 02c resonator spectroscopy vs flux results using Plotly.")
-    parser.add_argument("--date-dir", default=DEFAULT_DATE_DIR, help="Path to the date directory to scan.")
-    parser.add_argument("--save", action="store_true", help="Save figures to PNG files instead of showing.")
+    parser = argparse.ArgumentParser(
+        description="Plot 02c resonator spectroscopy vs flux results using Plotly."
+    )
+    parser.add_argument(
+        "--date-dir",
+        default=DEFAULT_DATE_DIR,
+        help="Path to the date directory to scan.",
+    )
+    parser.add_argument(
+        "--save",
+        action="store_true",
+        help="Save figures to PNG files instead of showing.",
+    )
     args = parser.parse_args()
 
     date_path = Path(args.date_dir)
@@ -222,14 +180,16 @@ def main():
                 "Ensure the folder name encodes the node id (e.g., #123_...) and data is complete."
             )
 
-        fig = plot_resonator_spectroscopy_vs_flux_plotly(ds_raw, qubits, ds_fit, folder.name)
+        fig = plot_resonator_spectroscopy_vs_flux_plotly(
+            ds_raw, qubits, ds_fit, folder.name
+        )
 
         if args.save:
             out_dir = plots_root / folder.name
             out_dir.mkdir(parents=True, exist_ok=True)
-            out_path = out_dir / "res_spectroscopy_vs_flux_plotly.png"
-            
-            fig.figure.write_image(str(out_path), width=1500, height=900)
+            out_path = out_dir / "res_spectroscopy_vs_flux_plotly.html"
+
+            fig.figure.write_html(str(out_path))
             print(f"Saved: {out_path}")
         else:
             fig.figure.show()
@@ -237,4 +197,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
