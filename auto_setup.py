@@ -263,9 +263,9 @@ def setup_preliminary_data():
         
         # Find and copy quam_state files
         quam_state_files = []
-        for root, dirs, files in extract_dir.rglob("*"):
-            if root.name == "quam_state" and root.is_dir():
-                quam_state_files.append(root)
+        for item in extract_dir.rglob("*"):
+            if item.name == "quam_state" and item.is_dir():
+                quam_state_files.append(item)
         
         if quam_state_files:
             superconducting_dir = Path("/app/qualibration_graphs/superconducting")
