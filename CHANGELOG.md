@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 ### Fixed
 - analysis/fitting - allows the fit to converge even if the exponential is inverted.
+- analysis/fitting - fit oscillations in a more robust manner.  
 
 ## [0.2.1] - 2025-11-14
 ### Added
