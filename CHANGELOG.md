@@ -5,8 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
-- Add TwoQubitExperimentNodeParameters class
+## [0.2.1] - 2025-11-14
 ### Added
+- Add TwoQubitExperimentNodeParameters class
 - New dependencies: lmfit, matplotlib, numpy, qm, quam-builder, qualibrate, scipy, xarray
 - Test suite (using pytest) with 39 tests covering exception handling and core functionality
 - Github action that runs the test suite during pull request workflows
@@ -27,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 - First release for the Superconducting QUAlibration graph.
 
-[Unreleased]: https://github.com/qua-platform/qualibration-libs/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/qua-platform/qualibration-libs/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.2.1
 [0.2.0]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.2.0
 [0.1.0]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.1.0
