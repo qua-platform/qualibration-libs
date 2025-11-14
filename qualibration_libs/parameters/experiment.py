@@ -3,6 +3,7 @@ from typing import List, Literal, Optional
 from qualibrate import QualibrationNode
 from qualibrate.parameters import RunnableParameters
 from qualibration_libs.core import BatchableList
+from qualibration_libs.core.exceptions import format_available_items
 from quam_builder.architecture.superconducting.qpu import AnyQuam
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 from quam_builder.architecture.superconducting.qubit_pair import AnyTransmonPair
@@ -47,7 +48,12 @@ def _get_qubits(machine: AnyQuam, node_parameters: QubitsExperimentNodeParameter
     if node_parameters.qubits is None or node_parameters.qubits == "":
         qubits = machine.active_qubits
     else:
-        qubits = [machine.qubits[q] for q in node_parameters.qubits]
+        try:
+            qubits = [machine.qubits[q] for q in node_parameters.qubits]
+        except KeyError as e:
+            qubits_list = format_available_items(machine.qubits, item_type="qubits")
+            not_found_qubit = next((q for q in node_parameters.qubits if q not in machine.qubits), None)
+            raise KeyError(f"Qubit '{not_found_qubit}' not found in machine. {qubits_list}") from e
 
     return qubits
 
@@ -69,7 +75,12 @@ def _get_qubit_pairs(machine: AnyQuam, node_parameters: QubitPairExperimentNodeP
     if node_parameters.qubit_pairs is None or node_parameters.qubit_pairs == "":
         qubit_pairs = machine.active_qubit_pairs
     else:
-        qubit_pairs = [machine.qubit_pairs[q] for q in node_parameters.qubit_pairs]
+        try:
+            qubit_pairs = [machine.qubit_pairs[q] for q in node_parameters.qubit_pairs]
+        except KeyError as e:
+            pairs_list = format_available_items(machine.qubit_pairs, item_type="qubit pairs")
+            not_found_pair = next((q for q in node_parameters.qubit_pairs if q not in machine.qubit_pairs), None)
+            raise KeyError(f"Qubit pair '{not_found_pair}' not found in machine. {pairs_list}") from e
 
     return qubit_pairs
 

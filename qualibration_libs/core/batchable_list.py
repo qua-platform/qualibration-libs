@@ -1,6 +1,8 @@
 from typing import List, Dict, TypeVar
 from collections.abc import MutableSequence
 
+from qualibration_libs.core.exceptions import format_available_items
+
 T = TypeVar("T")
 
 __all__ = ["BatchableList"]
@@ -46,7 +48,10 @@ class BatchableList(MutableSequence[T]):
 
     # Required methods to implement for MutableSequence
     def __getitem__(self, index: int) -> T:
-        return self._items[index]
+        try:
+            return self._items[index]
+        except IndexError as e:
+            raise IndexError(f"Index {index} out of range for BatchableList with {len(self._items)} items.") from e
 
     def __setitem__(self, index: int, value: T):
         self._items[index] = value
@@ -73,7 +78,10 @@ class BatchableList(MutableSequence[T]):
         """
         batched_items = []
         for group in self._batch_groups:
-            batch = {idx: self._items[idx] for idx in group}
+            try:
+                batch = {idx: self._items[idx] for idx in group}
+            except IndexError as e:
+                raise IndexError(f"Internal error: batch group contains invalid index. Group indices: {group}, List length: {len(self._items)}.") from e
             batched_items.append(batch)
         return batched_items
 

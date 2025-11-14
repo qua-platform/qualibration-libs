@@ -56,6 +56,33 @@ This package is typically installed as a dependency when setting up the `qua-lib
 pip install git+https://github.com/qua-platform/qualibration-libs.git
 ```
 
+## Development
+
+### Running Tests
+
+This project uses pytest for testing. To run the test suite:
+
+```bash
+# Install test dependencies (if not already installed)
+pip install pytest
+
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest qualibration_libs/tests/test_exceptions.py
+
+# Run tests from a specific directory
+pytest qualibration_libs/tests/
+```
+
+### Code Quality
+
+The library uses enhanced exception handling to provide helpful error messages. When exceptions occur, error messages will list available options (up to 10 items) to help diagnose issues quickly. All exceptions preserve the original exception chain using `raise ... from e` to maintain full stack traces for debugging.
+
 ## Related Packages
 
 - **QUAlibrate:** The main quantum calibration platform. [Link: [https://github.com/qua-platform/qualibrate](https://github.com/qua-platform/qualibrate)]

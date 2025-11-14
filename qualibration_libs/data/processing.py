@@ -4,6 +4,8 @@ import xarray as xr
 from quam_builder.architecture.superconducting.qubit import AnyTransmon
 from quam_builder.architecture.superconducting.qubit_pair import AnyTransmonPair
 
+from qualibration_libs.core.exceptions import format_available_items
+
 
 __all__ = ["convert_IQ_to_V", "add_amplitude_and_phase", "subtract_slope"]
 
@@ -34,33 +36,50 @@ def convert_IQ_to_V(
     """
     # Create a xarray with a coordinate 'qubit' and the value is q.resonator.operations["readout"].length
     if qubits is not None:
-        readout_lengths = xr.DataArray(
-            [q.resonator.operations["readout"].length for q in qubits],
-            coords=[("qubit", [q.name for q in qubits])],
-        )
+        try:
+            readout_lengths = xr.DataArray(
+                [q.resonator.operations["readout"].length for q in qubits],
+                coords=[("qubit", [q.name for q in qubits])],
+            )
+        except KeyError as e:
+            for q in qubits:
+                if "readout" not in q.resonator.operations:
+                    ops_list = format_available_items(q.resonator.operations, item_type="operations")
+                    raise KeyError(f"Operation 'readout' not found in resonator operations for qubit '{q.name}'. {ops_list}") from e
+            raise e
     elif qubit_pairs is not None:
         control_target = ["c", "t"]
-        readout_lengths = xr.DataArray(
-            data=[
-                [
-                    qp.qubit_control.resonator.operations["readout"].length,
-                    qp.qubit_target.resonator.operations["readout"].length,
-                ]
-                for qp in qubit_pairs
-            ],
-            dims=["qubit_pair", "control_target"],
-            coords={
-                "qubit_pair": [qp.name for qp in qubit_pairs],
-                "control_target": control_target,
-            },
-        )
+        try:
+            readout_lengths = xr.DataArray(
+                data=[
+                    [
+                        qp.qubit_control.resonator.operations["readout"].length,
+                        qp.qubit_target.resonator.operations["readout"].length,
+                    ]
+                    for qp in qubit_pairs
+                ],
+                dims=["qubit_pair", "control_target"],
+                coords={
+                    "qubit_pair": [qp.name for qp in qubit_pairs],
+                    "control_target": control_target,
+                },
+            )
+        except KeyError as e:
+            for qp in qubit_pairs:
+                if "readout" not in qp.qubit_control.resonator.operations or "readout" not in qp.qubit_target.resonator.operations:
+                    raise KeyError(
+                        f"Operation 'readout' not found in resonator operations in pair '{qp.name}'.") from e
+            raise e
     else:
         raise ValueError("Either qubits or qubit_pairs must be provided!")
 
     demod_factor = 2 if single_demod else 1
-    return da.assign(
-        {key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list}
-    )
+    try:
+        return da.assign({key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list})
+    except KeyError as e:
+        available_keys = list(da.keys()) if hasattr(da, 'keys') else list(da.data_vars.keys())
+        keys_list = format_available_items(available_keys, item_type="keys")
+        raise KeyError(f"Key from IQ_list not found in dataset. Requested IQ_list: {IQ_list}. {keys_list}") from e
 
 
 def add_amplitude_and_phase(
@@ -94,7 +113,11 @@ def add_amplitude_and_phase(
     - The phase 'phase' is calculated as the unwrapped angle of the complex signal formed by 'I' and 'Q'.
     - If `subtract_slope_flag` is True, the slope is subtracted from the 'detuning' coordinate using the `subtract_slope` function.
     """
-    s = ds["I"] + 1j * ds["Q"]
+    try:
+        s = ds["I"] + 1j * ds["Q"]
+    except KeyError as e:
+        vars_list = format_available_items(ds.data_vars, item_type="variables")
+        raise KeyError(f"Required variables 'I' and/or 'Q' not found in dataset. {vars_list}") from e
     ds["IQ_abs"] = _apply_modulus(s)
     ds["phase"] = _apply_angle(s, dim, unwrap_flag)
     if subtract_slope_flag:
@@ -186,7 +209,11 @@ def subtract_slope(da: xr.DataArray, dim: str) -> xr.DataArray:
     -----
     - The function is useful for phase data to remove background phase shifts caused by electrical delays.
     """
-    x = da[dim]
+    try:
+        x = da[dim]
+    except KeyError as e:
+        dims_list = format_available_items(da.dims, item_type="dimensions")
+        raise KeyError(f"Dimension '{dim}' not found in DataArray. {dims_list}") from e
 
     def sub_slope(arr):
         def fit_func(a):

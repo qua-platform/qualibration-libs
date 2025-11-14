@@ -192,7 +192,10 @@ def exp_decay(x: np.ndarray, y: np.ndarray) -> float:
     if np.count_nonzero(inds) < 2:
         return 0
 
-    coeffs = np.polyfit(x[inds], np.log(y[inds]), deg=1)
+    try:
+        coeffs = np.polyfit(x[inds], np.log(y[inds]), deg=1)
+    except (ValueError, np.linalg.LinAlgError) as e:
+        raise ValueError(f"Failed to fit exponential decay. This may occur if the data has too few valid points (count: {np.count_nonzero(inds)}) or if the data doesn't follow an exponential pattern.") from e
 
     return float(coeffs[0])
 

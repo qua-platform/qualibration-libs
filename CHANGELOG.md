@@ -8,8 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Add TwoQubitExperimentNodeParameters class
 ### Added
 - New dependencies: lmfit, matplotlib, numpy, qm, quam-builder, qualibrate, scipy, xarray
+- Test suite (using pytest) with 39 tests covering exception handling and core functionality
+- Github action that runs the test suite during pull request workflows
 
 ### Changed
+- Enhanced exception messages throughout the library to provide more helpful context
 - Updated BatchableList.repr method to show batch configuration
 - Updated analysis modules : extracted qiskit-experiment guess.py into package.
 
