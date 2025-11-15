@@ -581,6 +581,7 @@ class QualibrationFigure:
                 y_h = np.asarray(sel[var].sel({hue: hv}).values)
                 label = map_hue_value(hue, hv)
                 color = self._next_color()
+                # Show each hue label only once across all subplots
                 show_lgd = label not in self._legend_shown
                 self._legend_shown.add(label)
                 scatter_kwargs = {
@@ -591,7 +592,7 @@ class QualibrationFigure:
                     "marker": dict(size=_config.CURRENT_THEME.marker_size, color=color),
                     "line": dict(width=_config.CURRENT_THEME.line_width, color=color),
                     "legendgroup": label,
-                    "showlegend": False,  # Hide data traces from legend - only show overlays
+                    "showlegend": show_lgd,
                 }
                 scatter_kwargs = self._apply_style_overrides(
                     scatter_kwargs, style_overrides, "scatter"
@@ -822,19 +823,24 @@ class QualibrationFigure:
             show_lgd = group_label not in self._legend_shown
             self._legend_shown.add(group_label)
 
-            # Assign a color if not overridden by style
+            # Assign a color if not overridden by style or overlay-specific color
             ov_style = dict(style_overrides)
+            # If overlay defines its own color attribute, use it by default
+            if "color" not in ov_style and hasattr(ov, "color") and getattr(ov, "color") is not None:
+                ov_style["color"] = ov.color
+
             if "color" not in ov_style:
                 # Use a distinct color for overlays by using a different color scheme
                 # For small palettes, use darker/lighter variants or different colors
                 palette = _config.CURRENT_PALETTE or _config.CURRENT_THEME.colorway
-                
+
                 if len(palette) >= 4:
-                    # Large palette: skip data colors and use subsequent colors
-                    self.reset_color_index()
-                    for _ in range(2):  # Skip first 2 colors (data traces)
-                        self._next_color()
-                    ov_style["color"] = self._next_color()  # Use 3rd color
+                    # Large palette: skip first 2 entries (reserved for data traces)
+                    # and use subsequent colors per overlay within this subplot.
+                    base_index = 2
+                    ov_style["color"] = palette[
+                        (base_index + overlay_index) % len(palette)
+                    ]
                 else:
                     # Small palette: use distinct colors that won't conflict with data
                     # Use colors from a different part of the palette or fallback colors
