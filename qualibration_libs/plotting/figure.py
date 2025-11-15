@@ -846,8 +846,21 @@ class QualibrationFigure:
         for ov in panel_overlays:
             # Deduplicate legend entries across subplots by legendgroup
             group_label = getattr(ov, "name", None) or "overlay"
-            show_lgd = group_label not in self._legend_shown
-            self._legend_shown.add(group_label)
+            # Base legend preference from the overlay itself
+            overlay_pref = getattr(ov, "show_legend", True)
+            # Optional explicit style override (e.g. passed via QualibrationFigure.plot)
+            style_pref = style_overrides.get("showlegend", None)
+
+            if overlay_pref is False:
+                # Explicit per-overlay opt-out: never show in legend,
+                # regardless of any style override.
+                show_lgd = False
+            else:
+                # Default is to show, but allow style to override when overlay_pref is True
+                base_show = bool(style_pref) if style_pref is not None else True
+                show_lgd = base_show and (group_label not in self._legend_shown)
+                if show_lgd:
+                    self._legend_shown.add(group_label)
 
             # Assign a color if not overridden by style or overlay-specific color
             ov_style = dict(style_overrides)

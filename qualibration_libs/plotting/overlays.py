@@ -228,11 +228,12 @@ class RefLine(Overlay):
     Attributes:
     - x (float | None): X-coordinate for a vertical line. If None, no vertical line.
     - y (float | None): Y-coordinate for a horizontal line. If None, no horizontal line.
-    - name (str | None): Optional name (currently unused in legend).
+    - name (str | None): Optional name used for the legend label.
     - dash (str): Line dash style (e.g., "solid", "dot", "dash", "longdash"). Default "dot".
     - width (float | None): Line width in px. If None, uses `theme.line_width`.
     - color (str | None): Line color string. Accepts any Plotly-compatible color
       (e.g., "#FF0000", "red", "rgb(255,0,0)"). If None, theme/default color is used.
+    - show_legend (bool): Whether to create a legend entry for this reference line.
 
     Styling and precedence:
     - Base style: `{dash, width or theme.line_width}`.
@@ -263,6 +264,7 @@ class RefLine(Overlay):
     dash: str = "dot"
     width: float | None = None
     color: str | None = None
+    show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
         """Add reference lines to the specified subplot.
@@ -306,7 +308,7 @@ class RefLine(Overlay):
         # name is provided we add a zero-length Scatter trace that only serves
         # to populate the legend. The actual reference line is still drawn via
         # add_vline/add_hline above.
-        show_in_legend = style.get("showlegend", True)
+        show_in_legend = style.get("showlegend", self.show_legend)
         if self.name is not None and show_in_legend:
             fig.add_trace(
                 go.Scatter(
@@ -347,6 +349,7 @@ class ScatterOverlay(Overlay):
             "circle", "square", "diamond", "cross", "x", "triangle-up", "triangle-down",
             "star", "hexagon", etc. If None, uses Plotly's default (circle). Can be
             overridden by passing {"marker": {"symbol": "..."}} in style overrides.
+        show_legend (bool): Whether this scatter overlay should appear in the legend.
 
     Examples:
         Basic scatter overlay:
@@ -411,6 +414,7 @@ class ScatterOverlay(Overlay):
     name: str | None = None
     marker_size: float | None = None
     marker_symbol: str | None = None
+    show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
         marker_config = {
@@ -434,7 +438,7 @@ class ScatterOverlay(Overlay):
                 mode="markers",
                 marker=marker_config,
                 legendgroup=style.get("legendgroup"),
-                showlegend=style.get("showlegend", True),
+                showlegend=style.get("showlegend", self.show_legend),
             ),
             row=row,
             col=col,
@@ -495,6 +499,7 @@ class FitOverlay(Overlay):
             color is used by default for the overlay and takes precedence over the
             automatically assigned palette color, but can still be overridden via
             plot-level style overrides (e.g. ``color=...`` in `QualibrationFigure.plot`).
+        show_legend (bool): Whether this fit overlay should appear in the legend.
 
     Examples:
         Basic fit overlay without parameters:
@@ -568,6 +573,7 @@ class FitOverlay(Overlay):
     dash: str = "dash"
     width: float | None = None
     color: str | None = None
+    show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, x=None, **style):
         if self.y_fit is not None and x is not None:
@@ -591,7 +597,7 @@ class FitOverlay(Overlay):
                     mode="lines",
                     line=line_cfg,
                     legendgroup=style.get("legendgroup"),
-                    showlegend=style.get("showlegend", True),
+                    showlegend=style.get("showlegend", self.show_legend),
                 ),
                 row=row,
                 col=col,
