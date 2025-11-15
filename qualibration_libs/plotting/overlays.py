@@ -535,6 +535,7 @@ class FitOverlay(Overlay):
     name: str = "fit"
     dash: str = "dash"
     width: float | None = None
+    color: str | None = None
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, x=None, **style):
         if self.y_fit is not None and x is not None:
@@ -543,7 +544,10 @@ class FitOverlay(Overlay):
                 "width": self.width or theme.line_width,
                 **style.get("line", {}),
             }
-            # Allow a direct color override via style
+            # Determine color: overlay-specific color, then style override, then theme default
+            if self.color is not None and "color" not in style:
+                line_cfg["color"] = self.color
+            # Allow a direct color override via style (takes precedence)
             if "color" in style:
                 line_cfg["color"] = style["color"]
             
