@@ -78,6 +78,8 @@ class PlotParams:
         residuals: Whether to include residual subplots
         title: Optional plot title
         colorbar_tolerance: Tolerance for heatmap colorbar optimization
+        vertical_spacing: Optional vertical spacing between subplot rows
+        horizontal_spacing: Optional horizontal spacing between subplot columns
         style_overrides: Dictionary of style overrides
     """
 
@@ -97,6 +99,8 @@ class PlotParams:
     residuals: bool
     title: str | None
     colorbar_tolerance: float
+    vertical_spacing: float | None
+    horizontal_spacing: float | None
     style_overrides: dict[str, Any]
 
 
@@ -218,6 +222,8 @@ class QualibrationFigure:
         residuals: bool = False,
         title: str | None = None,
         colorbar_tolerance: float = 0.05,
+        vertical_spacing: float | None = None,
+        horizontal_spacing: float | None = None,
         **style_overrides: Any,
     ) -> QualibrationFigure:
         """Create an interactive calibration data plot with automatic layout.
@@ -284,6 +290,12 @@ class QualibrationFigure:
             optimization. Heatmaps with min/max values differing by less than this fraction of
             the data range are considered to have "same scaling" and will share a single colorbar.
             The tolerance is calculated as max(colorbar_tolerance * range_size, 1e-6).
+        vertical_spacing : float, optional
+            Vertical spacing between subplot rows, passed through to ``plotly.subplots.make_subplots``.
+            If None, a default value is chosen automatically (larger when a secondary x-axis is present).
+        horizontal_spacing : float, optional
+            Horizontal spacing between subplot columns, passed through to ``plotly.subplots.make_subplots``.
+            If None, a default value is used.
         palette : str, list, tuple, optional
             Color palette to use for the plot. Can be:
             - A predefined palette name (e.g., 'viridis', 'plasma', 'tab10', 'set1', 'set2', 'set3')
@@ -327,6 +339,8 @@ class QualibrationFigure:
                 residuals=residuals,
                 title=title,
                 colorbar_tolerance=colorbar_tolerance,
+                vertical_spacing=vertical_spacing,
+                horizontal_spacing=horizontal_spacing,
                 **style_overrides,
             )
             return obj
@@ -358,6 +372,8 @@ class QualibrationFigure:
         residuals: bool = False,
         title: str | None = None,
         colorbar_tolerance: float = 0.05,
+        vertical_spacing: float | None = None,
+        horizontal_spacing: float | None = None,
         **style_overrides: Any,
     ) -> PlotParams:
         """Extract and validate plotting parameters into a structured container.
@@ -385,6 +401,8 @@ class QualibrationFigure:
             residuals=bool(residuals),
             title=title,
             colorbar_tolerance=colorbar_tolerance,
+            vertical_spacing=vertical_spacing,
+            horizontal_spacing=horizontal_spacing,
             style_overrides=style,
         )
 
@@ -435,6 +453,8 @@ class QualibrationFigure:
         grid: QubitGrid | None,
         residuals: bool,
         x2: str | None,
+        vertical_spacing: float | None,
+        horizontal_spacing: float | None,
     ) -> tuple[Sequence[str], int, int, dict[str, tuple[int, int]]]:
         # Determine qubit names
         if qubit_names is None:
@@ -460,14 +480,20 @@ class QualibrationFigure:
                 subplot_titles[row - 1][col - 1] = qubit_name
         flat_titles = [title for row in subplot_titles for title in row]
 
-        # Adjust vertical spacing if secondary x-axis is present
-        vspace = 0.2 if (x2 and n_rows > 1) else 0.1
+        # Determine spacing values, allowing explicit overrides from PlotParams
+        if vertical_spacing is not None:
+            vspace = vertical_spacing
+        else:
+            # Default: increase spacing when secondary x-axis is present and multiple rows
+            vspace = 0.2 if (x2 and n_rows > 1) else 0.1
+
+        hspace = horizontal_spacing if horizontal_spacing is not None else 0.05
         self._fig = make_subplots(
             rows=n_rows * (2 if residuals else 1),
             cols=n_cols,
             subplot_titles=flat_titles,
             vertical_spacing=vspace,
-            horizontal_spacing=0.05,
+            horizontal_spacing=hspace,
         )
         return qubit_names, n_rows, n_cols, positions
 
@@ -1002,6 +1028,8 @@ class QualibrationFigure:
             params.grid,
             params.residuals,
             params.x2,
+            params.vertical_spacing,
+            params.horizontal_spacing,
         )
 
         # Main plotting loop
