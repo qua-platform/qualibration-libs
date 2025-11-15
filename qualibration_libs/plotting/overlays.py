@@ -463,6 +463,10 @@ class FitOverlay(Overlay):
         dash (str): Line dash style. Options include "solid", "dot", "dash", "longdash",
             "dashdot", "longdashdot". Default is "dash".
         width (float | None): Line width in pixels. If None, uses theme.line_width.
+        color (str | None): Explicit line color for the fit curve. If provided, this
+            color is used by default for the overlay and takes precedence over the
+            automatically assigned palette color, but can still be overridden via
+            plot-level style overrides (e.g. ``color=...`` in `QualibrationFigure.plot`).
 
     Examples:
         Basic fit overlay without parameters:
