@@ -288,12 +288,40 @@ class RefLine(Overlay):
             "dash": self.dash,
             **style.get("line", {}),
         }
+        # Resolve color with clear precedence:
+        # 1) Overlay's own color attribute (self.color)
+        # 2) Explicit color passed via style["color"]
+        # 3) Any color already present in style["line"] or theme defaults
         if self.color is not None:
             line_config["color"] = self.color
+        elif "color" in style:
+            line_config["color"] = style["color"]
         if self.x is not None:
             fig.add_vline(x=self.x, row=row, col=col, line=line_config)
         if self.y is not None:
             fig.add_hline(y=self.y, row=row, col=col, line=line_config)
+
+        # Optional dummy trace for legend:
+        # Plotly's add_vline/add_hline do not create legend entries, so when a
+        # name is provided we add a zero-length Scatter trace that only serves
+        # to populate the legend. The actual reference line is still drawn via
+        # add_vline/add_hline above.
+        show_in_legend = style.get("showlegend", True)
+        if self.name is not None and show_in_legend:
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode="lines",
+                    name=self.name,
+                    line=line_config,
+                    legendgroup=style.get("legendgroup"),
+                    showlegend=True,
+                    hoverinfo="skip",
+                ),
+                row=row,
+                col=col,
+            )
 
 
 @dataclass
