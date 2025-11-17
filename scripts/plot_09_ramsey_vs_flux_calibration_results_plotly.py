@@ -191,7 +191,6 @@ def plot_ramsey_vs_flux_parabola_plotly(
         overlays=create_overlays,
         horizontal_spacing=0.08,
         vertical_spacing=0.21,
-        colorbar_tolerance=0.40,
         title=f"Ramsey vs flux (parabola) - {folder_name}",
     )
 
