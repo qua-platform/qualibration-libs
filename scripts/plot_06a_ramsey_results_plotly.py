@@ -128,9 +128,9 @@ def plot_ramsey_plotly(
                 # - detuning_signs = +1 -> second hue level -> palette[1]
                 if len(palette) >= 2:
                     if int(detuning_sign) < 0:
-                        fit_color = palette[0]
+                        fit_color = "yellow"
                     else:
-                        fit_color = palette[1]
+                        fit_color = "red"
                 else:
                     fit_color = None
 
@@ -139,7 +139,7 @@ def plot_ramsey_plotly(
                         y_fit=y_fit,
                         name=f"Fit Δ={int(detuning_sign):+d}",
                         dash="dash",
-                        color=fit_color,
+                        color=fit_color, # Comment this out to use the default color palette
                     )
                 )
         except Exception as e:
