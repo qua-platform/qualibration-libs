@@ -228,11 +228,12 @@ class RefLine(Overlay):
     Attributes:
     - x (float | None): X-coordinate for a vertical line. If None, no vertical line.
     - y (float | None): Y-coordinate for a horizontal line. If None, no horizontal line.
-    - name (str | None): Optional name (currently unused in legend).
+    - name (str | None): Optional name used for the legend label.
     - dash (str): Line dash style (e.g., "solid", "dot", "dash", "longdash"). Default "dot".
     - width (float | None): Line width in px. If None, uses `theme.line_width`.
     - color (str | None): Line color string. Accepts any Plotly-compatible color
       (e.g., "#FF0000", "red", "rgb(255,0,0)"). If None, theme/default color is used.
+    - show_legend (bool): Whether to create a legend entry for this reference line.
 
     Styling and precedence:
     - Base style: `{dash, width or theme.line_width}`.
@@ -263,6 +264,7 @@ class RefLine(Overlay):
     dash: str = "dot"
     width: float | None = None
     color: str | None = None
+    show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
         """Add reference lines to the specified subplot.
@@ -288,12 +290,40 @@ class RefLine(Overlay):
             "dash": self.dash,
             **style.get("line", {}),
         }
+        # Resolve color with clear precedence:
+        # 1) Overlay's own color attribute (self.color)
+        # 2) Explicit color passed via style["color"]
+        # 3) Any color already present in style["line"] or theme defaults
         if self.color is not None:
             line_config["color"] = self.color
+        elif "color" in style:
+            line_config["color"] = style["color"]
         if self.x is not None:
             fig.add_vline(x=self.x, row=row, col=col, line=line_config)
         if self.y is not None:
             fig.add_hline(y=self.y, row=row, col=col, line=line_config)
+
+        # Optional dummy trace for legend:
+        # Plotly's add_vline/add_hline do not create legend entries, so when a
+        # name is provided we add a zero-length Scatter trace that only serves
+        # to populate the legend. The actual reference line is still drawn via
+        # add_vline/add_hline above.
+        show_in_legend = style.get("showlegend", self.show_legend)
+        if self.name is not None and show_in_legend:
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode="lines",
+                    name=self.name,
+                    line=line_config,
+                    legendgroup=style.get("legendgroup"),
+                    showlegend=True,
+                    hoverinfo="skip",
+                ),
+                row=row,
+                col=col,
+            )
 
 
 @dataclass
@@ -319,6 +349,7 @@ class ScatterOverlay(Overlay):
             "circle", "square", "diamond", "cross", "x", "triangle-up", "triangle-down",
             "star", "hexagon", etc. If None, uses Plotly's default (circle). Can be
             overridden by passing {"marker": {"symbol": "..."}} in style overrides.
+        show_legend (bool): Whether this scatter overlay should appear in the legend.
 
     Examples:
         Basic scatter overlay:
@@ -383,6 +414,7 @@ class ScatterOverlay(Overlay):
     name: str | None = None
     marker_size: float | None = None
     marker_symbol: str | None = None
+    show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
         marker_config = {
@@ -406,7 +438,7 @@ class ScatterOverlay(Overlay):
                 mode="markers",
                 marker=marker_config,
                 legendgroup=style.get("legendgroup"),
-                showlegend=style.get("showlegend", True),
+                showlegend=style.get("showlegend", self.show_legend),
             ),
             row=row,
             col=col,
@@ -463,6 +495,11 @@ class FitOverlay(Overlay):
         dash (str): Line dash style. Options include "solid", "dot", "dash", "longdash",
             "dashdot", "longdashdot". Default is "dash".
         width (float | None): Line width in pixels. If None, uses theme.line_width.
+        color (str | None): Explicit line color for the fit curve. If provided, this
+            color is used by default for the overlay and takes precedence over the
+            automatically assigned palette color, but can still be overridden via
+            plot-level style overrides (e.g. ``color=...`` in `QualibrationFigure.plot`).
+        show_legend (bool): Whether this fit overlay should appear in the legend.
 
     Examples:
         Basic fit overlay without parameters:
@@ -535,6 +572,8 @@ class FitOverlay(Overlay):
     name: str = "fit"
     dash: str = "dash"
     width: float | None = None
+    color: str | None = None
+    show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, x=None, **style):
         if self.y_fit is not None and x is not None:
@@ -543,7 +582,10 @@ class FitOverlay(Overlay):
                 "width": self.width or theme.line_width,
                 **style.get("line", {}),
             }
-            # Allow a direct color override via style
+            # Determine color: overlay-specific color, then style override, then theme default
+            if self.color is not None and "color" not in style:
+                line_cfg["color"] = self.color
+            # Allow a direct color override via style (takes precedence)
             if "color" in style:
                 line_cfg["color"] = style["color"]
             
@@ -555,7 +597,7 @@ class FitOverlay(Overlay):
                     mode="lines",
                     line=line_cfg,
                     legendgroup=style.get("legendgroup"),
-                    showlegend=style.get("showlegend", True),
+                    showlegend=style.get("showlegend", self.show_legend),
                 ),
                 row=row,
                 col=col,
