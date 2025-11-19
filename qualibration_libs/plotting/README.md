@@ -571,6 +571,35 @@ fig = qplot.QualibrationFigure.plot(
 )
 ```
 
+Two useful keyword arguments for `RefLine` are color and `show_legend`, which control the line color and whether it appears in the legend:
+```python
+# With custom color and legend control
+ref_line = RefLine(
+    x=5.0, 
+    name="Target Frequency",
+    color="#FF5733",        # Custom color (hex, named, or RGB format)
+    show_legend=True        # Show in legend (default: True)
+)
+```
+
+**Color and Show Legend Parameters:**
+
+The `color` and `show_legend` keyword arguments are available in all overlay classes except `TextBoxOverlay`:
+- `RefLine`: Reference lines
+- `FitOverlay`: Fit curves
+- `LineOverlay`: Custom line overlays
+- `ScatterOverlay`: Scatter point overlays
+
+**Color behavior:**
+- Accepts any Plotly-compatible color format (hex: `"#FF5733"`, named: `"red"`, RGB: `"rgb(255,0,0)"`)
+- The `color` parameter has **highest precedence** - it overrides any style overrides passed at plot time
+- If `color` is `None` (default), the theme/default color is used
+
+**Show Legend behavior:**
+- Controls whether the overlay appears in the plot legend
+- Default is `True` - overlays appear in the legend by default
+- Set to `False` to hide specific overlays from the legend while keeping them visible on the plot
+
 ### Fit Overlays
 
 ```python
@@ -1089,19 +1118,50 @@ Create a new plot from data.
 
 ### Overlay Classes
 
-#### `RefLine(x=None, y=None, name=None, dash='dot', width=None)`
+#### `RefLine(x=None, y=None, name=None, dash='dot', width=None, color=None, show_legend=True)`
 Reference line overlay.
 
-#### `LineOverlay(x, y, name=None, dash='dash', width=None, show_legend=True)`
+**Parameters:**
+- `x` (float, optional): X-coordinate for a vertical line
+- `y` (float, optional): Y-coordinate for a horizontal line
+- `name` (str, optional): Name for the legend entry
+- `dash` (str): Line dash style (default: 'dot')
+- `width` (float, optional): Line width in pixels
+- `color` (str, optional): Line color. Accepts any Plotly-compatible color. If provided, takes highest precedence over style overrides. If None, uses theme/default color.
+- `show_legend` (bool): Whether to show this line in the legend (default: True)
+
+#### `LineOverlay(x, y, name=None, dash='dash', width=None, color=None, show_legend=True)`
 Custom line overlay.
 
-#### `ScatterOverlay(x, y, name=None, marker_size=None)`
+**Parameters:**
+- `x` (np.ndarray): Array of x-coordinates for the line points
+- `y` (np.ndarray): Array of y-coordinates for the line points
+- `name` (str, optional): Name for the line in the legend
+- `dash` (str, optional): Line dash style (default: 'dash')
+- `width` (float, optional): Line width in pixels
+- `color` (str, optional): Line color. Accepts any Plotly-compatible color. If provided, takes highest precedence over style overrides. If None, uses theme/default color.
+- `show_legend` (bool): Whether to show this line in the legend (default: True)
+
+#### `ScatterOverlay(x, y, name=None, marker_size=None, marker_symbol=None, color=None, show_legend=True)`
 Scatter points overlay.
 
-#### `TextBoxOverlay(text, anchor='top right')`
-Text annotation overlay.
+**Parameters:**
+- `x` (np.ndarray): Array of x-coordinates for the scatter points
+- `y` (np.ndarray): Array of y-coordinates for the scatter points
+- `name` (str, optional): Name for the scatter points in the legend
+- `marker_size` (float, optional): Size of the marker points in pixels
+- `marker_symbol` (str, optional): Symbol/shape for the markers (e.g., "circle", "square", "diamond", "star")
+- `color` (str, optional): Marker color. Accepts any Plotly-compatible color. If provided, takes highest precedence over style overrides. If None, uses theme/default color.
+- `show_legend` (bool): Whether this scatter overlay should appear in the legend (default: True)
 
-#### `FitOverlay(y_fit=None, params=None, formatter=None, name='fit', dash='dash', width=None)` {#fitoverlay}
+#### `TextBoxOverlay(text, anchor='top right')`
+Text annotation overlay. Note: This overlay does not support `color` or `show_legend` parameters.
+
+**Parameters:**
+- `text` (str): Text to display
+- `anchor` (str): Position anchor (default: 'top right')
+
+#### `FitOverlay(y_fit=None, params=None, formatter=None, name='fit', dash='dash', width=None, color=None, show_legend=True)` {#fitoverlay}
 Fit curve and parameter display overlay.
 
 **Parameters:**
@@ -1111,6 +1171,8 @@ Fit curve and parameter display overlay.
 - `name` (str): Name for the fit curve trace (default: 'fit')
 - `dash` (str): Line style for fit curve (default: 'dash')
 - `width` (float, optional): Line width for fit curve
+- `color` (str, optional): Line color. Accepts any Plotly-compatible color. If provided, takes highest precedence over style overrides. If None, uses theme/default color.
+- `show_legend` (bool): Whether this fit overlay should appear in the legend (default: True)
 
 **Features:**
 - Creates a dashed line overlay showing the fitted curve
