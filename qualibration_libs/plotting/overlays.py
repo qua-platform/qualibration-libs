@@ -122,6 +122,9 @@ class LineOverlay(Overlay):
             "longdash", "dashdot", "longdashdot". Default is "dash". If None, uses
             Plotly's default.
         width (float | None): Line width in pixels. If None, uses theme.line_width.
+        color (str | None): Line color string. Accepts any Plotly-compatible color
+            (e.g., "#FF0000", "red", "rgb(255,0,0)"). If provided, this color takes
+            highest precedence over style overrides. If None, theme/default color is used.
         show_legend (bool): Whether to show this line in the legend. Default is True.
             Set to False to hide from legend even if name is provided.
 
@@ -174,7 +177,8 @@ class LineOverlay(Overlay):
         - Lines are drawn with mode="lines" (no markers on points)
         - Additional line styling can be passed via the `**style` parameter in
           `add_to()` using a "line" dict (e.g., {"line": {"color": "red"}})
-        - Style overrides take precedence over class attributes
+        - The `color` attribute has highest precedence over style overrides
+        - Other style overrides take precedence over class attributes (except `color`)
         - For fitted curves that should contribute to residual calculations, use
           FitOverlay instead
         - For simple straight reference lines spanning the plot, use RefLine instead
@@ -190,6 +194,7 @@ class LineOverlay(Overlay):
     name: str | None = None
     dash: str | None = "dash"
     width: float | None = None
+    color: str | None = None
     show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
@@ -198,8 +203,13 @@ class LineOverlay(Overlay):
             "width": self.width or theme.line_width,
             **style.get("line", {}),
         }
-        # Allow a direct color override via style or class-level line dict
-        if "color" in style:
+        # Resolve color with clear precedence:
+        # 1) Overlay's own color attribute (self.color)
+        # 2) Explicit color passed via style["color"]
+        # 3) Any color already present in style["line"] or theme defaults
+        if self.color is not None:
+            line_cfg["color"] = self.color
+        elif "color" in style:
             line_cfg["color"] = style["color"]
         fig.add_trace(
             go.Scatter(
@@ -232,14 +242,16 @@ class RefLine(Overlay):
     - dash (str): Line dash style (e.g., "solid", "dot", "dash", "longdash"). Default "dot".
     - width (float | None): Line width in px. If None, uses `theme.line_width`.
     - color (str | None): Line color string. Accepts any Plotly-compatible color
-      (e.g., "#FF0000", "red", "rgb(255,0,0)"). If None, theme/default color is used.
+      (e.g., "#FF0000", "red", "rgb(255,0,0)"). If provided, this color takes
+      highest precedence over style overrides. If None, theme/default color is used.
     - show_legend (bool): Whether to create a legend entry for this reference line.
 
     Styling and precedence:
     - Base style: `{dash, width or theme.line_width}`.
-    - If `color` is provided on the overlay, it is included.
-    - Plot-level overrides passed via `style['line']` take precedence over all
-      overlay attributes (including `color`).
+    - Color precedence: 1) Overlay's `color` attribute (highest), 2) `style["color"]`,
+      3) `style["line"]["color"]` or theme defaults.
+    - Other plot-level overrides passed via `style['line']` take precedence over
+      overlay attributes (except `color`).
 
     Subplots:
     - `row` and `col` route the line to the correct subplot created with
@@ -349,6 +361,9 @@ class ScatterOverlay(Overlay):
             "circle", "square", "diamond", "cross", "x", "triangle-up", "triangle-down",
             "star", "hexagon", etc. If None, uses Plotly's default (circle). Can be
             overridden by passing {"marker": {"symbol": "..."}} in style overrides.
+        color (str | None): Marker color string. Accepts any Plotly-compatible color
+            (e.g., "#FF0000", "red", "rgb(255,0,0)"). If provided, this color takes
+            highest precedence over style overrides. If None, theme/default color is used.
         show_legend (bool): Whether this scatter overlay should appear in the legend.
 
     Examples:
@@ -399,7 +414,8 @@ class ScatterOverlay(Overlay):
         - Scatter points are drawn with mode="markers" (no connecting lines)
         - Additional marker styling can be passed via the `**style` parameter in
           `add_to()` using a "marker" dict (e.g., {"marker": {"color": "red", "symbol": "x"}})
-        - Style overrides take precedence over class attributes (including marker_symbol)
+        - The `color` attribute has highest precedence over style overrides
+        - Other style overrides take precedence over class attributes (except `color`)
         - If you need lines connecting points, use LineOverlay instead
         - For single reference points, consider using RefLine with both x and y set
 
@@ -414,6 +430,7 @@ class ScatterOverlay(Overlay):
     name: str | None = None
     marker_size: float | None = None
     marker_symbol: str | None = None
+    color: str | None = None
     show_legend: bool = True
 
     def add_to(self, fig: go.Figure, *, row: int, col: int, theme, **style):
@@ -426,8 +443,13 @@ class ScatterOverlay(Overlay):
         # Apply style overrides on top (allowing them to override marker_symbol)
         marker_config.update(style.get("marker", {}))
         
-        # Allow a direct color override via style
-        if "color" in style:
+        # Resolve color with clear precedence:
+        # 1) Overlay's own color attribute (self.color)
+        # 2) Explicit color passed via style["color"]
+        # 3) Any color already present in style["marker"] or theme defaults
+        if self.color is not None:
+            marker_config["color"] = self.color
+        elif "color" in style:
             marker_config["color"] = style["color"]
 
         fig.add_trace(
@@ -495,10 +517,9 @@ class FitOverlay(Overlay):
         dash (str): Line dash style. Options include "solid", "dot", "dash", "longdash",
             "dashdot", "longdashdot". Default is "dash".
         width (float | None): Line width in pixels. If None, uses theme.line_width.
-        color (str | None): Explicit line color for the fit curve. If provided, this
-            color is used by default for the overlay and takes precedence over the
-            automatically assigned palette color, but can still be overridden via
-            plot-level style overrides (e.g. ``color=...`` in `QualibrationFigure.plot`).
+        color (str | None): Line color string. Accepts any Plotly-compatible color
+            (e.g., "#FF0000", "red", "rgb(255,0,0)"). If provided, this color takes
+            highest precedence over style overrides. If None, theme/default color is used.
         show_legend (bool): Whether this fit overlay should appear in the legend.
 
     Examples:
@@ -582,11 +603,13 @@ class FitOverlay(Overlay):
                 "width": self.width or theme.line_width,
                 **style.get("line", {}),
             }
-            # Determine color: overlay-specific color, then style override, then theme default
-            if self.color is not None and "color" not in style:
+            # Resolve color with clear precedence:
+            # 1) Overlay's own color attribute (self.color)
+            # 2) Explicit color passed via style["color"]
+            # 3) Any color already present in style["line"] or theme defaults
+            if self.color is not None:
                 line_cfg["color"] = self.color
-            # Allow a direct color override via style (takes precedence)
-            if "color" in style:
+            elif "color" in style:
                 line_cfg["color"] = style["color"]
             
             fig.add_trace(
