@@ -128,21 +128,14 @@ class XarrayDataFetcher:
         Skips handles listed in ignore_handles.
         """
         logger.debug("Starting to retrieve latest data from job result handles.")
-        for data_label in self.job.result_handles.keys():
-            if data_label in self.ignore_handles:
-                logger.debug(f"Skipping ignored handle: {data_label}")
-                continue
-
-            logger.debug(f"Fetching data for handle: {data_label}")
-
+        data_list = [key for key in self.job.result_handles.keys() if key not in self.ignore_handles]
+        for data_label in data_list:
             data_handle = self.job.result_handles.get(data_label)
             if data_handle is None or data_handle.count_so_far() == 0:
-                self._raw_data[data_label] = None
-            else:
-                self._raw_data[data_label] = data_handle.fetch_all()
-            logger.debug(
-                f"Data fetched for {data_label}: shape {np.shape(self._raw_data[data_label])}"
-            )
+                logger.debug(f"Wait fetching data for handle: {data_label}")
+                data_handle.wait_for_values(1)
+        self._raw_data = self.job.result_handles.fetch_results(wait_until_done=False, stream_names=data_list)
+
 
     def initialize_dataset(self):
         """
