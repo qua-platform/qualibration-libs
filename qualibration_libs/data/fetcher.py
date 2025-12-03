@@ -7,6 +7,7 @@ import xarray as xr
 
 from typing import Any, Dict, List, Optional, Union
 from qm.jobs.qm_job import QmJob
+from qm.api.models.capabilities import QopCaps
 
 from qualibration_libs.core.exceptions import format_available_items
 
@@ -65,6 +66,8 @@ class XarrayDataFetcher:
         """
         logger.debug("Initializing XarrayDataFetcher.")
         self.job = job
+        self.multiple_streams_fetching_cap = job._caps.supports(QopCaps.multiple_streams_fetching)
+
         # Make a copy of the axes so that they aren’t modified elsewhere.
         self.axes = self.preprocess_axes(axes)
 
@@ -128,14 +131,26 @@ class XarrayDataFetcher:
         Skips handles listed in ignore_handles.
         """
         logger.debug("Starting to retrieve latest data from job result handles.")
-        data_list = [key for key in self.job.result_handles.keys() if key not in self.ignore_handles]
-        for data_label in data_list:
-            data_handle = self.job.result_handles.get(data_label)
-            if data_handle is None or data_handle.count_so_far() == 0:
-                logger.debug(f"Wait fetching data for handle: {data_label}")
-                data_handle.wait_for_values(1)
-        self._raw_data = self.job.result_handles.fetch_results(wait_until_done=False, stream_names=data_list)
-
+        # Use the new fetch method while preserving backward compatibility with older versions.
+        if self.multiple_streams_fetching_cap == True: 
+            data_list = [key for key in self.job.result_handles.keys() if key not in self.ignore_handles]
+            for data_label in data_list:
+                data_handle = self.job.result_handles.get(data_label)
+                if data_handle is None or data_handle.count_so_far() == 0:
+                    logger.debug(f"Wait fetching data for handle: {data_label}")
+                    data_handle.wait_for_values(1)
+            self._raw_data = self.job.result_handles.fetch_results(wait_until_done=False, stream_names=data_list)
+        else: 
+            for data_label in self.job.result_handles.keys():
+                if data_label in self.ignore_handles:
+                    logger.debug(f"Skipping ignored handle: {data_label}")
+                    continue
+                logger.debug(f"Fetching data for handle: {data_label}")
+                data_handle = self.job.result_handles.get(data_label)
+                if data_handle is None or data_handle.count_so_far() == 0:
+                    self._raw_data[data_label] = None
+                else:
+                    self._raw_data[data_label] = data_handle.fetch_all()
 
     def initialize_dataset(self):
         """
