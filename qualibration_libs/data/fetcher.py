@@ -64,9 +64,8 @@ class XarrayDataFetcher:
             axes (Optional[Dict[str, xr.DataArray]]): Dictionary of coordinate axes.
                 If None, no coordinates are used.
         """
-        logger.debug("Initializing XarrayDataFetcher.")
         self.job = job
-        self.multiple_streams_fetching_cap = job._caps.supports(QopCaps.multiple_streams_fetching)
+        self.multiple_streams_fetching_cap = self._query_multiple_streams_fetching_capability()
 
         # Make a copy of the axes so that they aren’t modified elsewhere.
         self.axes = self.preprocess_axes(axes)
@@ -242,6 +241,31 @@ class XarrayDataFetcher:
 
         logger.debug("Dataset update complete.")
         return self.dataset
+
+    def _query_multiple_streams_fetching_capability(self):
+        try:
+            caps = getattr(self.job, "_caps", None)
+            if caps is None:
+                logger.warning(
+                    "Job is missing '_caps'; disabling multiple_streams_fetching."
+                )
+                return False
+
+            supports_fn = getattr(caps, "supports", None)
+            if supports_fn is None:
+                logger.warning(
+                    "Job capabilities object does not implement 'supports'; "
+                    "disabling multiple_streams_fetching."
+                )
+                return False
+
+            return bool(supports_fn(QopCaps.multiple_streams_fetching))
+        except Exception:
+            logger.exception(
+                "Failed to query job capabilities for multiple_streams_fetching; "
+                "falling back to fetch_all."
+            )
+            return False
 
     def _fill_missing_data(
         self, data: Optional[np.ndarray], shape: tuple
