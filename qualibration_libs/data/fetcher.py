@@ -247,15 +247,15 @@ class XarrayDataFetcher:
             caps = getattr(self.job, "_caps", None)
             if caps is None:
                 logger.warning(
-                    "Job is missing '_caps'; disabling multiple_streams_fetching."
+                    "Job is missing '_caps', use fetch_all instead of fetching result at the same time."
                 )
                 return False
 
             supports_fn = getattr(caps, "supports", None)
             if supports_fn is None:
                 logger.warning(
-                    "Job capabilities object does not implement 'supports'; "
-                    "disabling multiple_streams_fetching."
+                    "Job capabilities object does not implement 'supports', "
+                    "use fetch_all instead of fetching result at the same time."
                 )
                 return False
 
@@ -263,7 +263,7 @@ class XarrayDataFetcher:
         except Exception:
             logger.exception(
                 "Failed to query job capabilities for multiple_streams_fetching; "
-                "falling back to fetch_all."
+                "use fetch_all instead of fetching result at the same time."
             )
             return False
 
