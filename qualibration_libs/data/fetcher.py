@@ -7,10 +7,9 @@ import xarray as xr
 
 from typing import Any, Dict, List, Optional, Union
 from qm.jobs.qm_job import QmJob
-from qm.api.models.capabilities import QopCaps
 
 from qualibration_libs.core.exceptions import format_available_items
-
+from qualang_tools.results import fetching_tool
 __all__ = ["XarrayDataFetcher"]
 
 logger = logging.getLogger(__name__)
@@ -64,9 +63,11 @@ class XarrayDataFetcher:
             axes (Optional[Dict[str, xr.DataArray]]): Dictionary of coordinate axes.
                 If None, no coordinates are used.
         """
+        logger.debug("Initializing XarrayDataFetcher.")
         self.job = job
-        self.multiple_streams_fetching_cap = self._query_multiple_streams_fetching_capability()
-
+        # Skips handles listed in ignore_handles.
+        self.reduce_results_keys = [key for key in job.result_handles.keys() if key not in self.ignore_handles]
+        self.result = fetching_tool(job, self.reduce_results_keys, mode="live")
         # Make a copy of the axes so that they aren’t modified elsewhere.
         self.axes = self.preprocess_axes(axes)
 
@@ -80,6 +81,7 @@ class XarrayDataFetcher:
         self.dataset = self.initialize_dataset()
         self.data = {"dataset": self.dataset}
         logger.debug("XarrayDataFetcher initialized.")
+        
 
     def __getitem__(self, key: str) -> Any:
         try:
@@ -126,30 +128,11 @@ class XarrayDataFetcher:
     @timer_decorator
     def retrieve_latest_data(self):
         """
-        Retrieve the latest data from the QmJob result handles.
-        Skips handles listed in ignore_handles.
+        Fetch the latest data using qualang-tools' fetching_tool.
         """
-        logger.debug("Starting to retrieve latest data from job result handles.")
-        # Use the new fetch method while preserving backward compatibility with older versions.
-        if self.multiple_streams_fetching_cap == True: 
-            data_list = [key for key in self.job.result_handles.keys() if key not in self.ignore_handles]
-            for data_label in data_list:
-                data_handle = self.job.result_handles.get(data_label)
-                if data_handle is None or data_handle.count_so_far() == 0:
-                    logger.debug(f"Wait fetching data for handle: {data_label}")
-                    data_handle.wait_for_values(1)
-            self._raw_data = self.job.result_handles.fetch_results(wait_until_done=False, stream_names=data_list)
-        else: 
-            for data_label in self.job.result_handles.keys():
-                if data_label in self.ignore_handles:
-                    logger.debug(f"Skipping ignored handle: {data_label}")
-                    continue
-                logger.debug(f"Fetching data for handle: {data_label}")
-                data_handle = self.job.result_handles.get(data_label)
-                if data_handle is None or data_handle.count_so_far() == 0:
-                    self._raw_data[data_label] = None
-                else:
-                    self._raw_data[data_label] = data_handle.fetch_all()
+        logger.debug("Starting to retrieve latest data from fetching_tool.")
+        self._raw_data= dict(zip(self.reduce_results_keys,self.result.fetch_all()))
+
 
     def initialize_dataset(self):
         """
@@ -241,31 +224,6 @@ class XarrayDataFetcher:
 
         logger.debug("Dataset update complete.")
         return self.dataset
-
-    def _query_multiple_streams_fetching_capability(self):
-        try:
-            caps = getattr(self.job, "_caps", None)
-            if caps is None:
-                logger.warning(
-                    "Job is missing '_caps', use fetch_all instead of fetching result at the same time."
-                )
-                return False
-
-            supports_fn = getattr(caps, "supports", None)
-            if supports_fn is None:
-                logger.warning(
-                    "Job capabilities object does not implement 'supports', "
-                    "use fetch_all instead of fetching result at the same time."
-                )
-                return False
-
-            return bool(supports_fn(QopCaps.multiple_streams_fetching))
-        except Exception:
-            logger.exception(
-                "Failed to query job capabilities for multiple_streams_fetching; "
-                "use fetch_all instead of fetching result at the same time."
-            )
-            return False
 
     def _fill_missing_data(
         self, data: Optional[np.ndarray], shape: tuple
@@ -386,10 +344,10 @@ class XarrayDataFetcher:
             logger.debug("Acquisition not started yet; marking as started.")
             self._started_acquisition = True
             self._finished_acquisition = False
-            self.t_start = time.time()
+            self.t_start = self.result.get_start_time()
             return True
 
-        is_processing = self.job.result_handles.is_processing()
+        is_processing = self.result.is_processing()
         logger.debug(f"Job is_processing status: {is_processing}")
         if is_processing:
             return True
@@ -417,7 +375,7 @@ class XarrayDataFetcher:
             self.t_start = time.time()
 
         # Continuously update and yield the dataset while the job is processing
-        while self.job.result_handles.is_processing():
+        while self.result.is_processing():   
             self.retrieve_latest_data()
             self.update_dataset()
             yield self.dataset
