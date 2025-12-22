@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - analysis/fitting - allows the fit to converge even if the exponential is inverted.
 - analysis/fitting - fit oscillations in a more robust manner.  
 
+### Changed
+
+- data/fetcher: Switch result fetching from qm-qua dependent `qm_qua.QmJob.fetch_all` to qualang_tools dependent `qualang_tools.results.fetching_tool`.
+- data/fetcher: Use `fetching_tool` to retrieve acquisition metadata (e.g., `is_processing()` and `get_start_times()`).
+- data/fetcher: Apply `ignore_handles` filtering in `__init__` to reduce overhead in `retrieve_latest_data`.
+
 ## [0.2.1] - 2025-11-14
 ### Added
 - Add TwoQubitExperimentNodeParameters class

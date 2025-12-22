@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 from qm.jobs.qm_job import QmJob
 
 from qualibration_libs.core.exceptions import format_available_items
+from qualang_tools.results import fetching_tool
 
 __all__ = ["XarrayDataFetcher"]
 
@@ -65,6 +66,19 @@ class XarrayDataFetcher:
         """
         logger.debug("Initializing XarrayDataFetcher.")
         self.job = job
+        # Skips handles listed in ignore_handles.
+        self.reduce_results_keys = [
+            key for key in job.result_handles.keys() if key not in self.ignore_handles
+        ]
+
+        if not self.reduce_results_keys:
+            logger.debug(
+                "No result handles to fetch (all ignored or none available). "
+                "Skipping fetching_tool initialization."
+            )
+            self.result = None
+        else:
+            self.result = fetching_tool(job, self.reduce_results_keys, mode="live")
         # Make a copy of the axes so that they aren’t modified elsewhere.
         self.axes = self.preprocess_axes(axes)
 
@@ -84,7 +98,9 @@ class XarrayDataFetcher:
             return self.data[key]
         except KeyError as e:
             keys_list = format_available_items(self.data, item_type="keys")
-            raise KeyError(f"Data key '{key}' not found in XarrayDataFetcher. {keys_list}") from e
+            raise KeyError(
+                f"Data key '{key}' not found in XarrayDataFetcher. {keys_list}"
+            ) from e
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
@@ -124,25 +140,10 @@ class XarrayDataFetcher:
     @timer_decorator
     def retrieve_latest_data(self):
         """
-        Retrieve the latest data from the QmJob result handles.
-        Skips handles listed in ignore_handles.
+        Fetch the latest data using qualang-tools' fetching_tool.
         """
-        logger.debug("Starting to retrieve latest data from job result handles.")
-        for data_label in self.job.result_handles.keys():
-            if data_label in self.ignore_handles:
-                logger.debug(f"Skipping ignored handle: {data_label}")
-                continue
-
-            logger.debug(f"Fetching data for handle: {data_label}")
-
-            data_handle = self.job.result_handles.get(data_label)
-            if data_handle is None or data_handle.count_so_far() == 0:
-                self._raw_data[data_label] = None
-            else:
-                self._raw_data[data_label] = data_handle.fetch_all()
-            logger.debug(
-                f"Data fetched for {data_label}: shape {np.shape(self._raw_data[data_label])}"
-            )
+        logger.debug("Starting to retrieve latest data from fetching_tool.")
+        self._raw_data = dict(zip(self.reduce_results_keys, self.result.fetch_all()))
 
     def initialize_dataset(self):
         """
@@ -354,10 +355,10 @@ class XarrayDataFetcher:
             logger.debug("Acquisition not started yet; marking as started.")
             self._started_acquisition = True
             self._finished_acquisition = False
-            self.t_start = time.time()
+            self.t_start = self.result.get_start_time()
             return True
 
-        is_processing = self.job.result_handles.is_processing()
+        is_processing = self.result.is_processing()
         logger.debug(f"Job is_processing status: {is_processing}")
         if is_processing:
             return True
@@ -385,7 +386,7 @@ class XarrayDataFetcher:
             self.t_start = time.time()
 
         # Continuously update and yield the dataset while the job is processing
-        while self.job.result_handles.is_processing():
+        while self.result.is_processing():
             self.retrieve_latest_data()
             self.update_dataset()
             yield self.dataset
