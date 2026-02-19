@@ -1,5 +1,5 @@
 from typing import Optional
-from qualibrate.parameters import RunnableParameters
+from qualibrate.core.parameters import RunnableParameters
 
 
 class CommonNodeParameters(RunnableParameters):

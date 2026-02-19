@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Literal
-from qualibrate.parameters import RunnableParameters
+from qualibrate.core.parameters import RunnableParameters
 
 
 class IdleTimeNodeParameters(RunnableParameters):
