@@ -4,12 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+
+## [0.2.2] - 2025-02-19
 ### Fixed
 - analysis/fitting - allows the fit to converge even if the exponential is inverted.
-- analysis/fitting - fit oscillations in a more robust manner.  
+- analysis/fitting - fit oscillations in a more robust manner.
 
 ### Changed
-
+- parameters: Use `qualibrate.core.parameters` for `RunnableParameters` imports in `common.py`, `experiment.py`, and `sweep.py`.
 - data/fetcher: Switch result fetching from qm-qua dependent `qm_qua.QmJob.fetch_all` to qualang_tools dependent `qualang_tools.results.fetching_tool`.
 - data/fetcher: Use `fetching_tool` to retrieve acquisition metadata (e.g., `is_processing()` and `get_start_times()`).
 - data/fetcher: Apply `ignore_handles` filtering in `__init__` to reduce overhead in `retrieve_latest_data`.
@@ -37,7 +39,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 - First release for the Superconducting QUAlibration graph.
 
-[Unreleased]: https://github.com/qua-platform/qualibration-libs/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/qua-platform/qualibration-libs/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.2.2
 [0.2.1]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.2.1
 [0.2.0]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.2.0
 [0.1.0]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.1.0
