@@ -1,6 +1,6 @@
 from typing import List, Literal, Optional
 
-from qualibrate import QualibrationNode
+from qualibrate.core import QualibrationNode
 from qualibrate.core.parameters import RunnableParameters
 from qualibration_libs.core import BatchableList
 from qualibration_libs.core.exceptions import format_available_items
