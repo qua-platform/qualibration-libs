@@ -5,10 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 ### Fixed
+- parameters: Use qualibrate.core.parameters instead of removed qualibrate.parameters (fixes ModuleNotFoundError with current qualibrate API).
 - analysis/fitting - allows the fit to converge even if the exponential is inverted.
 - analysis/fitting - fit oscillations in a more robust manner.  
 
 ### Changed
+- Raise minimum qualibrate to 1.0.2 and require Python >=3.10 to align with qualibrate.
 
 - data/fetcher: Switch result fetching from qm-qua dependent `qm_qua.QmJob.fetch_all` to qualang_tools dependent `qualang_tools.results.fetching_tool`.
 - data/fetcher: Use `fetching_tool` to retrieve acquisition metadata (e.g., `is_processing()` and `get_start_times()`).
