@@ -73,20 +73,14 @@ def peaks_dips(
         return prom_peak_index
 
     def _position_from_index(x_axis_vals, position):
-        res = []
-        if not (np.isnan(position)):
-            res.append(x_axis_vals[int(position)])
-        else:
-            res.append(np.nan)
-        return np.array(res)
+        if not np.isnan(position):
+            return x_axis_vals[int(position)]
+        return np.nan
 
     def _width_from_index(da, position):
-        res = []
-        if not (np.isnan(position)):
-            res.append(peak_widths(da.copy(), peaks=[int(position)])[0][0])
-        else:
-            res.append(np.nan)
-        return np.array(res)
+        if not np.isnan(position):
+            return peak_widths(da.copy(), peaks=[int(position)])[0][0]
+        return np.nan
 
     peaks_inversion = (
         2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim))
