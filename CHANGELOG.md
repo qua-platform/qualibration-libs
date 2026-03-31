@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+### Added
+- Added support for Python 3.13.
+- 
 ### Fixed
 - parameters: Use qualibrate.core.parameters instead of removed qualibrate.parameters (fixes ModuleNotFoundError with current qualibrate API).
 - analysis/fitting - allows the fit to converge even if the exponential is inverted.
@@ -11,7 +14,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 - Raise minimum qualibrate to 1.0.2 and require Python >=3.10 to align with qualibrate.
-
 - data/fetcher: Switch result fetching from qm-qua dependent `qm_qua.QmJob.fetch_all` to qualang_tools dependent `qualang_tools.results.fetching_tool`.
 - data/fetcher: Use `fetching_tool` to retrieve acquisition metadata (e.g., `is_processing()` and `get_start_times()`).
 - data/fetcher: Apply `ignore_handles` filtering in `__init__` to reduce overhead in `retrieve_latest_data`.
