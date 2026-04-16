@@ -32,10 +32,7 @@ class TestTrackableObjectGetAttr:
             _ = tracked.invalid_attr
 
         error_msg = str(exc_info.value)
-        assert (
-            "Attribute 'invalid_attr' not found in tracked object of type 'MockObj'"
-            in error_msg
-        )
+        assert "Attribute 'invalid_attr' not found in tracked object of type 'MockObj'" in error_msg
         assert "Available attributes: 'name', 'value'" in error_msg
         assert exc_info.value.__cause__ is not None
 

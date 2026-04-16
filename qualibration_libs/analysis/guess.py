@@ -86,9 +86,7 @@ def frequency(
 
     if freq_guess < 1.5 / (sampling_interval * len(x_)):
         # low frequency fit, use this mode when the estimate is near the resolution
-        y_smooth = signal.savgol_filter(
-            y_, window_length=filter_window, polyorder=filter_dim
-        )
+        y_smooth = signal.savgol_filter(y_, window_length=filter_window, polyorder=filter_dim)
 
         # no offset is assumed
         y_amp = max(np.abs(y_smooth))
@@ -97,9 +95,7 @@ def frequency(
             # no oscillation signal
             return 0.0
 
-        freq_guess = max(np.abs(np.diff(y_smooth) / sampling_interval)) / (
-            y_amp * 2 * np.pi
-        )
+        freq_guess = max(np.abs(np.diff(y_smooth) / sampling_interval)) / (y_amp * 2 * np.pi)
 
     return freq_guess
 
@@ -243,9 +239,7 @@ def oscillation_exp_decay(
     Returns:
          Decay rate of signal.
     """
-    y_smoothed = signal.savgol_filter(
-        y, window_length=filter_window, polyorder=filter_dim
-    )
+    y_smoothed = signal.savgol_filter(y, window_length=filter_window, polyorder=filter_dim)
 
     if freq_guess is not None and np.abs(freq_guess) > 0:
         period = 1 / np.abs(freq_guess)
@@ -303,9 +297,7 @@ def full_width_half_max(
     elif l_bound:
         return 2 * (x[peak_index] - l_bound)
 
-    raise AnalysisError(
-        "FWHM of input curve was not found. Perhaps scanning range is too narrow."
-    )
+    raise AnalysisError("FWHM of input curve was not found. Perhaps scanning range is too narrow.")
 
 
 def constant_spectral_offset(
@@ -331,9 +323,7 @@ def constant_spectral_offset(
     Returns:
         Offset value.
     """
-    y_smoothed = signal.savgol_filter(
-        y, window_length=filter_window, polyorder=filter_dim
-    )
+    y_smoothed = signal.savgol_filter(y, window_length=filter_window, polyorder=filter_dim)
 
     ydiff1 = np.abs(np.diff(y_smoothed, 1, append=np.nan))
     ydiff2 = np.abs(np.diff(y_smoothed, 2, append=np.nan, prepend=np.nan))

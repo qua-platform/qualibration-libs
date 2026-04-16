@@ -27,9 +27,7 @@ def unwrap_phase(da, dim):
     Returns:
     xr.DataArray: A new DataArray with the unwrapped phase.
     """
-    return xr.apply_ufunc(
-        np.unwrap, da, input_core_dims=[[dim]], output_core_dims=[[dim]]
-    )
+    return xr.apply_ufunc(np.unwrap, da, input_core_dims=[[dim]], output_core_dims=[[dim]])
 
 
 def _fix_initial_value(x, da):
@@ -54,9 +52,7 @@ def fit_decay_exp(da, dim):
     def get_min(dat):
         return np.min(dat, axis=-1)
 
-    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename(
-        "decay guess"
-    )
+    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename("decay guess")
     amp_guess = xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess")
     min_guess = xr.apply_ufunc(get_min, da, input_core_dims=[[dim]]).rename("min guess")
 
@@ -124,19 +120,13 @@ def fit_oscillation_decay_exp(da, dim):
         min_ = np.min(dat, axis=-1)
         return (max_ - min_) / 2
 
-    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename(
-        "decay guess"
-    )
-    freq_guess = xr.apply_ufunc(get_freq, da, input_core_dims=[[dim]]).rename(
-        "freq guess"
-    )
+    decay_guess = xr.apply_ufunc(get_decay, da, input_core_dims=[[dim]]).rename("decay guess")
+    freq_guess = xr.apply_ufunc(get_freq, da, input_core_dims=[[dim]]).rename("freq guess")
     amp_guess = xr.apply_ufunc(get_amp, da, input_core_dims=[[dim]]).rename("amp guess")
 
     def apply_fit(x, y, a, f, phi, offset, decay):
         try:
-            fit, residuals = curve_fit(
-                oscillation_decay_exp, x, y, p0=[a, f, phi, offset, decay]
-            )
+            fit, residuals = curve_fit(oscillation_decay_exp, x, y, p0=[a, f, phi, offset, decay])
             return np.array(fit.tolist() + np.array(residuals).flatten().tolist())
         except RuntimeError:
             print(f"{a=}, {f=}, {phi=}, {offset=}, {decay=}")
@@ -287,19 +277,13 @@ def fit_oscillation(da, dim):
 
         # Apply the FFT computation across the specified dimension
         def get_fft_param(dat, idx):
-            return np.apply_along_axis(
-                lambda x: compute_FFT(da[dim].values, x)[idx], -1, dat
-            )
+            return np.apply_along_axis(lambda x: compute_FFT(da[dim].values, x)[idx], -1, dat)
 
         params = [
-            xr.apply_ufunc(get_fft_param, da, i, input_core_dims=[[dim], []])
-            for i in range(3)
+            xr.apply_ufunc(get_fft_param, da, i, input_core_dims=[[dim], []]) for i in range(3)
         ]
         params = [_fix_initial_value(p, da) for p in params]
-        return [
-            p.rename(n)
-            for p, n in zip(params, ["freq guess", "amp guess", "phase guess"])
-        ]
+        return [p.rename(n) for p, n in zip(params, ["freq guess", "amp guess", "phase guess"])]
 
     freq_guess, amp_guess, phase_guess = get_freq_and_amp_and_phase(da, dim)
     offset_guess = da.mean(dim=dim)
@@ -311,9 +295,7 @@ def fit_oscillation(da, dim):
                 y,
                 t=x,
                 a=Parameter("a", value=a, min=0),
-                f=Parameter(
-                    "f", value=f, min=np.abs(0.5 * f), max=np.abs(f * 3 + 1e-3)
-                ),
+                f=Parameter("f", value=f, min=np.abs(0.5 * f), max=np.abs(f * 3 + 1e-3)),
                 phi=Parameter("phi", value=phi),
                 offset=offset,
             )

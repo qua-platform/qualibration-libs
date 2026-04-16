@@ -219,9 +219,7 @@ def _collect_qua_ranges(module: nodes.Module) -> List[Tuple[int, int]]:
     # Collect `with qua.program()` blocks
     for node in module.nodes_of_class(nodes.With):
         for context_item, _ in node.items:
-            if isinstance(context_item, nodes.Call) and _is_qua_context_call(
-                context_item
-            ):
+            if isinstance(context_item, nodes.Call) and _is_qua_context_call(context_item):
                 ranges.append((node.lineno, node.end_lineno or node.lineno))
 
     # Collect QUA control flow function calls (can be anywhere in the file)
@@ -292,9 +290,7 @@ def register(linter: PyLinter) -> None:
             check_line is not None
             and filepath
             and filepath in _qua_ranges
-            and (
-                msgid in QUA_SUPPRESSED_MSGIDS or msgid.upper() in QUA_SUPPRESSED_MSGIDS
-            )
+            and (msgid in QUA_SUPPRESSED_MSGIDS or msgid.upper() in QUA_SUPPRESSED_MSGIDS)
             and _in_qua_range(check_line, _qua_ranges[filepath])
         ):
             return  # Suppress this message
@@ -315,6 +311,4 @@ def register(linter: PyLinter) -> None:
 
 if __name__ == "__main__":
     print("QUA Pylint Plugin - suppresses rules in `with qua.program()` contexts")
-    print(
-        f"Suppressed codes: {sorted(r for r in QUA_SUPPRESSED_MSGIDS if r[0].isupper())}"
-    )
+    print(f"Suppressed codes: {sorted(r for r in QUA_SUPPRESSED_MSGIDS if r[0].isupper())}")
