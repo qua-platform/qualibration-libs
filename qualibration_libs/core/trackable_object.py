@@ -89,9 +89,7 @@ class TrackableObject:
         except (KeyError, IndexError, TypeError) as e:
             if isinstance(e, KeyError) and hasattr(self._obj, "keys"):
                 keys_list = format_available_items(self._obj, item_type="keys")
-                raise KeyError(
-                    f"Key '{key}' not found in tracked object. {keys_list}"
-                ) from e
+                raise KeyError(f"Key '{key}' not found in tracked object. {keys_list}") from e
             elif isinstance(e, IndexError):
                 raise IndexError(
                     f"Index {key} out of range for tracked object with length {len(self._obj)}."
@@ -100,9 +98,7 @@ class TrackableObject:
 
         if key not in self._nested_trackables:
             # Recursively wrap dicts and objects if not already wrapped
-            self._nested_trackables[key] = TrackableObject(
-                original_item, self._dont_assign_to_none
-            )
+            self._nested_trackables[key] = TrackableObject(original_item, self._dont_assign_to_none)
         return self._nested_trackables[key]
 
     def __setitem__(self, key, value):

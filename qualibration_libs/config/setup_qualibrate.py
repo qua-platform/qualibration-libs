@@ -36,9 +36,7 @@ def setup_qualibrate_config():
     # Display default values
     print(f"\n{Fore.MAGENTA}Default values:{Style.RESET_ALL}")
     for key, value in parameters.items():
-        print(
-            f"{Fore.BLUE}{key}{Style.RESET_ALL}: {Fore.GREEN}{value}{Style.RESET_ALL}"
-        )
+        print(f"{Fore.BLUE}{key}{Style.RESET_ALL}: {Fore.GREEN}{value}{Style.RESET_ALL}")
 
     print(
         f"\n{Fore.LIGHTBLACK_EX}Selecting 'n' will allow you to customize each entry.{Style.RESET_ALL}"
@@ -53,9 +51,7 @@ def setup_qualibrate_config():
     )
 
     if not use_all_defaults:
-        parameters["project"] = get_input_with_default(
-            "Enter project name", parameters["project"]
-        )
+        parameters["project"] = get_input_with_default("Enter project name", parameters["project"])
         parameters["storage_location"] = get_input_with_default(
             "Enter storage location", parameters["storage_location"]
         )

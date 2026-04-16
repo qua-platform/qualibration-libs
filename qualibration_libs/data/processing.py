@@ -82,13 +82,9 @@ def convert_IQ_to_V(
 
     demod_factor = 2 if single_demod else 1
     try:
-        return da.assign(
-            {key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list}
-        )
+        return da.assign({key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list})
     except KeyError as e:
-        available_keys = (
-            list(da.keys()) if hasattr(da, "keys") else list(da.data_vars.keys())
-        )
+        available_keys = list(da.keys()) if hasattr(da, "keys") else list(da.data_vars.keys())
         keys_list = format_available_items(available_keys, item_type="keys")
         raise KeyError(
             f"Key from IQ_list not found in dataset. Requested IQ_list: {IQ_list}. {keys_list}"
@@ -241,6 +237,4 @@ def subtract_slope(da: xr.DataArray, dim: str) -> xr.DataArray:
         evaluated = np.apply_along_axis(eval_func, -1, pf)
         return arr - evaluated
 
-    return xr.apply_ufunc(
-        sub_slope, da, input_core_dims=[[dim]], output_core_dims=[[dim]]
-    )
+    return xr.apply_ufunc(sub_slope, da, input_core_dims=[[dim]], output_core_dims=[[dim]])
