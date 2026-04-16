@@ -70,7 +70,7 @@ class QubitGrid:
 
     def __init__(self, ds: xr.Dataset, grid_names: Union[list[str], str] = None, size: int = 3):
         if grid_names:
-            if type(grid_names) == str:
+            if isinstance(grid_names, str):
                 grid_names = [grid_names]
             grid_indices = [
                 tuple(map(int, self._list_clean(grid_name.split(",")))) for grid_name in grid_names
