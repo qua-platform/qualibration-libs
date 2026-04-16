@@ -13,6 +13,7 @@
 """
 A library of parameter guess functions.
 """
+
 # pylint: disable=invalid-name
 
 import functools
@@ -24,6 +25,7 @@ from scipy import signal
 
 class AnalysisError(Exception):
     """Exception raised for errors in analysis functions."""
+
     pass
 
 
@@ -195,7 +197,9 @@ def exp_decay(x: np.ndarray, y: np.ndarray) -> float:
     try:
         coeffs = np.polyfit(x[inds], np.log(y[inds]), deg=1)
     except (ValueError, np.linalg.LinAlgError) as e:
-        raise ValueError(f"Failed to fit exponential decay. This may occur if the data has too few valid points (count: {np.count_nonzero(inds)}) or if the data doesn't follow an exponential pattern.") from e
+        raise ValueError(
+            f"Failed to fit exponential decay. This may occur if the data has too few valid points (count: {np.count_nonzero(inds)}) or if the data doesn't follow an exponential pattern."
+        ) from e
 
     return float(coeffs[0])
 

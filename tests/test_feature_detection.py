@@ -12,7 +12,7 @@ class TestPeaksDips:
     def test_valid_dimension_works(self):
         # Create a simple peak signal
         x = np.linspace(0, 10, 100)
-        y = np.exp(-((x - 5)**2) / 2) + 0.1 * np.random.randn(100)
+        y = np.exp(-((x - 5) ** 2) / 2) + 0.1 * np.random.randn(100)
         da = xr.DataArray(y, dims=["x"], coords={"x": x})
 
         result = peaks_dips(da, dim="x")
@@ -24,7 +24,7 @@ class TestPeaksDips:
     def test_invalid_dimension_fails(self):
         # Create a simple peak signal
         x = np.linspace(0, 10, 100)
-        y = np.exp(-((x - 5)**2) / 2) + 0.1 * np.random.randn(100)
+        y = np.exp(-((x - 5) ** 2) / 2) + 0.1 * np.random.randn(100)
         da = xr.DataArray(y, dims=["x"], coords={"x": x})
 
         with pytest.raises(KeyError) as exc_info:

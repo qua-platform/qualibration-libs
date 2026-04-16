@@ -1,6 +1,5 @@
 import numpy as np
-from scipy.fft import fft
-import scipy.sparse as sparse
+from scipy import sparse
 import xarray as xr
 from scipy.signal import find_peaks, peak_widths
 from scipy.sparse.linalg import spsolve
@@ -10,9 +9,7 @@ from qualibration_libs.core.exceptions import format_available_items
 __all__ = ["peaks_dips"]
 
 
-def peaks_dips(
-    da, dim, prominence_factor=5, number=1, remove_baseline=True
-) -> xr.Dataset:
+def peaks_dips(da, dim, prominence_factor=5, number=1, remove_baseline=True) -> xr.Dataset:
     """
     Searches in a data array along the specified dimension for the most prominent peak or dip, and returns a xarray
     dataset with its location, width, and amplitude, along with a smooth baseline from which the peak emerges.
@@ -65,9 +62,7 @@ def peaks_dips(
         peaks = find_peaks(arr.copy(), prominence=prominence)
         if len(peaks[0]) > 0:
             # finding the largest peak and it's width
-            prom_peak_index = (
-                1.0 * peaks[0][np.argsort(peaks[1]["prominences"])][-number]
-            )
+            prom_peak_index = 1.0 * peaks[0][np.argsort(peaks[1]["prominences"])][-number]
         else:
             prom_peak_index = np.nan
         return prom_peak_index
@@ -83,8 +78,7 @@ def peaks_dips(
         return np.nan
 
     peaks_inversion = (
-        2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim))
-        - 1
+        2.0 * (da.mean(dim=dim) - da.min(dim=dim) < da.max(dim=dim) - da.mean(dim=dim)) - 1
     )
     da = da * peaks_inversion
 

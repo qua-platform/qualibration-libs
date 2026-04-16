@@ -4,13 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+
+## [0.3.0] - 2026-03-31
 ### Added
-- Added support for Python 3.13.
-- 
+- Added support for Python 3.13 and Numpy 2.
+
 ### Fixed
 - parameters: Use qualibrate.core.parameters instead of removed qualibrate.parameters (fixes ModuleNotFoundError with current qualibrate API).
 - analysis/fitting - allows the fit to converge even if the exponential is inverted.
-- analysis/fitting - fit oscillations in a more robust manner.  
+- analysis/fitting - fit oscillations in a more robust manner.
 
 ### Changed
 - Raise minimum qualibrate to 1.0.2 and require Python >=3.10 to align with qualibrate.
@@ -41,7 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 - First release for the Superconducting QUAlibration graph.
 
-[Unreleased]: https://github.com/qua-platform/qualibration-libs/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/qua-platform/qualibration-libs/compare/v0.3.0...HEAD
+[0.2.1]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.3.0
 [0.2.1]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.2.1
 [0.2.0]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.2.0
 [0.1.0]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.1.0

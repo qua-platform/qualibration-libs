@@ -9,14 +9,14 @@ class TestFormatAvailableItems:
 
     def test_format_dict(self):
         """Test formatting a dictionary."""
-        result = format_available_items({'a': 1, 'b': 2, 'c': 3}, item_type="keys")
+        result = format_available_items({"a": 1, "b": 2, "c": 3}, item_type="keys")
         assert "Available keys:" in result
         assert "'a'" in result and "'b'" in result and "'c'" in result
         assert result.endswith("'.")
 
     def test_format_list(self):
         """Test formatting a list."""
-        result = format_available_items(['x', 'y', 'z'], item_type="items")
+        result = format_available_items(["x", "y", "z"], item_type="items")
         assert "Available items:" in result
         assert "'x'" in result and "'y'" in result and "'z'" in result
 
@@ -34,7 +34,7 @@ class TestFormatAvailableItems:
 
     def test_single_item(self):
         """Test formatting a single item."""
-        result = format_available_items({'only': 'you'}, item_type="items")
+        result = format_available_items({"only": "you"}, item_type="items")
         assert result == "Available items: 'only'."
 
     def test_exactly_10_items(self):
