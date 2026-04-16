@@ -2,14 +2,11 @@
 
 from typing import Any, Sequence, Union
 
-
 __all__ = ["format_available_items"]
 
 
 def format_available_items(
-    items: Union[Sequence[Any], dict],
-    max_items: int = 10,
-    item_type: str = "keys"
+    items: Union[Sequence[Any], dict], max_items: int = 10, item_type: str = "keys"
 ) -> str:
     """
     Format a list of available items for error messages.

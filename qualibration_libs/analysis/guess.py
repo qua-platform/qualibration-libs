@@ -13,6 +13,7 @@
 """
 A library of parameter guess functions.
 """
+
 # pylint: disable=invalid-name
 
 import functools
@@ -24,6 +25,7 @@ from scipy import signal
 
 class AnalysisError(Exception):
     """Exception raised for errors in analysis functions."""
+
     pass
 
 
@@ -84,7 +86,9 @@ def frequency(
 
     if freq_guess < 1.5 / (sampling_interval * len(x_)):
         # low frequency fit, use this mode when the estimate is near the resolution
-        y_smooth = signal.savgol_filter(y_, window_length=filter_window, polyorder=filter_dim)
+        y_smooth = signal.savgol_filter(
+            y_, window_length=filter_window, polyorder=filter_dim
+        )
 
         # no offset is assumed
         y_amp = max(np.abs(y_smooth))
@@ -93,7 +97,9 @@ def frequency(
             # no oscillation signal
             return 0.0
 
-        freq_guess = max(np.abs(np.diff(y_smooth) / sampling_interval)) / (y_amp * 2 * np.pi)
+        freq_guess = max(np.abs(np.diff(y_smooth) / sampling_interval)) / (
+            y_amp * 2 * np.pi
+        )
 
     return freq_guess
 
@@ -195,7 +201,9 @@ def exp_decay(x: np.ndarray, y: np.ndarray) -> float:
     try:
         coeffs = np.polyfit(x[inds], np.log(y[inds]), deg=1)
     except (ValueError, np.linalg.LinAlgError) as e:
-        raise ValueError(f"Failed to fit exponential decay. This may occur if the data has too few valid points (count: {np.count_nonzero(inds)}) or if the data doesn't follow an exponential pattern.") from e
+        raise ValueError(
+            f"Failed to fit exponential decay. This may occur if the data has too few valid points (count: {np.count_nonzero(inds)}) or if the data doesn't follow an exponential pattern."
+        ) from e
 
     return float(coeffs[0])
 
@@ -235,7 +243,9 @@ def oscillation_exp_decay(
     Returns:
          Decay rate of signal.
     """
-    y_smoothed = signal.savgol_filter(y, window_length=filter_window, polyorder=filter_dim)
+    y_smoothed = signal.savgol_filter(
+        y, window_length=filter_window, polyorder=filter_dim
+    )
 
     if freq_guess is not None and np.abs(freq_guess) > 0:
         period = 1 / np.abs(freq_guess)
@@ -293,7 +303,9 @@ def full_width_half_max(
     elif l_bound:
         return 2 * (x[peak_index] - l_bound)
 
-    raise AnalysisError("FWHM of input curve was not found. Perhaps scanning range is too narrow.")
+    raise AnalysisError(
+        "FWHM of input curve was not found. Perhaps scanning range is too narrow."
+    )
 
 
 def constant_spectral_offset(
@@ -319,7 +331,9 @@ def constant_spectral_offset(
     Returns:
         Offset value.
     """
-    y_smoothed = signal.savgol_filter(y, window_length=filter_window, polyorder=filter_dim)
+    y_smoothed = signal.savgol_filter(
+        y, window_length=filter_window, polyorder=filter_dim
+    )
 
     ydiff1 = np.abs(np.diff(y_smoothed, 1, append=np.nan))
     ydiff2 = np.abs(np.diff(y_smoothed, 2, append=np.nan, prepend=np.nan))

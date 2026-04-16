@@ -6,7 +6,6 @@ from quam_builder.architecture.superconducting.qubit_pair import AnyTransmonPair
 
 from qualibration_libs.core.exceptions import format_available_items
 
-
 __all__ = ["convert_IQ_to_V", "add_amplitude_and_phase", "subtract_slope"]
 
 
@@ -44,8 +43,12 @@ def convert_IQ_to_V(
         except KeyError as e:
             for q in qubits:
                 if "readout" not in q.resonator.operations:
-                    ops_list = format_available_items(q.resonator.operations, item_type="operations")
-                    raise KeyError(f"Operation 'readout' not found in resonator operations for qubit '{q.name}'. {ops_list}") from e
+                    ops_list = format_available_items(
+                        q.resonator.operations, item_type="operations"
+                    )
+                    raise KeyError(
+                        f"Operation 'readout' not found in resonator operations for qubit '{q.name}'. {ops_list}"
+                    ) from e
             raise e
     elif qubit_pairs is not None:
         control_target = ["c", "t"]
@@ -66,20 +69,30 @@ def convert_IQ_to_V(
             )
         except KeyError as e:
             for qp in qubit_pairs:
-                if "readout" not in qp.qubit_control.resonator.operations or "readout" not in qp.qubit_target.resonator.operations:
+                if (
+                    "readout" not in qp.qubit_control.resonator.operations
+                    or "readout" not in qp.qubit_target.resonator.operations
+                ):
                     raise KeyError(
-                        f"Operation 'readout' not found in resonator operations in pair '{qp.name}'.") from e
+                        f"Operation 'readout' not found in resonator operations in pair '{qp.name}'."
+                    ) from e
             raise e
     else:
         raise ValueError("Either qubits or qubit_pairs must be provided!")
 
     demod_factor = 2 if single_demod else 1
     try:
-        return da.assign({key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list})
+        return da.assign(
+            {key: da[key] * demod_factor * 2**12 / readout_lengths for key in IQ_list}
+        )
     except KeyError as e:
-        available_keys = list(da.keys()) if hasattr(da, 'keys') else list(da.data_vars.keys())
+        available_keys = (
+            list(da.keys()) if hasattr(da, "keys") else list(da.data_vars.keys())
+        )
         keys_list = format_available_items(available_keys, item_type="keys")
-        raise KeyError(f"Key from IQ_list not found in dataset. Requested IQ_list: {IQ_list}. {keys_list}") from e
+        raise KeyError(
+            f"Key from IQ_list not found in dataset. Requested IQ_list: {IQ_list}. {keys_list}"
+        ) from e
 
 
 def add_amplitude_and_phase(
@@ -117,7 +130,9 @@ def add_amplitude_and_phase(
         s = ds["I"] + 1j * ds["Q"]
     except KeyError as e:
         vars_list = format_available_items(ds.data_vars, item_type="variables")
-        raise KeyError(f"Required variables 'I' and/or 'Q' not found in dataset. {vars_list}") from e
+        raise KeyError(
+            f"Required variables 'I' and/or 'Q' not found in dataset. {vars_list}"
+        ) from e
     ds["IQ_abs"] = _apply_modulus(s)
     ds["phase"] = _apply_angle(s, dim, unwrap_flag)
     if subtract_slope_flag:

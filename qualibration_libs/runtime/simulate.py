@@ -9,7 +9,6 @@ from qm.waveform_report import WaveformReport
 
 from qualibration_libs.parameters.common import CommonNodeParameters
 
-
 __all__ = ["simulate_and_plot"]
 
 

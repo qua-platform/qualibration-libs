@@ -36,7 +36,7 @@ class TestExpDecay:
         x = np.linspace(0, 10, 10)
         y = np.exp(-0.5 * x) + 0.01
 
-        with patch('numpy.polyfit') as mock_polyfit:
+        with patch("numpy.polyfit") as mock_polyfit:
             mock_polyfit.side_effect = np.linalg.LinAlgError("Mock linalg error")
 
             with pytest.raises(ValueError) as exc_info:

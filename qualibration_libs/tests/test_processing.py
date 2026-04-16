@@ -26,10 +26,12 @@ class TestAddAmplitudeAndPhase:
 
     def test_both_I_Q_present_works(self):
         """Test that having both I and Q works normally."""
-        ds = xr.Dataset({
-            "I": xr.DataArray([1, 2, 3], dims=["time"]),
-            "Q": xr.DataArray([4, 5, 6], dims=["time"])
-        })
+        ds = xr.Dataset(
+            {
+                "I": xr.DataArray([1, 2, 3], dims=["time"]),
+                "Q": xr.DataArray([4, 5, 6], dims=["time"]),
+            }
+        )
 
         result = add_amplitude_and_phase(ds, dim="time", unwrap_flag=False)
         assert "IQ_abs" in result

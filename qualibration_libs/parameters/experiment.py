@@ -44,7 +44,9 @@ def get_qubits(node: QualibrationNode) -> BatchableList[AnyTransmon]:
     return qubits_batchable_list
 
 
-def _get_qubits(machine: AnyQuam, node_parameters: QubitsExperimentNodeParameters) -> List[AnyTransmon]:
+def _get_qubits(
+    machine: AnyQuam, node_parameters: QubitsExperimentNodeParameters
+) -> List[AnyTransmon]:
     if node_parameters.qubits is None or node_parameters.qubits == "":
         qubits = machine.active_qubits
     else:
@@ -52,8 +54,12 @@ def _get_qubits(machine: AnyQuam, node_parameters: QubitsExperimentNodeParameter
             qubits = [machine.qubits[q] for q in node_parameters.qubits]
         except KeyError as e:
             qubits_list = format_available_items(machine.qubits, item_type="qubits")
-            not_found_qubit = next((q for q in node_parameters.qubits if q not in machine.qubits), None)
-            raise KeyError(f"Qubit '{not_found_qubit}' not found in machine. {qubits_list}") from e
+            not_found_qubit = next(
+                (q for q in node_parameters.qubits if q not in machine.qubits), None
+            )
+            raise KeyError(
+                f"Qubit '{not_found_qubit}' not found in machine. {qubits_list}"
+            ) from e
 
     return qubits
 
@@ -66,26 +72,43 @@ def get_qubit_pairs(node: QualibrationNode) -> BatchableList[AnyTransmonPair]:
     else:
         multiplexed = False
 
-    qubit_pairs_batchable_list = _make_batchable_list_from_multiplexed(qubit_pairs, multiplexed)
+    qubit_pairs_batchable_list = _make_batchable_list_from_multiplexed(
+        qubit_pairs, multiplexed
+    )
 
     return qubit_pairs_batchable_list
 
 
-def _get_qubit_pairs(machine: AnyQuam, node_parameters: QubitPairExperimentNodeParameters) -> List[AnyTransmonPair]:
+def _get_qubit_pairs(
+    machine: AnyQuam, node_parameters: QubitPairExperimentNodeParameters
+) -> List[AnyTransmonPair]:
     if node_parameters.qubit_pairs is None or node_parameters.qubit_pairs == "":
         qubit_pairs = machine.active_qubit_pairs
     else:
         try:
             qubit_pairs = [machine.qubit_pairs[q] for q in node_parameters.qubit_pairs]
         except KeyError as e:
-            pairs_list = format_available_items(machine.qubit_pairs, item_type="qubit pairs")
-            not_found_pair = next((q for q in node_parameters.qubit_pairs if q not in machine.qubit_pairs), None)
-            raise KeyError(f"Qubit pair '{not_found_pair}' not found in machine. {pairs_list}") from e
+            pairs_list = format_available_items(
+                machine.qubit_pairs, item_type="qubit pairs"
+            )
+            not_found_pair = next(
+                (
+                    q
+                    for q in node_parameters.qubit_pairs
+                    if q not in machine.qubit_pairs
+                ),
+                None,
+            )
+            raise KeyError(
+                f"Qubit pair '{not_found_pair}' not found in machine. {pairs_list}"
+            ) from e
 
     return qubit_pairs
 
 
-def _make_batchable_list_from_multiplexed(items: List, multiplexed: bool) -> BatchableList:
+def _make_batchable_list_from_multiplexed(
+    items: List, multiplexed: bool
+) -> BatchableList:
     if multiplexed:
         batched_groups = [[i for i in range(len(items))]]
     else:

@@ -21,7 +21,9 @@ class TestGetQubits:
 
         mock_node = Mock()
         mock_node.machine = mock_machine
-        mock_node.parameters = QubitsExperimentNodeParameters(qubits=["q1", "invalid_qubit"])
+        mock_node.parameters = QubitsExperimentNodeParameters(
+            qubits=["q1", "invalid_qubit"]
+        )
 
         with pytest.raises(KeyError) as exc_info:
             get_qubits(mock_node)
@@ -72,7 +74,9 @@ class TestGetQubitPairs:
 
         mock_node = Mock()
         mock_node.machine = mock_machine
-        mock_node.parameters = QubitPairExperimentNodeParameters(qubit_pairs=["pair1", "invalid_pair"])
+        mock_node.parameters = QubitPairExperimentNodeParameters(
+            qubit_pairs=["pair1", "invalid_pair"]
+        )
 
         with pytest.raises(KeyError) as exc_info:
             get_qubit_pairs(mock_node)
