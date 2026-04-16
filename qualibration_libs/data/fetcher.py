@@ -150,7 +150,7 @@ class XarrayDataFetcher:
         Returns:
             xr.Dataset: An empty dataset with coordinates if axes is provided.
         """
-        logger.debug("Initializing dataset with axes: {}".format(self.axes))
+        logger.debug(f"Initializing dataset with axes: {self.axes}")
         return xr.Dataset(coords=self.axes)
 
     def update_dataset(self):
@@ -203,9 +203,7 @@ class XarrayDataFetcher:
             for d in data_arrays:
                 if d.shape != ref_shape:
                     logger.error(
-                        "Mismatch in shapes of raw data arrays: {}".format(
-                            [d.shape for d in data_arrays]
-                        )
+                        f"Mismatch in shapes of raw data arrays: {[d.shape for d in data_arrays]}"
                     )
                     raise ValueError("All arrays must have the same shape")
         else:
