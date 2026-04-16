@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Fixed
 - parameters: Use qualibrate.core.parameters instead of removed qualibrate.parameters (fixes ModuleNotFoundError with current qualibrate API).
 - analysis/fitting - allows the fit to converge even if the exponential is inverted.
-- analysis/fitting - fit oscillations in a more robust manner.  
+- analysis/fitting - fit oscillations in a more robust manner.
 
 ### Changed
 - Raise minimum qualibrate to 1.0.2 and require Python >=3.10 to align with qualibrate.
