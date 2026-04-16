@@ -7,7 +7,6 @@ from lmfit import Model, Parameter
 
 from qualibration_libs.analysis.models import *
 
-
 __all__ = [
     "fit_oscillation",
     "fit_oscillation_decay_exp",
@@ -48,8 +47,8 @@ def fit_decay_exp(da, dim):
         return np.apply_along_axis(oed, -1, dat)
 
     def get_amp(dat):
-        end_ = np.mean(dat[:,-10:], axis=-1)
-        start_ = np.mean(dat[:,:10], axis=-1)
+        end_ = np.mean(dat[:, -10:], axis=-1)
+        start_ = np.mean(dat[:, :10], axis=-1)
         return (start_ - end_) / 2
 
     def get_min(dat):

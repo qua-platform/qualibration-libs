@@ -1,6 +1,5 @@
 import numpy as np
-from scipy.fft import fft
-import scipy.sparse as sparse
+from scipy import sparse
 import xarray as xr
 from scipy.signal import find_peaks, peak_widths
 from scipy.sparse.linalg import spsolve

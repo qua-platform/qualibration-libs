@@ -82,22 +82,34 @@ class QubitGrid:
         else:
             try:
                 grid_indices = [
-                    tuple(map(int, self._list_clean(ds.qubit.values[q_index].split(","))))
+                    tuple(
+                        map(int, self._list_clean(ds.qubit.values[q_index].split(",")))
+                    )
                     for q_index in range(ds.qubit.size)
                 ]
             except IndexError as e:
-                raise IndexError(f"Error accessing qubit values at index. Dataset has {ds.qubit.size} qubits, but index access failed.") from e
+                raise IndexError(
+                    f"Error accessing qubit values at index. Dataset has {ds.qubit.size} qubits, but index access failed."
+                ) from e
             except (ValueError, AttributeError) as e:
-                raise ValueError(f"Error parsing qubit grid locations from dataset. Expected format like 'q-1,2' (comma-separated integers), but got: {ds.qubit.values}") from e
+                raise ValueError(
+                    f"Error parsing qubit grid locations from dataset. Expected format like 'q-1,2' (comma-separated integers), but got: {ds.qubit.values}"
+                ) from e
 
         if len(grid_indices) > 1:
             grid_name_mapping = dict(zip(grid_indices, ds.qubit.values))
         else:
             try:
-                qubit_value = str(ds.qubit.values[0]) if hasattr(ds.qubit.values, '__getitem__') else str(ds.qubit.values)
+                qubit_value = (
+                    str(ds.qubit.values[0])
+                    if hasattr(ds.qubit.values, "__getitem__")
+                    else str(ds.qubit.values)
+                )
                 grid_name_mapping = dict(zip(grid_indices, [qubit_value]))
             except (IndexError, Exception) as e:
-                raise IndexError(f"Error accessing single qubit value. Dataset qubit values: {ds.qubit.values}") from e
+                raise IndexError(
+                    f"Error accessing single qubit value. Dataset qubit values: {ds.qubit.values}"
+                ) from e
 
         grid_row_idxs = [idx[1] for idx in grid_indices]
         grid_col_idxs = [idx[0] for idx in grid_indices]
