@@ -42,6 +42,48 @@ dev = [
     "pytest-mock>=3.14.0",
 ]
 
+# -----------------------------
+# Black configuration
+# -----------------------------
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+# -----------------------------
+# Mypy configuration (optional but recommended)
+# -----------------------------
+[tool.mypy]
+python_version = "3.10"
+packages = ["qm", "quam", "qualang_tools", "qualibrate"]
+ignore_missing_imports = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+show_error_codes = true
+pretty = true
+
+# -----------------------------
+# Pylint configuration
+# -----------------------------
+[tool.pylint.main]
+# Load the QUA plugin for suppressing false positives in QUA contexts
+# The init-hook finds the repo root (where pyproject.toml lives) and adds it to sys.path
+init-hook = "import sys, os; d = os.getcwd(); exec('while d != os.path.dirname(d):\\n if os.path.isfile(os.path.join(d, \"pyproject.toml\")): sys.path.insert(0, d); break\\n d = os.path.dirname(d)')"
+load-plugins = ["pylint_qua_plugin"]
+ignore = ["venv", ".venv"]
+
+[tool.pylint."messages control"]
+enable = ["E", "R", "F", "C"]
+disable = ["W", "I", "invalid-name", "import-error", "no-name-in-module", "too-many-locals"]
+
+[tool.pylint.reports]
+reports = false
+
+[tool.pylint.format]
+max-line-length = 120
+
 [tool.pytest.ini_options]
 testpaths = ["qualibration_libs/tests"]
 python_files = "test_*.py"
