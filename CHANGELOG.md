@@ -7,8 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [0.3.0] - 2026-03-31
 ### Added
-- Added support for Python 3.13.
-- 
+- Added support for Python 3.13 and Numpy 2.
+
 ### Fixed
 - parameters: Use qualibrate.core.parameters instead of removed qualibrate.parameters (fixes ModuleNotFoundError with current qualibrate API).
 - analysis/fitting - allows the fit to converge even if the exponential is inverted.
