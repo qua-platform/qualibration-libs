@@ -42,6 +42,8 @@ dev = [
     "pytest-mock>=3.14.0",
 ]
 
+[tool.hatch.metadata]
+allow-direct-references = true
 [tool.uv.sources]
 quam-builder = { git = "https://github.com/qua-platform/quam-builder.git" }
 
