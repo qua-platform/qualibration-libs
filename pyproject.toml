@@ -27,6 +27,21 @@ build-backend = "hatchling.build"
 [tool.hatch.build]
 packages = ["qualibration_libs"]
 
+[dependency-groups]
+dev = [
+    "ipykernel>=7.0.0a1",
+    "pre-commit",
+    "pylint>=3.0",
+    "astroid>=3.0",
+    "black",
+    "ruff",
+    "mypy",
+    "commitizen",
+    "pytest>=8.3.5",
+    "pytest-cov",
+    "pytest-mock>=3.14.0",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["qualibration_libs/tests"]
 python_files = "test_*.py"
