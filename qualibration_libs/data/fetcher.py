@@ -198,6 +198,25 @@ class XarrayDataFetcher:
         if dims_order[0] not in ["qubit", "qubit_pair"]:
             logger.error("first axis must be either qubit or qubit_pair")
 
+        # 0-D ndarray streams (e.g. shot counter "n" from n_st.save("n")) sit next to 1-D
+        # swept I/Q buffers. They must not participate in the uniform-shape check below.
+        # Expose scalars on self.data for progress_counter(..., data_fetcher.get("n", 0)).
+        for label in list(raw_data_arrays.keys()):
+            arr = raw_data_arrays[label]
+            if isinstance(arr, np.ndarray) and arr.ndim == 0:
+                self.data[label] = arr.item()
+                del raw_data_arrays[label]
+                logger.debug(
+                    "Extracted 0-D stream %r for fetcher.data; excluded from swept-array layout",
+                    label,
+                )
+
+        if not raw_data_arrays:
+            logger.debug(
+                "No swept-array handles after 0-D extraction; returning current dataset."
+            )
+            return self.dataset
+
         # Determine reference shape from non-None entries.
         data_arrays = [d for d in raw_data_arrays.values() if isinstance(d, np.ndarray)]
         if data_arrays:
