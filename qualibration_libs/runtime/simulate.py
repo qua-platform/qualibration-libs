@@ -3,7 +3,7 @@ from typing import Tuple, Union
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
-from qm import Program, QuantumMachinesManager, SimulationConfig
+from qm import Program, QuantumMachinesManager, SimulationConfig, FullQuaConfig
 from qm.results.simulator_samples import SimulatorSamples
 from qm.waveform_report import WaveformReport
 
@@ -15,7 +15,7 @@ __all__ = ["simulate_and_plot"]
 
 def simulate_and_plot(
     qmm: QuantumMachinesManager,
-    config: dict,
+    config: FullQuaConfig,
     program: Program,
     node_parameters: CommonNodeParameters,
 ) -> Tuple[SimulatorSamples, Figure, Union[WaveformReport, None]]:
@@ -40,9 +40,9 @@ def simulate_and_plot(
         duration=node_parameters.simulation_duration_ns // 4
     )
 
-    # Simulate blocks python until the simulation is done
+    # Simulate no longer blocks python until the simulation is done
     job = qmm.simulate(config, program, simulation_config)
-
+    job.wait_until("Done")
     # Plot the simulated samples
     samples = job.get_simulated_samples()
     fig, ax = plt.subplots(nrows=len(samples.keys()), sharex=True)

@@ -6,7 +6,7 @@ import numpy as np
 import xarray as xr
 
 from typing import Any, Dict, List, Optional, Union
-from qm.jobs.qm_job import QmJob
+from qm.jobs.qm_job import QmJob, RunningQmJob
 
 from qualibration_libs.core.exceptions import format_available_items
 from qualang_tools.results import fetching_tool
@@ -53,7 +53,7 @@ class XarrayDataFetcher:
 
     def __init__(
         self,
-        job: QmJob,
+        job: Union[QmJob, RunningQmJob],
         axes: Optional[Dict[str, Union[xr.DataArray, np.ndarray]]] = None,
     ):
         """
