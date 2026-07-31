@@ -98,9 +98,7 @@ class XarrayDataFetcher:
             return self.data[key]
         except KeyError as e:
             keys_list = format_available_items(self.data, item_type="keys")
-            raise KeyError(
-                f"Data key '{key}' not found in XarrayDataFetcher. {keys_list}"
-            ) from e
+            raise KeyError(f"Data key '{key}' not found in XarrayDataFetcher. {keys_list}") from e
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
@@ -152,7 +150,7 @@ class XarrayDataFetcher:
         Returns:
             xr.Dataset: An empty dataset with coordinates if axes is provided.
         """
-        logger.debug("Initializing dataset with axes: {}".format(self.axes))
+        logger.debug(f"Initializing dataset with axes: {self.axes}")
         return xr.Dataset(coords=self.axes)
 
     def update_dataset(self):
@@ -205,9 +203,7 @@ class XarrayDataFetcher:
             for d in data_arrays:
                 if d.shape != ref_shape:
                     logger.error(
-                        "Mismatch in shapes of raw data arrays: {}".format(
-                            [d.shape for d in data_arrays]
-                        )
+                        f"Mismatch in shapes of raw data arrays: {[d.shape for d in data_arrays]}"
                     )
                     raise ValueError("All arrays must have the same shape")
         else:
@@ -218,9 +214,7 @@ class XarrayDataFetcher:
 
         # Delegate to the correct update method.
         if axes_shape == ref_shape:
-            logger.debug(
-                "Axes shape matches raw data shape. Updating regular data arrays."
-            )
+            logger.debug("Axes shape matches raw data shape. Updating regular data arrays.")
             self._update_regular_data_arrays(raw_data_arrays, dims_order, axes_shape)
         elif len(axes_shape) == len(ref_shape) + 1 and axes_shape[1:] == ref_shape:
             logger.debug(
@@ -236,9 +230,7 @@ class XarrayDataFetcher:
         logger.debug("Dataset update complete.")
         return self.dataset
 
-    def _fill_missing_data(
-        self, data: Optional[np.ndarray], shape: tuple
-    ) -> np.ndarray:
+    def _fill_missing_data(self, data: Optional[np.ndarray], shape: tuple) -> np.ndarray:
         """
         Helper function to fill missing data.
 
@@ -265,9 +257,7 @@ class XarrayDataFetcher:
         logger.debug("Updating dataset without axes.")
         for label, data in raw_data.items():
             if data is None:
-                logger.debug(
-                    f"Data for variable '{label}' is None; filling with scalar NaN."
-                )
+                logger.debug(f"Data for variable '{label}' is None; filling with scalar NaN.")
                 data = np.nan
             else:
                 logger.debug(f"Updating variable '{label}' with shape {data.shape}.")
@@ -291,13 +281,9 @@ class XarrayDataFetcher:
             logger.debug(
                 f"Updating variable '{label}' with dims {dims_order} and shape {filled_data.shape}."
             )
-            self.dataset[label] = xr.DataArray(
-                filled_data, dims=dims_order, coords=self.axes
-            )
+            self.dataset[label] = xr.DataArray(filled_data, dims=dims_order, coords=self.axes)
 
-    def _update_qubit_data_arrays(
-        self, raw_data: Dict[str, Any], dims_order: List[str]
-    ):
+    def _update_qubit_data_arrays(self, raw_data: Dict[str, Any], dims_order: List[str]):
         """
         Group raw data keys matching the pattern {label}{idx} and stack them along a new dimension.
         If a raw data entry is None, it is replaced with an array of NaNs.
@@ -324,9 +310,7 @@ class XarrayDataFetcher:
                 grouped.setdefault(base, []).append((idx, filled_data))
             else:
                 filled_data = self._fill_missing_data(data, non_qubit_shape)
-                logger.debug(
-                    f"Key '{key}' does not match pattern; updating without qubit axis."
-                )
+                logger.debug(f"Key '{key}' does not match pattern; updating without qubit axis.")
                 self.dataset[key] = xr.DataArray(
                     filled_data,
                     dims=dims_order[1:],
