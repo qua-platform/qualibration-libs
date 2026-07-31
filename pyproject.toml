@@ -45,7 +45,7 @@ dev = [
 [tool.hatch.metadata]
 allow-direct-references = true
 [tool.uv.sources]
-quam-builder = { git = "https://github.com/qua-platform/quam-builder.git@release/nightly" }
+quam-builder = { git = "https://github.com/qua-platform/quam-builder.git", branch="release/nightly" }
 
 # -----------------------------
 # Black configuration
