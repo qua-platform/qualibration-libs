@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
 from qm import Program, QuantumMachinesManager, SimulationConfig, FullQuaConfig
-from qm.results.simulator_samples import SimulatorSamples
+from qm.simulate import SimulatorSamples
 from qm.waveform_report import WaveformReport
 
 from qualibration_libs.parameters.common import CommonNodeParameters
