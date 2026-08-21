@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-07-31
+## [0.3.1] - 2026-08-19
 ### Added
 - Added support for Python 3.13 and Numpy 2.
 
@@ -16,7 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Fixed a few type hinting warnings with qm-qua>=1.2.3.
 
 ### Changed
-- Raise minimum qualibrate to 1.0.2 and require Python >=3.10 to align with qualibrate.
+- Raise minimum qualibrate to >=1.5.0 and require Python >=3.10 to align with qualibrate.
+- Pin `quam-builder` to `v0.5.0` (replaces unpinned git source / `release/nightly` override).
 - data/fetcher: Switch result fetching from qm-qua dependent `qm_qua.QmJob.fetch_all` to qualang_tools dependent `qualang_tools.results.fetching_tool`.
 - data/fetcher: Use `fetching_tool` to retrieve acquisition metadata (e.g., `is_processing()` and `get_start_times()`).
 - data/fetcher: Apply `ignore_handles` filtering in `__init__` to reduce overhead in `retrieve_latest_data`.
@@ -44,8 +45,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 - First release for the Superconducting QUAlibration graph.
 
-[Unreleased]: https://github.com/qua-platform/qualibration-libs/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.3.0
+[Unreleased]: https://github.com/qua-platform/qualibration-libs/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.3.1
 [0.2.1]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.2.1
 [0.2.0]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.2.0
 [0.1.0]: https://github.com/qua-platform/qualibration-libs/releases/tag/v0.1.0
