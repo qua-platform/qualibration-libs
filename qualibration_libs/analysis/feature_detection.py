@@ -99,9 +99,15 @@ def peaks_dips(da, dim, prominence_factor=5, number=1, remove_baseline=True) -> 
 
     dim_step = da.coords[dim].diff(dim=dim).values[0]
 
-    # Taking a rolling mean and subtracting it to estimate the noise of the signal
+    # Taking a rolling mean and subtracting it to estimate the noise of the signal.
+    # Keep this per-slice along any dims other than `dim` (e.g. per qubit in a
+    # multiplexed sweep) rather than pooling into a single scalar: pooling lets
+    # whichever slice has the largest raw signal set the prominence threshold for
+    # every other slice, so a slice with a smaller (but still clean) peak/dip can
+    # fail to clear the threshold even though it's clearly visible, while a
+    # marginal true peak elsewhere can lose to a random noise fluctuation instead.
     rolling = da.rolling({dim: 10}, center=True).mean(dim=dim)
-    std = float((da - rolling).std())
+    std = (da - rolling).std(dim=dim)
 
     prom_peak_index = xr.apply_ufunc(
         _index_of_largest_peak,
