@@ -5,6 +5,11 @@ from .fitting import (
     fit_decay_exp,
     unwrap_phase,
 )
+from .lmfit_fits import (
+    fit_gaussian2d,
+    fit_line,
+    fit_lorentzian,
+)
 from .models import (
     oscillation,
     lorentzian_peak,
@@ -16,5 +21,6 @@ from .models import (
 __all__ = [
     *feature_detection.__all__,
     *fitting.__all__,
+    *lmfit_fits.__all__,
     *models.__all__,
 ]
