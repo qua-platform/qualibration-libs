@@ -110,3 +110,34 @@ class TestFitGaussian2d:
         da = self._gaussian_da(0.0, 0.0, 1.0, 1.0)
         ds = fit_gaussian2d(da, ("x", "y"), weights=1.0 / np.sqrt(np.maximum(da, 1.0)))
         assert abs(float(ds.centerx)) < 1e-3
+
+
+class TestPerSliceAxesAndWeights:
+    def test_line_zero_weight_drops_outlier(self):
+        x = np.linspace(0, 10, 20)
+        y = 2.0 * x + 1.0
+        y[5] = 100.0
+        da = xr.DataArray(y, dims=["x"], coords={"x": x})
+        weights = xr.ones_like(da)
+        weights[5] = 0.0
+        ds = fit_line(da, "x", weights=weights)
+        assert abs(float(ds.slope) - 2.0) < 1e-6
+
+    def test_gaussian2d_axes_differ_per_slice(self):
+        nx, ny = 21, 25
+        data, xs, ys = [], [], []
+        for offset in (0.0, 10.0):
+            x, y = np.linspace(-4, 4, nx) + offset, np.linspace(-5, 5, ny) + offset
+            X, Y = np.meshgrid(x, y, indexing="ij")
+            data.append(50 * np.exp(-((X - offset - 0.5) ** 2) / 2 - (Y - offset) ** 2 / 4.5) + 1)
+            xs.append(x), ys.append(y)
+        dims = ["slice", "xbin", "ybin"]
+        da = xr.DataArray(np.stack(data), dims=dims)
+        ds = fit_gaussian2d(
+            da,
+            ("xbin", "ybin"),
+            x=xr.DataArray(np.stack(xs), dims=["slice", "xbin"]),
+            y=xr.DataArray(np.stack(ys), dims=["slice", "ybin"]),
+        )
+        np.testing.assert_allclose(ds.centerx, [0.5, 10.5], atol=1e-3)
+        np.testing.assert_allclose(ds.centery, [0.0, 10.0], atol=1e-3)

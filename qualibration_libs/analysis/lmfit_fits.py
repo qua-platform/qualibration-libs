@@ -104,11 +104,13 @@ def fit_line(
     dim: str,
     x: xr.DataArray | None = None,
     fix_intercept_value: float | None = None,
+    weights: xr.DataArray | None = None,
     suffix: str = "",
 ) -> xr.Dataset:
     """Linear fit ``y = slope * x + intercept`` along ``dim``.
 
-    ``x`` defaults to the ``dim`` coordinate. Outputs: ``slope``, ``intercept`` (+ ``_err``).
+    ``x`` defaults to the ``dim`` coordinate. ``weights`` is 1/sigma per point; a zero weight
+    drops that point. Outputs: ``slope``, ``intercept`` (+ ``_err``).
     """
     x = da[dim] if x is None else x
     return _fit_xr(
@@ -117,6 +119,7 @@ def fit_line(
         [dim],
         [x],
         ["slope", "intercept"],
+        weights=weights,
         suffix=suffix,
         fix_intercept_value=fix_intercept_value,
     )
@@ -173,13 +176,17 @@ def _gaussian2d_1d(x, y, z, weights, fixed, negative=False) -> ModelResult:
 def fit_gaussian2d(
     da: xr.DataArray,
     dims: tuple[str, str],
+    x: xr.DataArray | None = None,
+    y: xr.DataArray | None = None,
     negative: bool = False,
     weights: xr.DataArray | None = None,
     suffix: str = "",
 ) -> xr.Dataset:
     """Axis-aligned 2D Gaussian plus constant offset over ``dims = (dim_x, dim_y)``.
 
-    The axes are the coordinates of ``dims``. ``weights`` has the dims of ``da`` (e.g. Poisson
+    The axes ``x`` and ``y`` default to the coordinates of ``dims``; pass DataArrays to use axes
+    that differ per slice (e.g. histogram bin centers, with dims ``dim_x`` / ``dim_y`` plus the
+    slice dims). ``weights`` has the dims of ``da`` (e.g. Poisson
     ``1/sqrt(counts)`` for histograms). ``best_fit`` has the dims of ``dims``.
     Outputs: ``centerx``, ``centery``, ``sigmax``, ``sigmay``, ``amplitude``, ``c`` (+ ``_err``).
     """
@@ -187,7 +194,7 @@ def fit_gaussian2d(
         _gaussian2d_1d,
         da,
         dims,
-        [da[d] for d in dims],
+        [da[dims[0]] if x is None else x, da[dims[1]] if y is None else y],
         ["centerx", "centery", "sigmax", "sigmay", "amplitude", "c"],
         weights=weights,
         suffix=suffix,
