@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
+### Added
+- analysis/lmfit_fits - xarray-native lmfit fits `fit_line`, `fit_lorentzian` (with optional weights and fixed parameters) and `fit_gaussian2d`, returning a Dataset of parameters, standard errors, reduced chi-square, R² and the best-fit curve.
 
 ## [0.3.1] - 2026-08-19
 ### Added
