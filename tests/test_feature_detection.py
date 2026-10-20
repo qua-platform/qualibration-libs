@@ -33,3 +33,36 @@ class TestPeaksDips:
         error_msg = str(exc_info.value)
         assert "Coordinate 'y' not found in DataArray." in error_msg
         assert "Available coordinates: 'x'" in error_msg
+
+    def test_small_peak_found_alongside_large_peak_in_batch(self):
+        """Regression test: in a multiplexed sweep (e.g. one entry per qubit), a
+        clean but small-amplitude peak must still be found even when another entry
+        in the same batch has a much larger amplitude.
+
+        The noise/prominence threshold must be estimated per-slice along the extra
+        dimension (e.g. per qubit), not pooled across the whole array - otherwise a
+        loud entry's noise floor sets the threshold for a quiet entry's real,
+        visible peak and it gets dropped.
+        """
+        rng = np.random.default_rng(0)
+        x = np.linspace(0, 10, 200)
+
+        # "loud" entry: amplitude ~1.0, noise std ~0.02
+        y_loud = np.exp(-((x - 5) ** 2) / (2 * 0.3**2)) + 0.02 * rng.standard_normal(200)
+        # "quiet" entry: amplitude ~0.005, but still ~10x its own local noise (std ~5e-4)
+        y_quiet = 0.005 * np.exp(-((x - 3) ** 2) / (2 * 0.3**2)) + 0.0005 * rng.standard_normal(200)
+
+        da = xr.DataArray(
+            np.stack([y_loud, y_quiet]),
+            dims=["batch", "x"],
+            coords={"batch": ["loud", "quiet"], "x": x},
+        )
+
+        result = peaks_dips(da, dim="x")
+
+        assert not np.isnan(result.position.sel(batch="loud").item())
+        assert not np.isnan(result.position.sel(batch="quiet").item()), (
+            "quiet entry's clearly visible peak was missed - noise threshold was "
+            "likely pooled across the batch instead of computed per-slice"
+        )
+        assert result.position.sel(batch="quiet").item() == pytest.approx(3, abs=0.3)
